@@ -1,0 +1,11 @@
+# 依存・ビルド成果物
+node_modules
+
+# --- ADDF Framework (do not remove) ---
+.claude/commands/*.exp.md
+.claude/.turn-count
+.claude/logs/
+CLAUDE.local.md
+CLAUDE.repo.md
+.claude/skills/addf-gui-test.md
+# --- /ADDF Framework ---
