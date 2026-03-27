@@ -62,6 +62,26 @@ allow curl
     -o\b|--output: ask  "curl writing to file requires confirmation"
 
 deny eval       "eval is not statically analyzable; write the command directly"
+
+# --- Path Protection (deny-redirect pattern) ---
+# Protect sensitive files by denying access and suggesting alternatives
+
+allow Read
+  args:
+    \.env$|\.env\.: deny  ".env contains secrets. Read .env.example instead"
+    \.ssh/|\.gnupg/: deny  "SSH/GPG keys should not be accessed by AI"
+    node_modules/: deny  "Don't read node_modules directly. Check package.json instead"
+
+allow Edit
+  args:
+    \.env$|\.env\.: deny  ".env contains secrets. Edit .env.example instead"
+    node_modules/: deny  "Don't edit node_modules. Modify package.json and run npm install"
+    dist/|build/|out/: deny  "Don't edit build artifacts. Modify source code instead"
+
+allow Write
+  args:
+    \.env$|\.env\.: deny  ".env contains secrets. Write to .env.example instead"
+    node_modules/: deny  "Don't write to node_modules. Modify package.json"
 `
 
 func runInit() {
