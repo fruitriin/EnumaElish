@@ -32,9 +32,7 @@ deny eval  "eval is not statically analyzable; write the command directly"
 Allows the command but sends a warning to Claude via stdout JSON.
 
 ```
-allow curl
-  mode: warn
-  message: "Consider using WebFetch instead"
+warn curl  "Consider using WebFetch instead"
 ```
 
 **Hook behavior:** exit 0, `{"decision":"allow","message":"..."}` on stdout.

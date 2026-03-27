@@ -90,7 +90,6 @@ And asks for confirmation on:
 
 Be aware of these limitations:
 
-- **`args:` rules are not yet evaluated** — pattern-based argument matching is parsed but not enforced
 - **`bash -c "cmd"`** — the nested command is detected but evaluated against the same rules (rm inside is "ask", not "deny")
 - **Aliases** — shell aliases are not resolvable
 - **PostToolUse** — `ccchain hook post` is currently a pass-through

@@ -84,6 +84,18 @@ Stats:
   templates: 3
 ```
 
+## `ccchain suggest`
+
+コマンドを分析し、`ask` フォールバックに該当するものに対してルール追加を提案します。どのコマンドに明示的なルールが必要かを発見するのに便利です。
+
+```bash
+# コマンド引数から
+ccchain suggest "ls -la" "cat foo.txt" "rm -rf /"
+
+# ファイルから（1行1コマンド）
+cat commands.txt | ccchain suggest
+```
+
 ## `ccchain init`
 
 デフォルトの `.ccchain.conf` を生成します。既存ファイルがある場合は上書きしません。
@@ -103,6 +115,7 @@ ccchain init
 | フラグ | 説明 |
 |---|---|
 | `--config <path>` | 設定ファイルパスを明示指定（検索をスキップ） |
+| `--default-action <action>` | 未マッチコマンドのフォールバックアクションを上書き（`allow`, `deny`, `ask`） |
 | `-v, --verbose` | 詳細出力 |
 | `-q, --quiet` | エラーのみ出力 |
 | `--version` | バージョン表示 |

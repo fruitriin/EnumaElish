@@ -79,7 +79,6 @@ ccchain eval "find . | grep foo"    # → allow
 
 以下の制限に注意:
 
-- **`args:` ルールは未実装** — 引数パターンマッチングはパースされるが評価されない
 - **`bash -c "cmd"`** — ネストコマンドは検出されるが同じルールで評価される（内部の rm は deny ではなく ask）
 - **エイリアス** — シェルエイリアスは解決不能
 - **PostToolUse** — `ccchain hook post` は現在パススルー

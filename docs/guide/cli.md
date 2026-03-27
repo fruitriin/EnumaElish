@@ -73,6 +73,18 @@ Stats:
   templates: 3
 ```
 
+## `ccchain suggest`
+
+Analyzes commands and suggests rules for those that fall through to the `ask` fallback. Useful for discovering which commands need explicit rules.
+
+```bash
+# From command arguments
+ccchain suggest "ls -la" "cat foo.txt" "rm -rf /"
+
+# From a file (one command per line)
+cat commands.txt | ccchain suggest
+```
+
 ## `ccchain init`
 
 Generates a default `.ccchain.conf` with sensible rules.
@@ -88,6 +100,7 @@ Will not overwrite an existing file.
 | Flag | Description |
 |---|---|
 | `--config <path>` | Explicit config file path |
+| `--default-action <action>` | Override fallback action for unmatched commands (`allow`, `deny`, `ask`) |
 | `-v, --verbose` | Verbose output |
 | `-q, --quiet` | Errors only |
 | `--version` | Print version |

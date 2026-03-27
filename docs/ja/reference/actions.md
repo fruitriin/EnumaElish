@@ -32,9 +32,7 @@ deny eval  "eval は静的解析不能です。コマンドを直接記述して
 コマンドを許可しますが、Claude に警告を送信します。
 
 ```
-allow curl
-  mode: warn
-  message: "WebFetch の使用を検討してください"
+warn curl  "WebFetch の使用を検討してください"
 ```
 
 **Hook 動作:** exit 0、`{"decision":"allow","message":"..."}` が stdout に出力。
