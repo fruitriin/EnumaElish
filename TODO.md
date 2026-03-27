@@ -3,7 +3,7 @@
 `docs/plans/` の完了状態・優先度をトラックする。
 `docs/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Phase 6（コード品質リファクタリング）
+## 現在のフェーズ: Phase 7（ドキュメント・仕上げ）
 
 ## バックログ
 
@@ -14,7 +14,7 @@
 | 3 | 3 | `docs/plans/0003-bpt-evaluation-and-hook-integration.md` | 完了 |
 | 4 | 4 | `docs/plans/0004-bpt-audit-and-addf-integration.md` | 完了 |
 | 5 | 5 | `docs/plans/0005-security-hardening.md` | 完了 |
-| 6 | 6 | `docs/plans/0006-code-quality-refactoring.md` | 未着手 |
+| 6 | 6 | `docs/plans/0006-code-quality-refactoring.md` | 完了 |
 | 7 | 7 | `docs/plans/0007-documentation-and-polish.md` | 未着手 |
 
 ---

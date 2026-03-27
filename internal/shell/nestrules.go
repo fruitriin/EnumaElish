@@ -57,7 +57,7 @@ func parseFindExec(args []string) *Topology {
 			}
 			if len(cmdParts) > 0 {
 				topo.Segments = append(topo.Segments, Segment{
-					Type: "single",
+					Type: SegmentTypeSingle,
 					Commands: []Command{{
 						Name:       cmdParts[0],
 						Args:       cmdParts[1:],
@@ -109,7 +109,7 @@ func parseXargs(args []string) *Topology {
 
 	return &Topology{
 		Segments: []Segment{{
-			Type: "single",
+			Type: SegmentTypeSingle,
 			Commands: []Command{{
 				Name:       args[cmdIdx],
 				Args:       args[cmdIdx+1:],
@@ -134,7 +134,7 @@ func parseBashC(args []string) *Topology {
 				// If we can't parse it, mark as unanalyzable
 				return &Topology{
 					Segments: []Segment{{
-						Type: "single",
+						Type: SegmentTypeSingle,
 						Commands: []Command{{
 							Name:       "(unparseable)",
 							Analyzable: false,
@@ -161,7 +161,7 @@ func parseEval(args []string) *Topology {
 	if strings.ContainsAny(evalStr, "$`") {
 		return &Topology{
 			Segments: []Segment{{
-				Type: "single",
+				Type: SegmentTypeSingle,
 				Commands: []Command{{
 					Name:       "(dynamic-eval)",
 					Analyzable: false,
@@ -175,7 +175,7 @@ func parseEval(args []string) *Topology {
 	if err != nil {
 		return &Topology{
 			Segments: []Segment{{
-				Type: "single",
+				Type: SegmentTypeSingle,
 				Commands: []Command{{
 					Name:       "(unparseable)",
 					Analyzable: false,
@@ -208,7 +208,7 @@ func parseEnvCmd(args []string) *Topology {
 
 	return &Topology{
 		Segments: []Segment{{
-			Type: "single",
+			Type: SegmentTypeSingle,
 			Commands: []Command{{
 				Name:       args[cmdIdx],
 				Args:       args[cmdIdx+1:],
@@ -249,7 +249,7 @@ func parseSudoCmd(args []string) *Topology {
 
 	return &Topology{
 		Segments: []Segment{{
-			Type: "single",
+			Type: SegmentTypeSingle,
 			Commands: []Command{{
 				Name:       args[cmdIdx],
 				Args:       args[cmdIdx+1:],

@@ -101,7 +101,7 @@ func TestBashC(t *testing.T) {
 	}
 
 	nestedSeg := cmd.Nested.Segments[0]
-	assertEqual(t, "nested.type", nestedSeg.Type, "pipeline")
+	assertEqual(t, "nested.type", nestedSeg.Type, SegmentTypePipeline)
 	if len(nestedSeg.Commands) != 2 {
 		t.Fatalf("expected 2 nested commands, got %d", len(nestedSeg.Commands))
 	}
@@ -155,7 +155,7 @@ func TestCurlPipeBash(t *testing.T) {
 	}
 
 	seg := topo.Segments[0]
-	assertEqual(t, "type", seg.Type, "pipeline")
+	assertEqual(t, "type", seg.Type, SegmentTypePipeline)
 	assertEqual(t, "cmd[0]", seg.Commands[0].Name, "curl")
 	assertEqual(t, "cmd[1]", seg.Commands[1].Name, "bash")
 }

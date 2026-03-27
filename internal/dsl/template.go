@@ -36,7 +36,7 @@ func ResolveTemplates(config *Config) error {
 		}
 	}
 
-	// Validate next references in templates
+	// Validate next references in templates and check for circular next chains
 	for _, t := range config.Templates {
 		if t.Next != "" {
 			if _, ok := tmplMap[t.Next]; !ok {
@@ -44,6 +44,14 @@ func ResolveTemplates(config *Config) error {
 			}
 		}
 	}
+	for _, t := range config.Templates {
+		if err := checkCircularNext(t.Name, tmplMap, nil); err != nil {
+			return err
+		}
+	}
+
+	// Store template index on config for O(1) lookup
+	config.TemplateIndex = tmplMap
 
 	return nil
 }
@@ -63,11 +71,9 @@ func checkCircularExtends(name string, tmplMap map[string]*Template, visited []s
 		return nil
 	}
 
-	parent, ok := tmplMap[t.Extends]
-	if !ok {
+	if _, ok := tmplMap[t.Extends]; !ok {
 		return &ParseError{Line: t.Line, Message: fmt.Sprintf("template %q extends unknown template %q", name, t.Extends)}
 	}
-	_ = parent
 
 	return checkCircularExtends(t.Extends, tmplMap, append(visited, name))
 }
@@ -152,8 +158,31 @@ func copyArgsRules(rules []*ArgsRule) []*ArgsRule {
 	return out
 }
 
+func checkCircularNext(name string, tmplMap map[string]*Template, visited []string) error {
+	for _, v := range visited {
+		if v == name {
+			return &ParseError{
+				Line:    tmplMap[name].Line,
+				Message: fmt.Sprintf("circular next detected: %v -> %s", visited, name),
+			}
+		}
+	}
+
+	t, ok := tmplMap[name]
+	if !ok || t.Next == "" {
+		return nil
+	}
+
+	return checkCircularNext(t.Next, tmplMap, append(visited, name))
+}
+
 // LookupTemplate returns the template with the given name, or nil if not found.
+// Uses TemplateIndex for O(1) lookup if available.
 func LookupTemplate(config *Config, name string) *Template {
+	if config.TemplateIndex != nil {
+		return config.TemplateIndex[name]
+	}
+	// Fallback to linear scan (pre-ResolveTemplates)
 	for _, t := range config.Templates {
 		if t.Name == name {
 			return t

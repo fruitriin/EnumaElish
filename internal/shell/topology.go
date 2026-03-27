@@ -12,9 +12,17 @@ type Topology struct {
 	Segments []Segment
 }
 
+// SegmentType represents the type of a segment.
+type SegmentType string
+
+const (
+	SegmentTypeSingle   SegmentType = "single"
+	SegmentTypePipeline SegmentType = "pipeline"
+)
+
 // Segment represents a group of commands connected by pipes or a single command.
 type Segment struct {
-	Type     string    // "pipeline" or "single"
+	Type     SegmentType
 	Commands []Command
 }
 
@@ -74,7 +82,7 @@ func extractBinarySegments(bin *syntax.BinaryCmd) []Segment {
 		// | is a pipeline — commands are in parent-child relationship
 		cmds := flattenPipeline(bin)
 		if len(cmds) > 0 {
-			return []Segment{{Type: "pipeline", Commands: cmds}}
+			return []Segment{{Type: SegmentTypePipeline, Commands: cmds}}
 		}
 		return nil
 
@@ -121,7 +129,7 @@ func buildSegmentFromStmt(stmt *syntax.Stmt) *Segment {
 		return nil
 	}
 	return &Segment{
-		Type:     "single",
+		Type:     SegmentTypeSingle,
 		Commands: []Command{*cmd},
 	}
 }

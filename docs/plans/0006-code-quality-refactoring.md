@@ -97,7 +97,24 @@ func CollectTemplateExecRules(tmpl *Template, config *Config) []*Rule
 
 ## 検証
 
-1. 既存テスト全パス
-2. `args:` ルール評価のテスト追加
-3. `go test ./...` + `go vet ./...` 通過
-4. ベンチマーク回帰なし
+1. 既存テスト全パス ✓
+2. `go test ./...` + `go vet ./...` 通過 ✓
+3. ベンチマーク改善 ✓（EndToEnd: 5.4μs→4.3μs）
+
+## 実装完了: 2026-03-27
+
+### 完了した項目
+- W-1: SegmentType 型定数化
+- W-2: nil Settings panic 修正
+- W-3: 死コード除去
+- S-2: LookupTemplate O(1) 化（Config.TemplateIndex）
+- S-3: blank identifier 削除
+- VULN-09: next: 循環の静的検出
+
+### Plan 0007 に先送りした項目
+- W-4: Audit exec truncation
+- W-5: PostRules 未評価の明示
+- S-1: テンプレート収集ロジック重複排除（影響範囲大）
+- S-4: parseArgsBlock エラー化
+- VULN-07: strict_config_error オプション
+- VULN-08: args: ルール評価実装

@@ -13,7 +13,7 @@ func TestBuildTopologySimple(t *testing.T) {
 		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
 	}
 	seg := topo.Segments[0]
-	assertEqual(t, "type", seg.Type, "single")
+	assertEqual(t, "type", seg.Type, SegmentTypeSingle)
 	assertEqual(t, "cmd", seg.Commands[0].Name, "ls")
 	assertEqual(t, "analyzable", seg.Commands[0].Analyzable, true)
 }
@@ -27,7 +27,7 @@ func TestBuildTopologyPipeline(t *testing.T) {
 		t.Fatalf("expected 1 segment (pipeline), got %d", len(topo.Segments))
 	}
 	seg := topo.Segments[0]
-	assertEqual(t, "type", seg.Type, "pipeline")
+	assertEqual(t, "type", seg.Type, SegmentTypePipeline)
 	if len(seg.Commands) != 3 {
 		t.Fatalf("expected 3 commands in pipeline, got %d", len(seg.Commands))
 	}
@@ -82,7 +82,7 @@ func TestBuildTopologyPipeAndReset(t *testing.T) {
 	if len(topo1.Segments) != 1 {
 		t.Fatalf("pipe: expected 1 segment, got %d", len(topo1.Segments))
 	}
-	assertEqual(t, "pipe type", topo1.Segments[0].Type, "pipeline")
+	assertEqual(t, "pipe type", topo1.Segments[0].Type, SegmentTypePipeline)
 	if len(topo1.Segments[0].Commands) != 2 {
 		t.Fatalf("pipe: expected 2 commands, got %d", len(topo1.Segments[0].Commands))
 	}
@@ -106,9 +106,9 @@ func TestBuildTopologyComplexChain(t *testing.T) {
 	if len(topo.Segments) != 3 {
 		t.Fatalf("expected 3 segments, got %d", len(topo.Segments))
 	}
-	assertEqual(t, "seg[0].type", topo.Segments[0].Type, "pipeline")
-	assertEqual(t, "seg[1].type", topo.Segments[1].Type, "single")
-	assertEqual(t, "seg[2].type", topo.Segments[2].Type, "pipeline")
+	assertEqual(t, "seg[0].type", topo.Segments[0].Type, SegmentTypePipeline)
+	assertEqual(t, "seg[1].type", topo.Segments[1].Type, SegmentTypeSingle)
+	assertEqual(t, "seg[2].type", topo.Segments[2].Type, SegmentTypePipeline)
 }
 
 func TestBuildTopologyVariableExpansion(t *testing.T) {

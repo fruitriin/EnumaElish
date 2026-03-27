@@ -48,8 +48,12 @@ func EvaluateTopology(topo *shell.Topology, config *dsl.Config) (*Result, error)
 
 	if worstResult == nil {
 		// No rule matched — use fallback
+		fallback := dsl.ActionAsk
+		if config.Settings != nil {
+			fallback = config.Settings.Fallback
+		}
 		return &Result{
-			Action:  config.Settings.Fallback,
+			Action:  fallback,
 			Message: "no matching rule (fallback)",
 		}, nil
 	}
@@ -59,7 +63,7 @@ func EvaluateTopology(topo *shell.Topology, config *dsl.Config) (*Result, error)
 
 // evaluateSegment evaluates a single segment against rules.
 func evaluateSegment(seg *shell.Segment, rules []*dsl.Rule, config *dsl.Config) *Result {
-	if seg.Type == "pipeline" {
+	if seg.Type == shell.SegmentTypePipeline {
 		return evaluatePipeline(seg.Commands, rules, config)
 	}
 

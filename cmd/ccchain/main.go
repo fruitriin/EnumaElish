@@ -51,10 +51,6 @@ func main() {
 		}
 	}
 
-	_ = verbose
-	_ = quiet
-	_ = cmdArgs
-
 	switch command {
 	case "check":
 		runCheck(configPath, verbose, quiet)

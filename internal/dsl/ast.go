@@ -3,11 +3,12 @@ package dsl
 
 // Config represents the top-level parsed DSL configuration.
 type Config struct {
-	Templates  []*Template
-	PreRules   []*Rule // rules under preToolUse section
-	PostRules  []*Rule // rules under postToolUse section
-	Rules      []*Rule // rules outside any section (legacy/default = preToolUse)
-	Settings   *Settings
+	Templates      []*Template
+	TemplateIndex  map[string]*Template // populated by ResolveTemplates
+	PreRules       []*Rule              // rules under preToolUse section
+	PostRules      []*Rule              // rules under postToolUse section
+	Rules          []*Rule              // rules outside any section (legacy/default = preToolUse)
+	Settings       *Settings
 }
 
 // Action represents the action type of a rule.
