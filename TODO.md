@@ -23,7 +23,7 @@
 | 10 | 14 | `docs/plans/0014-multi-tool-control.md` | 完了 | Read/Edit の hook 枠組みを先に作る（0011 の前提） |
 | 11 | 11 | `docs/plans/0011-workspace-scope-access-control.md` | 完了 | 0014 があれば Bash + Read/Edit 両方にスコープ適用可 |
 | 12 | 16 | `docs/plans/0016-deny-redirect.md` | 完了 | 0014 依存。マルチツール制御後に実装 |
-| 13 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 未着手 | 0011 完成後に安全なデフォルトを設計できる |
+| 13 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 完了 | 0011 完成後に安全なデフォルトを設計できる |
 | 14 | 13 | `docs/plans/0013-command-semantics-table.md` | 未着手 | 0010 のデフォルトルールと統合 |
 | 15 | 15 | `docs/plans/0015-project-auto-detect.md` | 未着手 | 0013 のテーブルを活用できる |
 | 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 未着手 | 基盤が固まってから最後に実装 |

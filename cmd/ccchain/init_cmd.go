@@ -37,6 +37,22 @@ template bulkExec
 
 preToolUse
 
+# --- Safe Utilities (no side effects) ---
+allow cat
+  next: primitive
+allow echo
+allow pwd
+allow diff
+allow which
+allow mkdir
+allow wc
+allow sort
+allow head
+allow tail
+allow cp
+allow chmod
+
+# --- Search & Processing ---
 allow ls
   next: primitive
 
@@ -51,9 +67,35 @@ allow xargs
 allow grep
   next: safeRead
 
+# --- Version Control ---
+allow git
+  args:
+    ^(status|log|diff|show|branch|tag|stash|ls-files|remote|rev-parse|worktree)\b: allow
+    ^(add|commit|checkout|merge|rebase|fetch|pull|clone)\b: allow
+    ^push\b: ask  "git push requires confirmation"
+    ^(filter-branch|filter-repo)\b: deny  "arbitrary code execution risk"
+    ^config\b.*(editor|pager|hook): deny  "code execution via config"
+
+# --- Build Tools ---
+allow go
+  args:
+    ^(test|vet|build|mod|version|fmt|env|doc|tool)\b: allow
+    ^(run|generate)\b: ask  "go run/generate can execute arbitrary code"
+
+allow make
+allow npm
+  args:
+    ^(test|run|version|ls|outdated|audit|ci)\b: allow
+    ^install\b: ask  "npm install runs postinstall scripts"
+    ^(publish|unpublish)\b: ask  "npm publish affects the registry"
+
+allow cargo
+
+# --- Destructive Commands ---
 ask rm
   message: "confirm file deletion"
 
+# --- Network ---
 allow curl
   |
     deny bash   "curl | bash is not allowed"
@@ -61,6 +103,7 @@ allow curl
   args:
     -o\b|--output: ask  "curl writing to file requires confirmation"
 
+# --- Dangerous ---
 deny eval       "eval is not statically analyzable; write the command directly"
 
 # --- Path Protection (deny-redirect pattern) ---
