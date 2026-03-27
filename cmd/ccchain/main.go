@@ -14,6 +14,7 @@ func main() {
 
 	var verbose, quiet bool
 	var configPath string
+	var defaultAction string
 	var command string
 	var cmdArgs []string
 
@@ -30,6 +31,18 @@ func main() {
 				configPath = args[i]
 			} else {
 				fmt.Fprintln(os.Stderr, "error: --config requires a path argument")
+				os.Exit(1)
+			}
+		case "--default-action":
+			if i+1 < len(args) {
+				i++
+				defaultAction = args[i]
+				if !dsl.IsValidAction(defaultAction) {
+					fmt.Fprintf(os.Stderr, "error: invalid default action: %q (must be allow, deny, or ask)\n", defaultAction)
+					os.Exit(1)
+				}
+			} else {
+				fmt.Fprintln(os.Stderr, "error: --default-action requires an action (allow, deny, ask)")
 				os.Exit(1)
 			}
 		case "--version":
@@ -61,7 +74,7 @@ func main() {
 		}
 		switch cmdArgs[0] {
 		case "pre":
-			runHookPre(configPath)
+			runHookPre(configPath, defaultAction)
 		case "post":
 			runHookPost(configPath)
 		default:
@@ -69,11 +82,13 @@ func main() {
 			os.Exit(1)
 		}
 	case "eval":
-		runEval(configPath, cmdArgs)
+		runEval(configPath, defaultAction, cmdArgs)
 	case "audit":
 		runAudit(configPath)
 	case "init":
 		runInit()
+	case "suggest":
+		runSuggest(configPath, cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
@@ -136,9 +151,10 @@ Commands:
   version     Print version
 
 Flags:
-  --config <path>   Configuration file path
-  -v, --verbose     Verbose output
-  -q, --quiet       Quiet output (errors only)
-  --version         Print version
-  -h, --help        Show help`)
+  --config <path>            Configuration file path
+  --default-action <action>  Fallback action for unmatched commands (allow, deny, ask)
+  -v, --verbose              Verbose output
+  -q, --quiet                Quiet output (errors only)
+  --version                  Print version
+  -h, --help                 Show help`)
 }
