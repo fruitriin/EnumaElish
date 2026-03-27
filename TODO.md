@@ -19,6 +19,7 @@
 | 8 | 8 | `docs/plans/0008-args-rule-evaluation.md` | 完了 |
 | 9 | 9 | `docs/plans/0009-mode-property-and-doc-accuracy.md` | 未着手 |
 | 10 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 未着手 |
+| 11 | 11 | `docs/plans/0011-workspace-scope-access-control.md` | 未着手 |
 
 ## ロードマップ（未計画）
 
