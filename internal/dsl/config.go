@@ -53,7 +53,7 @@ func searchPaths() []string {
 	paths = append(paths, ".ccchain.conf")
 	paths = append(paths, ".ccchain.local.conf")
 
-	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" && filepath.IsAbs(dir) {
 		paths = append(paths, filepath.Join(dir, "ccchain.conf"))
 	} else {
 		home, err := os.UserHomeDir()

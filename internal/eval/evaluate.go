@@ -167,8 +167,24 @@ func evaluatePipeline(cmds []shell.Command, rules []*dsl.Rule, config *dsl.Confi
 
 // evaluateNested evaluates nested commands (find -exec, bash -c, etc.)
 func evaluateNested(parent *shell.Command, rules []*dsl.Rule, config *dsl.Config) *Result {
+	return evaluateNestedWithDepth(parent, rules, config, 0)
+}
+
+func evaluateNestedWithDepth(parent *shell.Command, rules []*dsl.Rule, config *dsl.Config, depth int) *Result {
 	if parent.Nested == nil {
 		return nil
+	}
+
+	maxDepth := 2
+	if config.Settings != nil && config.Settings.MaxContextDepth > 0 {
+		maxDepth = config.Settings.MaxContextDepth
+	}
+	if depth >= maxDepth {
+		return &Result{
+			Action:  dsl.ActionDeny,
+			Message: "max context depth exceeded",
+			Context: []string{parent.Name, "exec: (depth limit)"},
+		}
 	}
 
 	parentRule := findMatchingRule(parent.Name, rules)
@@ -198,6 +214,14 @@ func evaluateNested(parent *shell.Command, rules []*dsl.Rule, config *dsl.Config
 			}
 			if result != nil && isMoreRestrictive(result, worstResult) {
 				worstResult = result
+			}
+
+			// Recurse into nested commands with depth tracking
+			if cmd.Nested != nil {
+				nestedResult := evaluateNestedWithDepth(&cmd, rules, config, depth+1)
+				if nestedResult != nil && isMoreRestrictive(nestedResult, worstResult) {
+					worstResult = nestedResult
+				}
 			}
 		}
 	}

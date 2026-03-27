@@ -37,7 +37,10 @@ func main() {
 			if i+1 < len(args) {
 				i++
 				defaultAction = args[i]
-				if !dsl.IsValidAction(defaultAction) {
+				switch dsl.Action(defaultAction) {
+				case dsl.ActionAllow, dsl.ActionDeny, dsl.ActionAsk:
+					// valid
+				default:
 					fmt.Fprintf(os.Stderr, "error: invalid default action: %q (must be allow, deny, or ask)\n", defaultAction)
 					os.Exit(1)
 				}
@@ -146,6 +149,7 @@ Commands:
   hook pre    PreToolUse hook (reads tool JSON from stdin)
   hook post   PostToolUse hook (reads tool JSON from stdin)
   eval "cmd"  Evaluate a command and output result as JSON
+  suggest     Suggest rules for unmatched commands
   audit       Display flat expansion of all rules
   init        Generate default .ccchain.conf
   version     Print version

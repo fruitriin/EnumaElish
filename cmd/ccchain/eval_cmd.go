@@ -9,7 +9,7 @@ import (
 	"github.com/fruitriin/ccchain/internal/eval"
 )
 
-func runEval(configPath string, cmdArgs []string) {
+func runEval(configPath string, defaultAction string, cmdArgs []string) {
 	if len(cmdArgs) == 0 {
 		fmt.Fprintln(os.Stderr, "error: ccchain eval requires a command string")
 		fmt.Fprintln(os.Stderr, "usage: ccchain eval \"command string\"")
@@ -22,6 +22,13 @@ func runEval(configPath string, cmdArgs []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(1)
+	}
+
+	if defaultAction != "" {
+		if cfg.Settings == nil {
+			cfg.Settings = dsl.DefaultSettings()
+		}
+		cfg.Settings.Fallback = dsl.Action(defaultAction)
 	}
 
 	result, err := eval.Evaluate(cmdStr, cfg)

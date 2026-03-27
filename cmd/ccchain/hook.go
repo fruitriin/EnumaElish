@@ -21,11 +21,17 @@ type bashInput struct {
 	Command string `json:"command"`
 }
 
-func runHookPre(configPath string) {
-	input, err := io.ReadAll(os.Stdin)
+const maxStdinBytes = 1 << 20 // 1MB
+
+func runHookPre(configPath string, defaultAction string) {
+	input, err := io.ReadAll(io.LimitReader(os.Stdin, maxStdinBytes))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading stdin: %v\n", err)
 		os.Exit(1)
+	}
+	if int64(len(input)) >= maxStdinBytes {
+		fmt.Fprintln(os.Stderr, "ccchain: stdin input exceeds 1MB limit (allowing)")
+		os.Exit(0)
 	}
 
 	var ti toolInput
@@ -54,6 +60,13 @@ func runHookPre(configPath string) {
 		fmt.Fprintf(os.Stderr, "ccchain config error: %v\n", err)
 		// Config error — don't block, just warn
 		os.Exit(0)
+	}
+
+	if defaultAction != "" {
+		if cfg.Settings == nil {
+			cfg.Settings = dsl.DefaultSettings()
+		}
+		cfg.Settings.Fallback = dsl.Action(defaultAction)
 	}
 
 	result, err := eval.Evaluate(bi.Command, cfg)
