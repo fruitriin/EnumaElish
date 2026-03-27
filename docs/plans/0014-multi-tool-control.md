@@ -96,3 +96,12 @@ preToolUse
 - MCP ツールは名前のワイルドカードマッチが必要（`mcp__*__delete_*`）
 
 ## 実装量: 中（hook 分岐 + DSL パーサー拡張 + ツール別 evaluator）
+
+## 実装完了: 2026-03-28 (Phase 1)
+
+Phase 1 完了:
+- hook.go: Bash/Read/Edit/Write/WebFetch/MCP ツールの分岐処理
+- eval/tool.go: EvaluateTool（ツール名マッチ + args: 評価 + MCP ワイルドカード）
+- テスト 7 件
+
+Phase 2（DSL ツール種別セクション構文）は将来課題。

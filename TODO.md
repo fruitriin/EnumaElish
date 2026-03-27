@@ -20,7 +20,7 @@
 | 7 | 7 | `docs/plans/0007-documentation-and-polish.md` | 完了 | |
 | 8 | 8 | `docs/plans/0008-args-rule-evaluation.md` | 完了 | |
 | 9 | 9 | `docs/plans/0009-mode-property-and-doc-accuracy.md` | 完了 | mode: 誤動作を早期修正、ドキュメント誤誘導排除 |
-| 10 | 14 | `docs/plans/0014-multi-tool-control.md` | 未着手 | Read/Edit の hook 枠組みを先に作る（0011 の前提） |
+| 10 | 14 | `docs/plans/0014-multi-tool-control.md` | 完了 | Read/Edit の hook 枠組みを先に作る（0011 の前提） |
 | 11 | 11 | `docs/plans/0011-workspace-scope-access-control.md` | 未着手 | 0014 があれば Bash + Read/Edit 両方にスコープ適用可 |
 | 12 | 16 | `docs/plans/0016-deny-redirect.md` | 未着手 | 0014 依存。マルチツール制御後に実装 |
 | 13 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 未着手 | 0011 完成後に安全なデフォルトを設計できる |
