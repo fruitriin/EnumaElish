@@ -52,8 +52,8 @@ With these rules:
 
 ## Key Design Decisions
 
-- **`&&` and `;` reset context** — commands after chain operators are evaluated from scratch at top level
 - **`|` and `>>` build context** — piped commands inherit their parent's rules
-- **Last-rule-wins** — when multiple rules match, the last one takes precedence
+- **`&&` and `;` reset context** — commands after chain operators are evaluated from scratch at top level
 - **Deny messages guide Claude** — blocked commands include a reason, so Claude can self-correct
+- **Last-rule-wins** — when multiple rules match, the last one takes precedence
 - **Fail-open** — if ccchain can't parse a command, it allows it (never blocks on internal errors)

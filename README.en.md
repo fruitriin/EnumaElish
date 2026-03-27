@@ -100,8 +100,8 @@ deny rm
 
 ## Features
 
-- **Deny with hints** — Write `deny rm -rf / "rm -rf ~/ destroys all user files"` and Claude reads the hint to autonomously rewrite the command safely. Not just a guardrail — a conversation channel with AI
 - **Structural context** — Tracks commands inside pipes (`|`), redirects (`>>`), subshells (`$()`), and `-exec` as nested structures
+- **Deny with hints** — Write `deny rm -rf / "rm -rf ~/ destroys all user files"` and Claude reads the hint to autonomously rewrite the command safely. Not just a guardrail — a conversation channel with AI
 - **Reset semantics** — Commands separated by `&&` / `;` are evaluated independently
 - **Templates & inheritance** — `extends` to build on existing templates, `next` to share pipe-target rules. Define common rules for `find`, `xargs`, `grep` once
 - **4 actions** — `allow` / `deny` / `ask` / `warn` for flexible permission control
