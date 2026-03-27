@@ -45,6 +45,12 @@ export default defineConfig({
             { text: 'Customization', link: '/guide/customization' },
           ],
         },
+        {
+          text: 'Project',
+          items: [
+            { text: 'Roadmap', link: '/guide/roadmap' },
+          ],
+        },
       ],
       '/reference/': [
         {
@@ -110,6 +116,12 @@ export default defineConfig({
                 { text: 'デフォルトルール', link: '/ja/guide/default-rules' },
                 { text: 'ルールチューニング', link: '/ja/guide/rule-tuning' },
                 { text: 'カスタマイズ', link: '/ja/guide/customization' },
+              ],
+            },
+            {
+              text: 'プロジェクト',
+              items: [
+                { text: 'ロードマップ', link: '/ja/guide/roadmap' },
               ],
             },
           ],

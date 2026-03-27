@@ -199,12 +199,15 @@ allow curl
     -o\b|--output: ask  "ファイル書き出しは確認が必要"
 ```
 
-### セキュリティ上の考慮
+### セキュリティ上の考慮（セキュリティレビュー反映済み）
 
-1. **パス解決の限界**: `../../etc/passwd` や symlink は解決しない。静的解析の限界として明記
-2. **ScopeUnknown**: 相対パス（CWD 不明）は inside 扱い（fail-open）。理由: CWD は通常 workspace 内
-3. **環境変数パス**: `$HOME/file` は動的引数として args: 評価をスキップ → 親ルールのアクション
-4. **scope なしのルール**: scope ディレクティブがない場合は従来通りの動作（後方互換）
+1. **パストラバーサル対策 [Critical]**: `..` を含む相対パスは強制的に `ScopeOutside` として扱う。`../../etc/passwd` が ScopeUnknown → inside → allow になるバイパスを防止
+2. **ScopeUnknown ポリシー**: デフォルトは `outside`（fail-closed）に変更。`..` を含まない純粋な相対パス（`file.txt`）のみ inside 扱い
+3. **Tilde 展開バイパス防止 [High]**: `~/workspace2/../.ssh/id_rsa` が `~/workspace` のプレフィックスに誤マッチしないよう、`filepath.Clean` で正規化 + トレイリングスラッシュ付き比較
+4. **複数パス引数 [Medium]**: 全パスを評価し最も制限的な結果を返す（最初の一致で返さない）
+5. **環境変数パス**: `$HOME/file` は動的引数として args: 評価をスキップ → 親ルールのアクション
+6. **scope なしのルール**: scope ディレクティブがない場合は従来通りの動作（後方互換）
+7. **Read/Edit/Write ツールの限界**: 本 Plan は **Bash コマンドの引数のみ** が対象。`Read ~/.ssh/id_rsa` のような直接的なツール呼び出しには Plan 0014（マルチツール制御）が必要。この限界をドキュメントに明記すること
 
 ### CWD の取得
 
