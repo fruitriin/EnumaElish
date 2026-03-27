@@ -15,6 +15,23 @@ The following capabilities are fully implemented:
 
 ---
 
+## Recommended Implementation Order
+
+Based on a security review, the recommended implementation order differs from phase numbering:
+
+| Order | Phase | Feature | Security Rationale |
+|---|---|---|---|
+| 1 | 9 | DSL Consistency | Fix mode: misbehavior and doc misleading |
+| 2 | 14 | Multi-Tool Control | Read/Edit hook framework needed before scope |
+| 3 | 11 | Workspace Scope | With 14, scope applies to Bash + Read/Edit |
+| 4 | 16 | Path Redirect | Depends on 14 (multi-tool) |
+| 5 | 10 | Better Defaults | Safe defaults designed after scope is in place |
+| 6 | 13 | Semantics Table | Integrates with 10's default rules |
+| 7 | 15 | Auto-Detection | Leverages 13's semantics table |
+| 8 | 12 | Message Templates | Foundational features settled first |
+
+---
+
 ## Planned Features
 
 ### Phase 9 — DSL Consistency
