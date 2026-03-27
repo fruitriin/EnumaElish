@@ -17,7 +17,7 @@ ccchain uses an indent-based text DSL for rule configuration.
   args:
     <pattern>: <action>
   # Properties
-  mode: block | warn | hint
+  mode: block | warn | hint  # DEPRECATED: parsed but has no effect. Use warn/hint actions directly.
   message: "..."
   next: <template_name>
 

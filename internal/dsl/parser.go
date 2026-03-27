@@ -3,6 +3,7 @@ package dsl
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -257,6 +258,8 @@ func (p *parser) parseRule(parentIndent int) (*Rule, error) {
 				return nil, err
 			}
 			rule.Mode = val
+			// mode: is deprecated — parsed for backward compatibility but has no effect
+			fmt.Fprintf(os.Stderr, "ccchain: warning: line %d: mode: property is deprecated and has no effect. Use 'warn' or 'hint' actions directly.\n", childLine.LineNo)
 			p.advance()
 
 		case tok.Type == TokenKeyword && tok.Value == "message":

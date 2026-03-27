@@ -17,7 +17,7 @@ ccchain はインデントベースのテキスト DSL を使用します。
   args:
     <パターン>: <action>
   # プロパティ
-  mode: block | warn | hint
+  mode: block | warn | hint  # 非推奨: パースされるが評価に影響しない。warn/hint アクションを直接使用
   message: "..."
   next: <テンプレート名>
 
