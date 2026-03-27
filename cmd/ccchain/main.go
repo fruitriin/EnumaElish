@@ -74,6 +74,10 @@ func main() {
 		}
 	case "eval":
 		runEval(configPath, cmdArgs)
+	case "audit":
+		runAudit(configPath)
+	case "init":
+		runInit()
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
@@ -131,6 +135,8 @@ Commands:
   hook pre    PreToolUse hook (reads tool JSON from stdin)
   hook post   PostToolUse hook (reads tool JSON from stdin)
   eval "cmd"  Evaluate a command and output result as JSON
+  audit       Display flat expansion of all rules
+  init        Generate default .ccchain.conf
   version     Print version
 
 Flags:
