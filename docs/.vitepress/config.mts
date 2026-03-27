@@ -25,6 +25,7 @@ export default defineConfig({
             { text: 'What is ccchain?', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quickstart' },
+            { text: 'Permissive Mode', link: '/guide/permissive-mode' },
           ],
         },
         {
@@ -90,6 +91,7 @@ export default defineConfig({
                 { text: 'ccchain とは', link: '/ja/guide/' },
                 { text: 'インストール', link: '/ja/guide/installation' },
                 { text: 'クイックスタート', link: '/ja/guide/quickstart' },
+                { text: 'パーミッシブモード', link: '/ja/guide/permissive-mode' },
               ],
             },
             {
