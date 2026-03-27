@@ -1,7 +1,63 @@
-@CLAUDE.repo.example.md
+# CLAUDE.repo.md
 
-## ADDF 開発用ブートシーケンス補足
+EnumaElish — ccchain (Claude Code Chain)
 
-このリポジトリは ADDF 本体のため、ブートシーケンスの手順 2 では `TODO.md` に加えて以下も読む:
-- @docs/plans-add/TODO.addf.md — ADDF 開発タスクバックログ
-- `docs/plans-add/`: ADDF 開発の実装計画ファイル
+Claude Code の標準 permission system を拡張し、シェルコマンドの構造的コンテキスト（パイプ、チェーン、サブシェル）を考慮した許可/拒否制御を行う Go 製シングルバイナリツール。
+
+## 技術スタック
+
+- Go
+- `mvdan.cc/sh`（シェルパーサー、唯一の外部依存）
+- 独自テキスト DSL（インデントベース）
+- シェルパースモード: bash（`syntax.LangBash`）
+- `args:` パターン: regex
+- バージョニング: セマンティックバージョニング
+
+## 設定ファイル探索パス（優先度順）
+
+1. `.ccchain.conf`（プロジェクトルート）
+2. `.ccchain.local.conf`（ローカル上書き、gitignore 対象）
+3. `$CLAUDE_CONFIG_DIR/ccchain.conf`
+4. `~/.claude/ccchain.conf`（`CLAUDE_CONFIG_DIR` 未設定時のフォールバック）
+
+# プロジェクト種別
+
+このリポジトリは **ADDF 利用プロジェクト** です。
+
+# 哲学
+
+AutomatonDevDrive由来のソースコードは .claude 配下に収めてください。
+AutomatonDevDrive由来のスキルは addf- プレフィックスを持ちます
+プロジェクトルート配下にADD由来のファイルをなるべく置かないべきです。
+
+---
+
+## コミットログ規約
+
+日本語で書く。形式:
+
+```
+[領域] 変更内容の要約
+
+詳細説明（必要な場合）
+```
+
+---
+
+## テスト
+
+プロジェクト固有テスト:
+
+```bash
+go test ./...
+go vet ./...
+go build ./cmd/ccchain
+```
+
+ADD フレームワークテスト:
+
+```bash
+bash .claude/tests/run-all.sh
+```
+
+品質ゲートの Stage 1 で上記の全コマンドを実行してください。

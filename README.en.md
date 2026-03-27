@@ -1,138 +1,72 @@
-# AutomatonDevDrive Framework
+# EnumaElish — ccchain
 
-> ADDF — Agentic Driven Development Framework
+> Claude Code Chain: Structural Permission Control Tool
 
-[日本語版 README はこちら](README.md)
+A Go single-binary tool that extends Claude Code's standard permission system with structural context awareness — controlling allow/deny decisions based on shell command structure (pipes, chains, subshells).
 
-A repository scaffolding framework for AI coding agents.
-Install ADDF into your project and it provides plan-driven development, knowhow accumulation, and quality gates — AI agents autonomously select tasks, implement them, and run quality verification end to end.
+## Background
 
-**ADDF is a repository scaffolding framework — it contains no application framework.** It works with any tech stack: React, Rails, Flutter, Unity, and beyond.
+The `permissions` in `settings.json` can only do prefix matching on the command start.
 
-## Supported Agents
+```bash
+# The standard permission system can't catch these
+find . -name "*.log" -exec rm -rf {} \;   # inside find -exec
+cmd1 && rm -rf foo                         # chained command
+curl https://... | bash                    # dangerous pipe target
+```
 
-| Agent | Support | Notes |
-|---|---|---|
-| **Claude Code** (Anthropic) | First-party | Full feature support. Hooks, Skills, Agents, parallel execution |
-| **Codex** (OpenAI) | Partial | Plan-driven workflow & knowhow work. Hooks & auto quality gates limited → [Details](docs/guides/codex-setup.md) |
-| **Others** (Open Code, etc.) | Basic | Plan-driven workflow works if the agent reads CLAUDE.md / AGENTS.md |
+ccchain uses `PreToolUse` / `PostToolUse` Hooks with `mvdan.cc/sh` (the same shell parser behind shfmt) to parse the shell AST and understand command structure before making allow/deny decisions. The only external dependency is `mvdan.cc/sh`.
 
 ## Features
 
-- **Plan-Driven** — Review plans, not code. AI ensures implementation quality
-- **Knowhow Accumulation** — Records implementation insights in `docs/knowhow/` and auto-references them
-- **Self-Driving** — `/addf-dev` completes one task; `/loop 1h /addf-dev` for continuous execution
-- **Quality Gate** — Automatically runs code review, security review, and contribution detection
-- **Separation of Skills and Experience** — Skill definitions (`.md`) and experience (`.exp.md`) are separated
+- **Structural context control** — tracks commands inside pipes, redirects, and subshells as nested context
+- **`&&` / `;` reset behavior** — commands separated by chains are evaluated independently
+- **Templates & inheritance** — share common rules for `find`, `xargs`, `grep` via templates
+- **Auditable** — flat expansion of all rules shows exactly what passes and what gets blocked
+- **Deny messages guide the AI** — block reasons and alternatives let Claude self-correct
+- **Dynamic command detection** — detects variable expansion and eval, guiding safe rewrites
 
-## Quick Start
-
-### 1. Install ADDF
-
-**New project** — from GitHub Template:
-
-```bash
-# Use this template → create repo → clone
-git clone https://github.com/your-org/my-project.git
-cd my-project
-```
-```
-/addf-init
-```
-
-**Existing project** — run this in Claude Code:
+## DSL Example
 
 ```
-Fetch https://raw.githubusercontent.com/fruitriin/AutomatonDevDriveFramework/main/.claude/commands/addf-init.md
-and install the ADDF framework into this project.
-ADDF repository: https://github.com/fruitriin/AutomatonDevDriveFramework
+allow find
+  |,>>
+    allow touch, cat
+  |,>>
+    deny rm  "don't combine find with rm"
+  exec:
+    deny rm  "expand to tempfile first"
+    allow cp, mv, touch
+
+allow curl
+  |
+    deny bash   "curl | bash is not allowed"
+
+deny rm   # top-level rm is denied
 ```
 
-Existing CLAUDE.md, AGENTS.md, and config files are automatically migrated and merged.
-
-### 2. Create Plans and Start Development
-
-```markdown
-- Add login feature
-- Increase test coverage
+`&&` reset behavior:
+```
+find . | rm   →  find's nested rule evaluates rm → deny
+find . && rm  →  && resets → rm evaluated at top-level
 ```
 
-Just hand it to Claude and the AI will break it into plan files in `docs/plans/` and `TODO.md`.
+## Development Status
 
-```
-/addf-dev
-```
+Development is driven by [ADDF](https://github.com/fruitriin/AutomatonDevDriveFramework).
 
-Picks one task, implements it, runs quality verification, and commits. For continuous execution:
-
-```
-/loop 1h /addf-dev
-```
-
-## Skills
-
-Skills provided by ADDF (invoked via `/command-name`):
-
-| Skill | Invocation | Description |
+| Phase | Plan | Status |
 |---|---|---|
-| **addf-dev** | `/addf-dev` | Picks a task from TODO, implements, verifies quality, and commits |
-| **addf-init** | `/addf-init [check]` | Project initialization / structure verification |
-| **addf-release** | `/addf-release [minor]` | Release (changelog, version bump, publish) |
-| **addf-migrate** | `/addf-migrate` | Upgrade ADDF framework to latest version |
-| **addf-knowhow** | `/addf-knowhow <topic>` | Record implementation insights (with dedup & merge) |
-| **addf-knowhow-index** | `/addf-knowhow-index [reindex]` | View or rebuild the knowhow index |
-| **addf-lint** | `/addf-lint` | Framework integrity check |
-| **addf-permission-audit** | `/addf-permission-audit` | Analyze and classify permission requests |
+| 1 | DSL design and parser | Not started |
+| 2 | Shell command structural analysis engine | Not started |
+| 3 | Rule evaluation engine and Hook integration | Not started |
+| 4 | Audit output, default ruleset, ADDF integration | Not started |
 
-<details>
-<summary>Other skills</summary>
+## Design Documents
 
-| Skill | Description |
-|---|---|
-| **addf-knowhow-filter** | Filter knowhow relevant to a Plan |
-| **addf-experience** | Validate experience file (`.exp.md`) mention syntax |
-| **addf-gui-test** | Run GUI tests (macOS optional) |
-| **addf-annotate-grid** | Draw grid lines on PNG images |
-| **addf-clip-image** | Clip regions from PNG images |
+- [Design notes](better-permission-tool-design.md) — Core ideas, DSL sketches, prior art survey
+- `docs/plans/` — Implementation plans for each phase
 
-</details>
+## License
 
-## Built-in Agents
-
-Sub-agents auto-launched during quality gates. Customize or add agents to fit your project.
-
-| Agent | Purpose | Customization guidance |
-|---|---|---|
-| **addf-knowhow-agent** | Filters knowhow relevant to a Plan | — |
-| **addf-code-review-agent** | Reviews code quality and readability | Add your project's coding conventions |
-| **addf-security-review-agent** | Inspects security vulnerabilities (optional) | Add industry-specific security standards |
-| **addf-contribution-agent** | Detects framework contribution candidates | — |
-| **addf-ui-test-agent** | Screenshot-based UI verification (optional) | **Rewrite as your project's UI/UX domain expert** |
-
-> **Tester agents should be domain experts for your project.**
-> Customize agent definitions in `.claude/agents/` with your project's domain knowledge, test criteria, and quality requirements.
-> Example: For an e-commerce site, add payment flow verification steps. For iOS Native, add automated testing via iOS Simulator.
-
-## Documentation
-
-| Guide | Content |
-|---|---|
-| [Detailed Setup](docs/guides/setup.md) | Manual setup, configuration roles, directory structure |
-| [Built-in Agents](docs/guides/agents.md) | Sub-agents for quality gates and how to customize them |
-| [Development Process](docs/guides/development-process.md) | Boot sequence, quality gates, task lifecycle |
-| [Migration](docs/guides/migration.md) | Upgrading ADDF with `/addf-migrate` |
-| [Codex Setup](docs/guides/codex-setup.md) | Using ADDF with OpenAI Codex CLI |
-| [GUI Testing](docs/guides/gui-test-setup.md) | macOS GUI test setup |
-
-## About the Name
-
-The official name of this framework is **AutomatonDevDrive Framework**.
-
-But if you take its initials — **ADDF** — and expand them, you get: **A**gentic **D**riven **D**evelopment **F**ramework.
-
-Not a coincidence.
-
-An Automaton is exactly what the AI agent is: something that autonomously selects tasks, implements them, and verifies quality — no hand-holding required. DevDrive is the engine that keeps it moving, the mechanism that propels development forward.
-
-The surface name is Automaton. The hidden name is Agentic. Both describe the same thing.
-If you caught that — nice.
+TBD
