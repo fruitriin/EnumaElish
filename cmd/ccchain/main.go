@@ -92,6 +92,8 @@ func main() {
 		runInit()
 	case "suggest":
 		runSuggest(configPath, cmdArgs)
+	case "generate-rules":
+		runGenerateRules()
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
