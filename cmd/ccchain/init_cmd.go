@@ -28,9 +28,9 @@ template safeRead
 template bulkExec
   extends: safeRead
   |,>>
-    deny rm    "don't pipe into destructive commands"
+    deny rm    "Don't pipe into rm. Instead: redirect to /tmp/targets.txt, review, then xargs rm < /tmp/targets.txt"
   exec:
-    deny rm    "expand to tempfile first"
+    deny rm    "Don't rm inside -exec. Instead: find ... -print > /tmp/targets.txt, review, then xargs rm < /tmp/targets.txt"
     allow cp, mv, touch
 
 # --- PreToolUse Rules ---
@@ -43,7 +43,7 @@ allow ls
 allow find
   next: bulkExec
   args:
-    -delete: deny  "find -delete is destructive; use -print and pipe to rm with confirmation"
+    -delete: deny  "find -delete is destructive. Instead: find ... -print > /tmp/targets.txt, review the list, then xargs rm < /tmp/targets.txt"
 
 allow xargs
   next: bulkExec

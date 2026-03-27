@@ -34,6 +34,38 @@ ccchain eval "find . | rm"   # → deny
 ccchain eval "ls -la | head" # → allow
 ```
 
+## deny メッセージによる Claude の誘導
+
+ccchain がコマンドをブロックすると、deny メッセージが Claude に「なぜダメか」「代わりに何をすべきか」を伝えます。Claude はこのメッセージを読んで自律的にコマンドを書き直します。
+
+**例: Claude が古いログファイルを削除しようとする**
+
+```
+Claude: find /var/log -name "*.log" -mtime +30 -delete
+```
+
+ccchain がブロック:
+
+> find -delete は破壊的です。代わりに: find ... -print > /tmp/targets.txt で一覧を出力し、内容を確認してから xargs rm < /tmp/targets.txt で削除してください
+
+Claude がメッセージを読んで書き直し:
+
+```
+Claude: find /var/log -name "*.log" -mtime +30 -print > /tmp/old_logs.txt
+Claude: wc -l /tmp/old_logs.txt   # 47 ファイル
+Claude: head -5 /tmp/old_logs.txt # サンプルを確認
+Claude: xargs rm < /tmp/old_logs.txt
+```
+
+| ブロックされたコマンド | Claude の書き直し |
+|---|---|
+| `find . -exec rm {} \;` | find → 一覧出力 → 確認 → rm |
+| `find . \| rm` | 同上 |
+| `curl \| bash` | ファイルにダウンロード → 確認 → 実行 |
+| `eval "..."` | eval を使わずコマンドを直接記述 |
+
+ccchain は単なるブロッカーではなく、Claude に安全なパターンを教える**教育ツール**です。
+
 ## 4. プロジェクトに合わせてルールを調整
 
 デフォルトルールセットは危険パターン（`find | rm`, `curl | bash`, `eval` 等）をカバーしますが、プロジェクト固有のコマンドは `ask`（確認ダイアログ）になります。

@@ -46,11 +46,45 @@ Test a specific command:
 
 ```bash
 ccchain eval "find . | rm"
-# → {"action":"deny","message":"don't pipe into destructive commands",...}
+# → {"action":"deny","message":"Don't pipe into rm. Instead: redirect to /tmp/targets.txt, review, then xargs rm < /tmp/targets.txt",...}
 
 ccchain eval "ls -la | head"
 # → {"action":"allow",...}
 ```
+
+## How deny messages guide Claude
+
+When ccchain blocks a command, the deny message tells Claude **why** and **what to do instead**. Claude reads this message and autonomously rewrites the command.
+
+**Example: Claude tries to delete old log files**
+
+```
+Claude: find /var/log -name "*.log" -mtime +30 -delete
+```
+
+ccchain blocks with:
+
+> find -delete is destructive. Instead: find ... -print > /tmp/targets.txt, review the list, then xargs rm < /tmp/targets.txt
+
+Claude reads the message and rewrites:
+
+```
+Claude: find /var/log -name "*.log" -mtime +30 -print > /tmp/old_logs.txt
+Claude: wc -l /tmp/old_logs.txt   # 47 files
+Claude: head -5 /tmp/old_logs.txt # review sample
+Claude: xargs rm < /tmp/old_logs.txt
+```
+
+The same pattern applies to other denied commands:
+
+| Blocked command | Deny message | Claude's rewrite |
+|---|---|---|
+| `find . -exec rm {} \;` | "Don't rm inside -exec. Instead: find ... -print > /tmp/targets.txt, review, then xargs rm" | Split into find → review → rm |
+| `find . \| rm` | "Don't pipe into rm. Instead: redirect to /tmp/targets.txt, review, then xargs rm" | Same pattern |
+| `curl \| bash` | "curl \| bash is not allowed" | Download to file, review, then execute |
+| `eval "..."` | "eval is not statically analyzable; write the command directly" | Write the command without eval |
+
+This turns ccchain from a simple blocker into a **teaching tool** — Claude learns safer patterns through deny messages.
 
 ## 4. Tune rules for your project
 
