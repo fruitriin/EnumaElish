@@ -20,6 +20,8 @@ When multiple config files are found:
 - **Rules** are appended in search order (last-rule-wins enables overriding)
 - **Settings** from the last file with a `settings:` block win
 
+> **Important:** Files are loaded in priority order (1→4), and later rules override earlier ones. This means `~/.claude/ccchain.conf` (priority 4) rules come **after** `.ccchain.conf` (priority 1), so global rules can override project rules via last-rule-wins. If you want project rules to always win, place them in `.ccchain.local.conf` (priority 2).
+
 ## Hook Registration
 
 ### PreToolUse
@@ -89,6 +91,14 @@ Non-Bash tools are silently passed through (exit 0).
 ### Error Handling (Fail-Open)
 
 If ccchain encounters any error (invalid JSON, parse failure, config error), it **allows** the command (exit 0) and logs the error to stderr. This ensures ccchain never blocks Claude due to its own bugs.
+
+**Design rationale:** ccchain aims for "auditable security" rather than "perfect sandbox." A fail-closed design would mean that any ccchain bug, config typo, or environmental issue would completely halt Claude's operation. The fail-open approach accepts this trade-off:
+
+- Errors are logged to stderr (visible in Claude Code's output)
+- The `ccchain check` command validates config before use
+- `ccchain audit` shows the full rule expansion for verification
+
+**Risk:** If the config file is missing or corrupted, all commands are allowed. Always run `ccchain check` after config changes.
 
 ## Recommended `.gitignore` Entries
 

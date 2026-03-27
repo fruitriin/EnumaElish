@@ -54,6 +54,8 @@ ask rm
 
 ### `hint`
 
+> **Note:** `ccchain hook post` is currently a pass-through. `hint` actions and PostToolUse rule evaluation are planned for a future release.
+
 PostToolUse action for suggesting next steps after a command runs.
 
 ```

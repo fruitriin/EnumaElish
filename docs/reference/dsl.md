@@ -86,6 +86,8 @@ allow curl
     -X POST: ask
 ```
 
+> **Note:** `args:` rules are currently parsed but **not yet evaluated** by the rule engine. They are reserved for a future release. Do not rely on `args:` rules for security decisions.
+
 ## Templates
 
 ### Definition

@@ -54,6 +54,8 @@ ask rm
 
 ### `hint`
 
+> **注意:** `ccchain hook post` は現在パススルーです。`hint` アクションと PostToolUse のルール評価は将来のリリースで対応予定です。
+
 PostToolUse アクション。コマンド実行後に次のアクションを Claude に提案します。
 
 ```

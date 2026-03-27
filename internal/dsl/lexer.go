@@ -91,6 +91,7 @@ type Lexer struct {
 // Lex tokenizes the input and returns a Lexer.
 func Lex(r io.Reader) (*Lexer, error) {
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 1<<20), 1<<20) // 1MB max line length
 	var lines []Line
 	lineNo := 0
 
