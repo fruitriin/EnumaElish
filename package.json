@@ -1,0 +1,28 @@
+{
+  "name": "enumaelish",
+  "version": "1.0.0",
+  "description": "> Claude Code Chain: 構造的パーミッション制御ツール",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fruitriin/EnumaElish.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fruitriin/EnumaElish/issues"
+  },
+  "homepage": "https://github.com/fruitriin/EnumaElish#readme",
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

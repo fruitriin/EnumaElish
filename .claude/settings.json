@@ -89,13 +89,27 @@
       "Bash(gh pr diff *)",
       "Bash(gh pr checks *)",
       "Bash(gh pr checkout *)",
+      "Bash(go test *)",
+      "Bash(go vet *)",
+      "Bash(go build *)",
+      "Bash(go mod *)",
+      "Bash(go get *)",
+      "Bash(go version *)",
+      "Bash(make *)",
+      "Bash(mv *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(asdf *)",
+      "Bash(npm view *)",
+      "Bash(pip3 *)",
       "Bash(bash .claude/tests/run-all.sh *)",
       "Bash(uv run --python 3.11 .claude/addfTools/lint *)"
     ],
     "ask": [
       "Bash(git push *)",
       "Bash(git reset --hard *)",
-      "Bash(git clean *)"
+      "Bash(git clean *)",
+      "Bash(rm *)"
     ]
   }
 }

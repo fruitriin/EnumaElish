@@ -1,5 +1,7 @@
 # 依存・ビルド成果物
 node_modules
+docs/.vitepress/dist
+docs/.vitepress/cache
 
 # --- ADDF Framework (do not remove) ---
 .claude/commands/*.exp.md
