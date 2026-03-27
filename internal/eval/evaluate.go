@@ -3,6 +3,8 @@
 package eval
 
 import (
+	"path/filepath"
+
 	"github.com/fruitriin/ccchain/internal/dsl"
 	"github.com/fruitriin/ccchain/internal/shell"
 )
@@ -350,8 +352,9 @@ func findMatchingRule(cmdName string, rules []*dsl.Rule) *dsl.Rule {
 
 // matchesRule checks if a command name matches a rule's command list.
 func matchesRule(cmdName string, rule *dsl.Rule) bool {
+	baseName := filepath.Base(cmdName)
 	for _, c := range rule.Commands {
-		if c == cmdName {
+		if c == cmdName || c == baseName {
 			return true
 		}
 	}

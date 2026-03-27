@@ -18,6 +18,10 @@ func ApplyNestRules(cmd *Command, call *syntax.CallExpr) *Topology {
 		return parseBashC(cmd.Args)
 	case "eval":
 		return parseEval(cmd.Args)
+	case "env":
+		return parseEnvCmd(cmd.Args)
+	case "sudo", "doas", "su":
+		return parseSudoCmd(cmd.Args)
 	default:
 		return nil
 	}
@@ -34,12 +38,15 @@ func stripQuotes(s string) string {
 }
 
 // parseFindExec extracts commands from find -exec CMD {} \;
+// parseFindExec extracts ALL commands from find -exec/-execdir patterns.
 func parseFindExec(args []string) *Topology {
-	for i, arg := range args {
-		if arg == "-exec" || arg == "-execdir" {
+	topo := &Topology{}
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-exec" || args[i] == "-execdir" {
 			// Collect args until ; or +
 			var cmdParts []string
-			for j := i + 1; j < len(args); j++ {
+			j := i + 1
+			for ; j < len(args); j++ {
 				if args[j] == ";" || args[j] == "+" || args[j] == `\;` {
 					break
 				}
@@ -49,36 +56,50 @@ func parseFindExec(args []string) *Topology {
 				cmdParts = append(cmdParts, args[j])
 			}
 			if len(cmdParts) > 0 {
-				return &Topology{
-					Segments: []Segment{{
-						Type: "single",
-						Commands: []Command{{
-							Name:       cmdParts[0],
-							Args:       cmdParts[1:],
-							Analyzable: true,
-						}},
+				topo.Segments = append(topo.Segments, Segment{
+					Type: "single",
+					Commands: []Command{{
+						Name:       cmdParts[0],
+						Args:       cmdParts[1:],
+						Analyzable: true,
 					}},
-				}
+				})
 			}
+			i = j // skip past the terminator
 		}
 	}
-	return nil
+	if len(topo.Segments) == 0 {
+		return nil
+	}
+	return topo
+}
+
+// xargsValueFlags lists all xargs flags that take a value argument.
+var xargsValueFlags = map[string]bool{
+	"-I": true, "-P": true, "-n": true, "-L": true,
+	"-d": true, "-E": true, "-s": true, "-a": true,
+	"--arg-file": true, "--max-procs": true, "--max-args": true,
+	"--max-lines": true, "--delimiter": true, "--eof": true,
+	"--replace": true, "--max-chars": true,
 }
 
 // parseXargs extracts the command from xargs CMD [args...]
 func parseXargs(args []string) *Topology {
-	// Skip xargs flags (start with -)
 	cmdIdx := 0
 	for cmdIdx < len(args) {
-		if !strings.HasPrefix(args[cmdIdx], "-") {
+		arg := args[cmdIdx]
+		if !strings.HasPrefix(arg, "-") {
 			break
 		}
-		// Some flags take a value: -I, -P, -n, -L, -d, -E, -s
-		switch args[cmdIdx] {
-		case "-I", "-P", "-n", "-L", "-d", "-E", "-s":
+		// Handle --flag=value form
+		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
+			cmdIdx++
+			continue
+		}
+		if xargsValueFlags[arg] {
 			cmdIdx += 2 // skip the flag and its value
-		default:
-			cmdIdx++ // skip the flag only
+		} else {
+			cmdIdx++
 		}
 	}
 
@@ -163,4 +184,77 @@ func parseEval(args []string) *Topology {
 		}
 	}
 	return topo
+}
+
+// parseEnvCmd extracts the actual command from env [VAR=val...] CMD [args...]
+func parseEnvCmd(args []string) *Topology {
+	cmdIdx := 0
+	for cmdIdx < len(args) {
+		arg := args[cmdIdx]
+		if strings.HasPrefix(arg, "-") {
+			cmdIdx++
+			continue
+		}
+		if strings.Contains(arg, "=") {
+			cmdIdx++
+			continue
+		}
+		break
+	}
+
+	if cmdIdx >= len(args) {
+		return nil
+	}
+
+	return &Topology{
+		Segments: []Segment{{
+			Type: "single",
+			Commands: []Command{{
+				Name:       args[cmdIdx],
+				Args:       args[cmdIdx+1:],
+				Analyzable: true,
+			}},
+		}},
+	}
+}
+
+// parseSudoCmd extracts the actual command from sudo/doas [flags] CMD [args...]
+func parseSudoCmd(args []string) *Topology {
+	cmdIdx := 0
+	sudoValueFlags := map[string]bool{
+		"-u": true, "-g": true, "-C": true, "-D": true,
+		"-R": true, "-T": true,
+		"--user": true, "--group": true,
+	}
+
+	for cmdIdx < len(args) {
+		arg := args[cmdIdx]
+		if !strings.HasPrefix(arg, "-") {
+			break
+		}
+		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
+			cmdIdx++
+			continue
+		}
+		if sudoValueFlags[arg] {
+			cmdIdx += 2
+		} else {
+			cmdIdx++
+		}
+	}
+
+	if cmdIdx >= len(args) {
+		return nil
+	}
+
+	return &Topology{
+		Segments: []Segment{{
+			Type: "single",
+			Commands: []Command{{
+				Name:       args[cmdIdx],
+				Args:       args[cmdIdx+1:],
+				Analyzable: true,
+			}},
+		}},
+	}
 }

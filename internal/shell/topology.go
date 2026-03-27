@@ -142,8 +142,17 @@ func buildCommandFromStmt(stmt *syntax.Stmt) *Command {
 		// This shouldn't happen at this level (handled by extractBinarySegments)
 		// but handle gracefully
 		return &Command{Name: "(binary)", Analyzable: false}
+	case *syntax.ForClause, *syntax.WhileClause, *syntax.IfClause,
+		*syntax.CaseClause, *syntax.Block:
+		// Control flow structures contain commands that can't be statically
+		// evaluated in isolation — deny for safety
+		return &Command{Name: "(control-flow)", Analyzable: false}
+	case *syntax.FuncDecl:
+		// Function definitions hide their body from evaluation
+		return &Command{Name: "(func-decl)", Analyzable: false}
 	default:
-		return nil
+		// Unknown AST node types — deny for safety (never return nil)
+		return &Command{Name: "(unknown-stmt)", Analyzable: false}
 	}
 }
 
