@@ -24,8 +24,9 @@
    - ADD フレームワークテスト: `bash .claude/tests/run-all.sh`
    - **失敗した場合 → 実装に差し戻す**。原因分析 → 修正 → 再実行
 5. `addf-code-review-agent` でコードレビューを実施する
-6. `addf-contribution-agent` で ADD フレームワークへのコントリビューション候補を検出する
-7. レビュー指摘への対応:
+6. `addf-doc-review-agent` でドキュメントレビューを実施する
+7. `addf-contribution-agent` で ADD フレームワークへのコントリビューション候補を検出する
+8. レビュー指摘への対応:
    - **Critical/High**: 必ずこのフェーズ内で修正する（先送り禁止）
    - **Medium**: 原則修正。先送りする場合は独立計画を起こす
    - **Low/Info**: Plan に記録し、必要に応じて独立計画で対応
@@ -34,13 +35,13 @@
 
 #### 完了処理
 
-8. 投入されたタスクのPlanに実装完了状況を反映する
-9. `.claude/Feedback.md` にPlan, TODO, Progress推進エンジンの問題の記録・改善アクションを追記する。反映済みの項目は削除する
-10. `.claude/Feedback.md` にプロジェクト進行上の問題の記録・改善アクションを追記する。反映済みの項目は削除する
-11. `.claude/Progresses/YYYY-MM-DD-プラン名.md` にリネームして移動し、`.claude/templates/ProgressTemplate.addf.md` から新規の Progress.md を作成する
-12. Progress 推進エンジン自体に関するフィードバック・ノウハウがあれば、テンプレート（`.claude/templates/ProgressTemplate.addf.md`）の改善案を `.claude/Feedback.md` に記録する
+9. 投入されたタスクのPlanに実装完了状況を反映する
+10. `.claude/Feedback.md` にPlan, TODO, Progress推進エンジンの問題の記録・改善アクションを追記する。反映済みの項目は削除する
+11. `.claude/Feedback.md` にプロジェクト進行上の問題の記録・改善アクションを追記する。反映済みの項目は削除する
+12. `.claude/Progresses/YYYY-MM-DD-プラン名.md` にリネームして移動し、`.claude/templates/ProgressTemplate.addf.md` から新規の Progress.md を作成する
+13. Progress 推進エンジン自体に関するフィードバック・ノウハウがあれば、テンプレート（`.claude/templates/ProgressTemplate.addf.md`）の改善案を `.claude/Feedback.md` に記録する
 
-13. コミットする
+14. コミットする
 
 ---
 
