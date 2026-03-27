@@ -3,7 +3,7 @@
 `docs/plans/` の完了状態・優先度をトラックする。
 `docs/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Phase 9（mode プロパティ + ドキュメント正確性）
+## 現在のフェーズ: 全プラン完了
 
 ## バックログ
 
@@ -26,7 +26,7 @@
 | 13 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 完了 | 0011 完成後に安全なデフォルトを設計できる |
 | 14 | 13 | `docs/plans/0013-command-semantics-table.md` | 完了 | 0010 のデフォルトルールと統合 |
 | 15 | 15 | `docs/plans/0015-project-auto-detect.md` | 完了 | 0013 のテーブルを活用できる |
-| 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 未着手 | 基盤が固まってから最後に実装 |
+| 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
 
 ## ロードマップ（未計画）
 

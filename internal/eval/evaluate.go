@@ -27,7 +27,23 @@ func Evaluate(cmd string, config *dsl.Config) (*Result, error) {
 		return nil, err
 	}
 
-	return EvaluateTopology(topo, config)
+	result, err := EvaluateTopology(topo, config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Expand template variables in deny/warn messages
+	if result != nil && result.Message != "" {
+		cmdName := ""
+		var cmdArgs []string
+		if len(topo.Segments) > 0 && len(topo.Segments[0].Commands) > 0 {
+			cmdName = topo.Segments[0].Commands[0].Name
+			cmdArgs = topo.Segments[0].Commands[0].Args
+		}
+		result.Message = ExpandMessage(result.Message, cmdName, cmdArgs, cmd)
+	}
+
+	return result, nil
 }
 
 // EvaluateTopology evaluates a topology against a DSL config.
