@@ -3,7 +3,7 @@
 `docs/plans/` の完了状態・優先度をトラックする。
 `docs/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: 全プラン完了
+## 現在のフェーズ: Phase 9（mode プロパティ + ドキュメント正確性）
 
 ## バックログ
 
@@ -17,6 +17,13 @@
 | 6 | 6 | `docs/plans/0006-code-quality-refactoring.md` | 完了 |
 | 7 | 7 | `docs/plans/0007-documentation-and-polish.md` | 完了 |
 | 8 | 8 | `docs/plans/0008-args-rule-evaluation.md` | 完了 |
+| 9 | 9 | `docs/plans/0009-mode-property-and-doc-accuracy.md` | 未着手 |
+| 10 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 未着手 |
+
+## ロードマップ（未計画）
+
+- PostToolUse ターンカウント（max_repeat, on_exceed）
+- source / . コマンドの追跡（原理的に不可能、ドキュメント明記のみ）
 
 ---
 
