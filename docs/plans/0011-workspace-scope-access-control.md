@@ -245,6 +245,26 @@ projectDir := os.Getenv("CLAUDE_PROJECT_DIR")
 - `scope: sensitive: ~/.ssh, ~/.gnupg`
 - `sensitive: deny` のような明示的保護
 
+## コラム: CWD のワークスペース逸脱防止
+
+ccchain のスコープ外だが、関連テクニックとして記録。
+
+Claude Code は `cd` でカレントディレクトリを変更できる。`cd ..` を繰り返してワークスペース外に出た状態で相対パスコマンドを実行されると、ccchain の scope 判定は「CWD 不明 → inside 扱い（fail-open）」になる。
+
+シェル環境側の対策として、fish の `--on-variable PWD` や bash の `PROMPT_COMMAND` で CWD を監視し、`$CLAUDE_PROJECT_DIR` より上に出たら自動で戻す function を設定する方法がある:
+
+```fish
+# fish の例
+function __enforce_workspace --on-variable PWD
+    if not string match -q "$CLAUDE_PROJECT_DIR*" "$PWD"
+        cd $CLAUDE_PROJECT_DIR
+        echo "workspace 外への cd を検出。$CLAUDE_PROJECT_DIR に戻しました。" >&2
+    end
+end
+```
+
+これは ccchain ではなくシェル環境の設定で対応すべきもの。ccchain は渡されたコマンド文字列の静的解析に徹する。
+
 ## 検証
 
 1. `cat ~/workspace/file` → allow, `cat ~/.ssh/id_rsa` → ask/deny
