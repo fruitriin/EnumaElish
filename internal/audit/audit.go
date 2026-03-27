@@ -44,7 +44,11 @@ func Audit(config *dsl.Config) *AuditOutput {
 	maxDepth := config.Settings.MaxContextDepth
 	maxRules := config.Settings.MaxRulesPerCmd
 
-	rules := append(config.PreRules, config.Rules...)
+	// Include all rule sections (PreRules + Rules + PostRules)
+	rules := make([]*dsl.Rule, 0, len(config.PreRules)+len(config.Rules)+len(config.PostRules))
+	rules = append(rules, config.PreRules...)
+	rules = append(rules, config.Rules...)
+	rules = append(rules, config.PostRules...)
 
 	for _, rule := range rules {
 		// Top-level rule
