@@ -9,5 +9,5 @@ CLAUDE.local.md
 CLAUDE.repo.md
 .claude/skills/addf-gui-test.md
 # --- /ADDF Framework ---
-ccchain
-dist/
+/ccchain
+/dist/
