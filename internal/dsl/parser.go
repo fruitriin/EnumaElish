@@ -377,6 +377,14 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid fallback action: %q", val)}
 			}
 			settings.Fallback = Action(val)
+		case "workspace":
+			// Support comma-separated paths: workspace: ~/workspace, ~/projects
+			for _, p := range strings.Split(val, ",") {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					settings.WorkspacePaths = append(settings.WorkspacePaths, p)
+				}
+			}
 		default:
 			return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("unknown setting: %q", key)}
 		}

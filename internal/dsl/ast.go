@@ -79,6 +79,7 @@ type Settings struct {
 	MaxContextDepth int
 	MaxRulesPerCmd  int
 	Fallback        Action
+	WorkspacePaths  []string // scope: workspace paths
 	Line            int
 }
 
