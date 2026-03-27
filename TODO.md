@@ -20,6 +20,11 @@
 | 9 | 9 | `docs/plans/0009-mode-property-and-doc-accuracy.md` | 未着手 |
 | 10 | 10 | `docs/plans/0010-settings-compat-and-ruleset-enhancement.md` | 未着手 |
 | 11 | 11 | `docs/plans/0011-workspace-scope-access-control.md` | 未着手 |
+| 12 | 12 | `docs/plans/0012-deny-message-templates.md` | 未着手 |
+| 13 | 13 | `docs/plans/0013-command-semantics-table.md` | 未着手 |
+| 14 | 14 | `docs/plans/0014-multi-tool-control.md` | 未着手 |
+| 15 | 15 | `docs/plans/0015-project-auto-detect.md` | 未着手 |
+| 16 | 16 | `docs/plans/0016-deny-redirect.md` | 未着手 |
 
 ## ロードマップ（未計画）
 
