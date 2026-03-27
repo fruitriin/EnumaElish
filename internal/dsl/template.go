@@ -1,6 +1,9 @@
 package dsl
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // ResolveTemplates resolves all template references (extends and next) in the config.
 // It returns an error if circular references are detected.
@@ -53,6 +56,43 @@ func ResolveTemplates(config *Config) error {
 	// Store template index on config for O(1) lookup
 	config.TemplateIndex = tmplMap
 
+	// Validate and compile all ArgsRule patterns
+	if err := validateArgsRules(config); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateArgsRules pre-compiles all ArgsRule regex patterns.
+// Invalid patterns cause a ParseError (fail-fast, not fail-open).
+func validateArgsRules(config *Config) error {
+	allRules := make([]*Rule, 0, len(config.Rules)+len(config.PreRules)+len(config.PostRules))
+	allRules = append(allRules, config.Rules...)
+	allRules = append(allRules, config.PreRules...)
+	allRules = append(allRules, config.PostRules...)
+
+	for _, r := range allRules {
+		if err := compileArgsRules(r.ArgsRules); err != nil {
+			return err
+		}
+	}
+	for _, t := range config.Templates {
+		if err := compileArgsRules(t.ArgsRules); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compileArgsRules(rules []*ArgsRule) error {
+	for _, ar := range rules {
+		re, err := regexp.Compile(ar.Pattern)
+		if err != nil {
+			return &ParseError{Line: ar.Line, Message: fmt.Sprintf("invalid args pattern %q: %v", ar.Pattern, err)}
+		}
+		ar.Compiled = re
+	}
 	return nil
 }
 

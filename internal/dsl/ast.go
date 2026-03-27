@@ -1,6 +1,8 @@
 // Package dsl implements the ccchain DSL parser.
 package dsl
 
+import "regexp"
+
 // Config represents the top-level parsed DSL configuration.
 type Config struct {
 	Templates      []*Template
@@ -52,10 +54,11 @@ type Rule struct {
 
 // ArgsRule represents a pattern-based argument rule.
 type ArgsRule struct {
-	Pattern string // regex pattern
-	Action  Action
-	Message string
-	Line    int
+	Pattern  string         // regex pattern
+	Action   Action
+	Message  string
+	Line     int
+	Compiled *regexp.Regexp // pre-compiled regex, set by ValidateArgsRules
 }
 
 // Template represents a reusable rule template.

@@ -86,7 +86,13 @@ allow curl
     -X POST: ask
 ```
 
-> **Note:** `args:` rules are currently parsed but **not yet evaluated** by the rule engine. They are reserved for a future release. Do not rely on `args:` rules for security decisions.
+The pattern is a Go regular expression matched against the **joined argument string** (`strings.Join(args, " ")`).
+
+**Important notes:**
+- Patterns use **partial matching** by default. Use `^` and `$` anchors for exact matching
+- If arguments contain dynamic expansion (`$VAR`, `` `cmd` ``), args: evaluation is skipped and the parent rule's action is used
+- Multiple args: patterns follow last-rule-wins
+- Args: rules override the parent rule's action when matched
 
 ## Templates
 

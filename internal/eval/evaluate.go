@@ -4,6 +4,7 @@ package eval
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/fruitriin/ccchain/internal/dsl"
 	"github.com/fruitriin/ccchain/internal/shell"
@@ -207,6 +208,7 @@ func evaluateNested(parent *shell.Command, rules []*dsl.Rule, config *dsl.Config
 // matchCommand matches a command against top-level rules (last-rule-wins).
 func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, config *dsl.Config) *Result {
 	var lastMatch *Result
+	var lastMatchRule *dsl.Rule
 
 	for _, rule := range rules {
 		if matchesRule(cmd.Name, rule) {
@@ -215,7 +217,13 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 				Message: rule.Message,
 				Context: appendContext(context, cmd.Name),
 			}
+			lastMatchRule = rule
 		}
+	}
+
+	// Apply args: rules if the matched rule has them
+	if lastMatch != nil && lastMatchRule != nil {
+		lastMatch = applyArgsRules(cmd, lastMatchRule, lastMatch)
 	}
 
 	return lastMatch
@@ -240,6 +248,7 @@ func matchInPipeContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 
 	// Match against pipe rules (last-rule-wins)
 	var lastMatch *Result
+	var lastMatchRule *dsl.Rule
 	for _, rule := range pipeRules {
 		if matchesRule(cmd.Name, rule) {
 			tmplName := ""
@@ -252,7 +261,13 @@ func matchInPipeContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 				Template: tmplName,
 				Context:  append(context, "|", cmd.Name),
 			}
+			lastMatchRule = rule
 		}
+	}
+
+	// Apply args: rules
+	if lastMatch != nil && lastMatchRule != nil {
+		lastMatch = applyArgsRules(cmd, lastMatchRule, lastMatch)
 	}
 
 	return lastMatch
@@ -274,6 +289,7 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 	}
 
 	var lastMatch *Result
+	var lastMatchRule *dsl.Rule
 	for _, rule := range execRules {
 		if matchesRule(cmd.Name, rule) {
 			tmplName := ""
@@ -286,7 +302,13 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 				Template: tmplName,
 				Context:  append(context, cmd.Name),
 			}
+			lastMatchRule = rule
 		}
+	}
+
+	// Apply args: rules
+	if lastMatch != nil && lastMatchRule != nil {
+		lastMatch = applyArgsRules(cmd, lastMatchRule, lastMatch)
 	}
 
 	return lastMatch
@@ -402,4 +424,47 @@ func appendContext(base []string, items ...string) []string {
 	out := make([]string, len(base), len(base)+len(items))
 	copy(out, base)
 	return append(out, items...)
+}
+
+// applyArgsRules evaluates args: rules against a command's arguments.
+// If a pattern matches, the action overrides the parent rule's action (last-rule-wins).
+// If arguments contain dynamic expansion ($VAR, $(cmd)), args: evaluation is skipped
+// and the base result is returned unchanged.
+func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Result {
+	if len(rule.ArgsRules) == 0 {
+		return baseResult
+	}
+
+	// Skip args: evaluation if arguments contain dynamic expansion
+	if containsDynamicArgs(cmd.Args) {
+		return baseResult
+	}
+
+	argsStr := strings.Join(cmd.Args, " ")
+	var lastMatch *Result
+
+	for _, ar := range rule.ArgsRules {
+		if ar.Compiled != nil && ar.Compiled.MatchString(argsStr) {
+			lastMatch = &Result{
+				Action:  ar.Action,
+				Message: ar.Message,
+				Context: baseResult.Context,
+			}
+		}
+	}
+
+	if lastMatch != nil {
+		return lastMatch
+	}
+	return baseResult
+}
+
+// containsDynamicArgs checks if any argument contains shell variable expansion.
+func containsDynamicArgs(args []string) bool {
+	for _, arg := range args {
+		if strings.ContainsAny(arg, "$`") {
+			return true
+		}
+	}
+	return false
 }

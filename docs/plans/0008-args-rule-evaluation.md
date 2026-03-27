@@ -140,8 +140,8 @@ func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Res
 
 ## 検証
 
-1. 既存テスト全パス
-2. args: 評価テスト追加
-3. セキュリティバイパステスト
-4. `go test ./...` + `go vet ./...` 通過
-5. ベンチマーク回帰なし（regex は事前コンパイルなので影響最小）
+1. 既存テスト全パス ✓
+2. args: 評価テスト 6 件追加 ✓
+3. `go test ./...` + `go vet ./...` 通過 ✓
+
+## 実装完了: 2026-03-27
