@@ -54,49 +54,56 @@ ccchain eval "ls -la | head"
 
 ## 4. Tune rules for your project
 
-The default ruleset covers common patterns (`find`, `ls`, `grep`, `curl`), but your project's build tools and workflows will initially fall through to `ask` (user confirmation).
+The default ruleset covers common dangerous patterns (`find | rm`, `curl | bash`, `eval`, etc.), but most project-specific commands will fall through to `ask` (user confirmation).
 
-Use `ccchain suggest` to automatically generate rules based on the commands your project actually uses:
+### Step 1: Collect your project's commands
+
+List the commands your project typically uses:
 
 ```bash
-# Feed your typical commands to suggest
+# Evaluate each command against current rules
+ccchain eval "go test ./..."
+ccchain eval "npm run build"
+ccchain eval "git status"
+ccchain eval "make test"
+# ... all commands that Claude runs in your project
+```
+
+Or use `ccchain suggest` as a starting point:
+
+```bash
 echo "go test ./...
-go build ./cmd/myapp
 npm run build
 git status
-git push origin main
 make test
-python3 script.py
-cat README.md
-cp src dst
-mkdir -p /tmp/build" | ccchain suggest
+cat README.md" | ccchain suggest
 ```
 
-Output:
+### Step 2: Ask Claude to propose rules
+
+Give Claude (or any LLM) the evaluation results and ask it to propose `.ccchain.conf` additions. The LLM can assess which commands are safe to allow based on your project context.
+
+### Step 3: Security review
+
+**This step is mandatory.** Before applying any suggested rules, run a security review:
+
+> Have a security review agent audit the proposed rules. The reviewer should check:
+> - Whether any `allow` rule could be exploited in pipe/exec context
+> - Whether allowing a command at top level creates bypass paths for destructive operations
+> - Whether the suggestion adequately considers the command's side effects
+
+The security reviewer may reject or modify suggestions. Revise the rules based on their feedback before adding them to `.ccchain.conf`.
+
+### Step 4: Apply and verify
+
+Add the reviewed rules to `.ccchain.conf`:
 
 ```
-# Suggested rules for .ccchain.conf
-# Commands that currently fall through to 'ask' but appear safe:
-
-allow cat
-allow cp
-allow mkdir
-# ask go  # review before allowing
-# ask npm  # review before allowing
-# ask git  # review before allowing
-# ask make  # review before allowing
-
-# ---
-# 7 commands would benefit from explicit rules
-```
-
-- **`allow` lines** are commands ccchain recognizes as generally safe — copy them directly into `.ccchain.conf`
-- **`# ask` lines** are project-specific tools — review and decide whether to allow them
-
-Then add them to your config:
-
-```
-# .ccchain.conf — append after the default rules
+# Project build tools (reviewed and approved)
+allow go
+allow npm
+allow make
+allow cargo
 
 # Safe utilities
 allow cat
@@ -107,17 +114,18 @@ allow pwd
 allow diff
 allow which
 
-# Project build tools
-allow go
-allow npm
-allow make
-allow cargo
-
-# Git (read operations are safe)
+# Git
 allow git
 ```
 
-## 5. Advanced: Customize pipe/exec rules
+Then verify:
+
+```bash
+ccchain check     # Syntax OK
+ccchain audit     # Review expanded rules
+```
+
+## 5. Advanced: Pipe/exec rules
 
 For project-specific tools, add structural context rules:
 

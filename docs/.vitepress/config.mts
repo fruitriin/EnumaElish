@@ -41,6 +41,7 @@ export default defineConfig({
           items: [
             { text: 'CLI Commands', link: '/guide/cli' },
             { text: 'Default Rules', link: '/guide/default-rules' },
+            { text: 'Rule Tuning', link: '/guide/rule-tuning' },
             { text: 'Customization', link: '/guide/customization' },
           ],
         },
@@ -107,6 +108,7 @@ export default defineConfig({
               items: [
                 { text: 'CLI コマンド', link: '/ja/guide/cli' },
                 { text: 'デフォルトルール', link: '/ja/guide/default-rules' },
+                { text: 'ルールチューニング', link: '/ja/guide/rule-tuning' },
                 { text: 'カスタマイズ', link: '/ja/guide/customization' },
               ],
             },

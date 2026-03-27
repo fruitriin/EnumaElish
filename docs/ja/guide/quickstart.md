@@ -36,60 +36,73 @@ ccchain eval "ls -la | head" # → allow
 
 ## 4. プロジェクトに合わせてルールを調整
 
-デフォルトルールセットは一般的なパターン（`find`, `ls`, `grep`, `curl`）をカバーしますが、プロジェクト固有のビルドツールは最初 `ask`（確認ダイアログ）になります。
+デフォルトルールセットは危険パターン（`find | rm`, `curl | bash`, `eval` 等）をカバーしますが、プロジェクト固有のコマンドは `ask`（確認ダイアログ）になります。
 
-`ccchain suggest` でプロジェクトで実際に使うコマンドからルールを自動提案できます:
+### ステップ 1: プロジェクトのコマンドを収集
+
+プロジェクトで使う典型的なコマンドを列挙し、現在のルールで評価します:
 
 ```bash
-# プロジェクトで使う典型的なコマンドを渡す
+ccchain eval "go test ./..."
+ccchain eval "npm run build"
+ccchain eval "git status"
+ccchain eval "make test"
+```
+
+または `ccchain suggest` を起点にします:
+
+```bash
 echo "go test ./...
-go build ./cmd/myapp
 npm run build
 git status
 make test
-cat README.md
-cp src dst
-mkdir -p /tmp/build" | ccchain suggest
+cat README.md" | ccchain suggest
 ```
 
-出力:
+### ステップ 2: ルールを提案
+
+評価結果を Claude（または LLM）に渡し、`.ccchain.conf` の追加ルールを提案してもらいます。LLM はプロジェクトの文脈を踏まえてコマンドの安全性を判断できます。
+
+### ステップ 3: セキュリティレビュー（必須）
+
+**このステップは省略不可。** 提案されたルールを適用する前に、セキュリティレビューを実施します:
+
+> セキュリティレビューエージェントに提案ルールの監査を依頼。以下をチェック:
+> - `allow` ルールがパイプ/exec コンテキストで悪用されないか
+> - コマンドをトップレベルで許可することで破壊的操作のバイパスパスが生まれないか
+> - コマンドの副作用が十分に考慮されているか
+
+セキュリティレビューアーが指摘した場合は提案を修正し、承認後に `.ccchain.conf` に追加します。
+
+### ステップ 4: 適用して検証
+
+レビュー済みルールを `.ccchain.conf` に追記:
 
 ```
-# Suggested rules for .ccchain.conf
-# Commands that currently fall through to 'ask' but appear safe:
+# プロジェクトビルドツール（レビュー済み）
+allow go
+allow npm
+allow make
 
-allow cat
-allow cp
-allow mkdir
-# ask go  # review before allowing
-# ask npm  # review before allowing
-```
-
-- **`allow` 行**: ccchain が安全と認識したコマンド — そのまま `.ccchain.conf` にコピー
-- **`# ask` 行**: プロジェクト固有ツール — レビューして許可するか判断
-
-`.ccchain.conf` に追記:
-
-```
 # 安全なユーティリティ
 allow cat
 allow cp
 allow mkdir
 allow echo
 allow pwd
-allow diff
-allow which
-
-# プロジェクトのビルドツール
-allow go
-allow npm
-allow make
 
 # Git
 allow git
 ```
 
-## 5. 上級: パイプ/exec ルールのカスタマイズ
+検証:
+
+```bash
+ccchain check     # 構文 OK
+ccchain audit     # 展開ルールを確認
+```
+
+## 5. 上級: パイプ/exec ルール
 
 ```
 allow npm

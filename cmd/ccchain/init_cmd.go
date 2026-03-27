@@ -42,6 +42,8 @@ allow ls
 
 allow find
   next: bulkExec
+  args:
+    -delete: deny  "find -delete is destructive; use -print and pipe to rm with confirmation"
 
 allow xargs
   next: bulkExec
@@ -56,6 +58,8 @@ allow curl
   |
     deny bash   "curl | bash is not allowed"
     deny sh     "curl | sh is not allowed"
+  args:
+    -o\b|--output: ask  "curl writing to file requires confirmation"
 
 deny eval       "eval is not statically analyzable; write the command directly"
 `
