@@ -96,6 +96,8 @@ func main() {
 		runGenerateRules()
 	case "detect":
 		runDetect()
+	case "test":
+		runTest(configPath, defaultAction, cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
