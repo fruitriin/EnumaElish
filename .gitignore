@@ -14,4 +14,4 @@ CLAUDE.repo.md
 /ccchain
 /dist/
 
-.ccchain.conf
+.ccchain.local.conf
