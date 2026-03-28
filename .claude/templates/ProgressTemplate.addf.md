@@ -46,10 +46,16 @@
 10. 投入されたタスクのPlanに実装完了状況を反映する
 11. `.claude/Feedback.md` にPlan, TODO, Progress推進エンジンの問題の記録・改善アクションを追記する。反映済みの項目は削除する
 12. `.claude/Feedback.md` にプロジェクト進行上の問題の記録・改善アクションを追記する。反映済みの項目は削除する
-13. `.claude/Progresses/YYYY-MM-DD-プラン名.md` にリネームして移動し、`.claude/templates/ProgressTemplate.addf.md` から新規の Progress.md を作成する
-14. Progress 推進エンジン自体に関するフィードバック・ノウハウがあれば、テンプレート（`.claude/templates/ProgressTemplate.addf.md`）の改善案を `.claude/Feedback.md` に記録する
+13. `/addf-knowhow` で実装知見を記録する。以下の観点で知見がないか振り返る:
+    - **コーディング**: 実装パターン、ライブラリの使い方、ハマりポイント、パフォーマンス知見
+    - **品質ゲート**: レビューエージェントから得た指摘パターン、テスト戦略、セキュリティ知見
+    - **タスク総括**: 計画と実装の乖離、見積もりの精度、依存関係の発見
+    - 既存 knowhow との重複は `/addf-knowhow` が自動チェックする
+    - 知見がなければスキップ可（無理に記録しない）
+14. `.claude/Progresses/YYYY-MM-DD-プラン名.md` にリネームして移動し、`.claude/templates/ProgressTemplate.addf.md` から新規の Progress.md を作成する
+15. Progress 推進エンジン自体に関するフィードバック・ノウハウがあれば、テンプレート（`.claude/templates/ProgressTemplate.addf.md`）の改善案を `.claude/Feedback.md` に記録する
 
-15. コミットする
+16. コミットする
 
 ---
 
