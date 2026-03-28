@@ -27,6 +27,7 @@
 | 14 | 13 | `docs/plans/0013-command-semantics-table.md` | 完了 | 0010 のデフォルトルールと統合 |
 | 15 | 15 | `docs/plans/0015-project-auto-detect.md` | 完了 | 0013 のテーブルを活用できる |
 | 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
+| 17 | 17 | `docs/plans/0017-bash-args-scope.md` | 未着手 | Bash コマンド引数にもワークスペーススコープ適用 |
 
 ## ロードマップ（未計画）
 
