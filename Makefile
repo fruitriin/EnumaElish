@@ -2,7 +2,7 @@ BINARY := ccchain
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 
-.PHONY: build test test-integration test-fixture test-all bench vet clean all check
+.PHONY: build test test-integration test-fixture test-all bench vet clean all check smell smell-report
 
 # Default: full quality gate
 all: check
@@ -36,8 +36,15 @@ bench:
 vet:
 	go vet ./...
 
+# Test smell detection (savanna-smell-detector)
+smell:
+	savanna-smell-detector . --language go
+
+smell-report:
+	savanna-smell-detector . --language go --output smell-report.md --tee
+
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) smell-report.md
 
 # Cross-compile for release
 .PHONY: release

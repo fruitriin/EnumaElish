@@ -1,0 +1,4 @@
+target = "."
+language = "go"
+min-severity = 1
+fail-on-smell = false

@@ -32,6 +32,12 @@
 | 19 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 未着手 | eval REPL + diff + stats（開発体験改善） |
 | 20 | 20 | `docs/plans/0020-ci-pipeline.md` | 未着手 | CI パイプライン（Go テスト + ドキュメントビルド） |
 
+## 割り込み対応
+
+| 計画ファイル | 状態 | 概要 |
+|---|---|---|
+| `docs/plans/0021-test-smell-fixes.md` | 未着手 | savanna-smell-detector 検出の8件テストスメル修正 |
+
 ## ロードマップ（未計画）
 
 - PostToolUse ターンカウント（max_repeat, on_exceed）
