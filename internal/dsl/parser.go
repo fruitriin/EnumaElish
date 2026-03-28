@@ -378,8 +378,19 @@ func (p *parser) parseSettings() (*Settings, error) {
 			}
 			settings.Fallback = Action(val)
 		case "workspace":
-			// Support comma-separated paths: workspace: ~/workspace, ~/projects
-			for _, p := range strings.Split(val, ",") {
+			// Collect all tokens after colon (parseKeyValue only returns first)
+			var allParts []string
+			colonFound := false
+			for _, tok := range childLine.Tokens {
+				if tok.Type == TokenColon {
+					colonFound = true
+					continue
+				}
+				if colonFound && tok.Type != TokenComma {
+					allParts = append(allParts, tok.Value)
+				}
+			}
+			for _, p := range allParts {
 				p = strings.TrimSpace(p)
 				if p != "" {
 					settings.WorkspacePaths = append(settings.WorkspacePaths, p)

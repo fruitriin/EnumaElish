@@ -266,7 +266,45 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 		lastMatch = applyArgsRules(cmd, lastMatchRule, lastMatch)
 	}
 
+	// Apply workspace scope to command arguments
+	if lastMatch != nil {
+		lastMatch = applyScopeToCommand(cmd, config, lastMatch)
+	}
+
 	return lastMatch
+}
+
+// applyScopeToCommand checks if any path arguments are outside the workspace.
+// If so, escalates allow → ask.
+func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Result) *Result {
+	if config.Settings == nil || len(config.Settings.WorkspacePaths) == 0 {
+		return baseResult
+	}
+	if baseResult.Action != dsl.ActionAllow {
+		return baseResult // only escalate allow → ask
+	}
+
+	paths := ExtractPathArgs(cmd.Args)
+	if len(paths) == 0 {
+		return baseResult
+	}
+
+	for _, p := range paths {
+		// Skip dynamic args
+		if strings.ContainsAny(p, "$`") {
+			continue
+		}
+		scope := ClassifyPath(p, config.Settings.WorkspacePaths)
+		if scope == ScopeOutside {
+			return &Result{
+				Action:  dsl.ActionAsk,
+				Message: "workspace scope: command accesses path outside workspace",
+				Context: baseResult.Context,
+			}
+		}
+	}
+
+	return baseResult
 }
 
 // matchInPipeContext checks pipe rules from a parent rule and its templates.
