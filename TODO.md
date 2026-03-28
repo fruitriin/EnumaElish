@@ -29,6 +29,8 @@
 | 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
 | 17 | 18 | `docs/plans/0018-doc-sync-and-security-fixes.md` | 完了 | ドキュメント同期 Critical 4件 + セキュリティ Medium 4件 |
 | 18 | 17 | `docs/plans/0017-bash-args-scope.md` | 完了 | Bash コマンド引数にもワークスペーススコープ適用 |
+| 19 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 未着手 | eval REPL + diff + stats（開発体験改善） |
+| 20 | 20 | `docs/plans/0020-ci-pipeline.md` | 未着手 | CI パイプライン（Go テスト + ドキュメントビルド） |
 
 ## ロードマップ（未計画）
 
