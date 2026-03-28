@@ -41,6 +41,7 @@ export default defineConfig({
           items: [
             { text: 'CLI Commands', link: '/guide/cli' },
             { text: 'Default Rules', link: '/guide/default-rules' },
+            { text: 'Rule Setup with Claude', link: '/guide/rule-setup-with-claude' },
             { text: 'Rule Tuning', link: '/guide/rule-tuning' },
             { text: 'Customization', link: '/guide/customization' },
           ],
@@ -114,6 +115,7 @@ export default defineConfig({
               items: [
                 { text: 'CLI コマンド', link: '/ja/guide/cli' },
                 { text: 'デフォルトルール', link: '/ja/guide/default-rules' },
+                { text: 'Claude Code でルール構築', link: '/ja/guide/rule-setup-with-claude' },
                 { text: 'ルールチューニング', link: '/ja/guide/rule-tuning' },
                 { text: 'カスタマイズ', link: '/ja/guide/customization' },
               ],
