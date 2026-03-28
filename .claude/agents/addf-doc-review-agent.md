@@ -26,6 +26,7 @@ model: sonnet
 
 チェック項目:
 - CLI サブコマンド・フラグが `--help` 出力とドキュメントで一致しているか
+- **`printUsage()` のコマンド一覧**と `main.go` の `switch command` 分岐が一致しているか（追加忘れの典型パターン）
 - DSL 構文（アクション、コンテキスト、テンプレート構文）がリファレンスと一致するか
 - 設定ファイルの探索パス・マージ順がコードと一致するか
 - コード例・eval 出力例が現在の実装で再現可能か
@@ -33,6 +34,7 @@ model: sonnet
 
 検証方法:
 - ドキュメントに記載のコマンド例は `ccchain eval` や `grep` でコードと突き合わせる
+- **`printUsage()` のコマンド一覧と `switch command` の case 一覧を機械的に比較する**（`grep 'case "' cmd/ccchain/main.go` と `printUsage` 内のコマンド名を突き合わせる）
 - フラグ一覧は `cmd/ccchain/main.go` の実装と照合する
 - DSL 構文は `internal/dsl/parser.go` のパース処理と照合する
 
