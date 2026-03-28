@@ -51,6 +51,9 @@ allow head
 allow tail
 allow cp
 allow chmod
+  args:
+    -R|--recursive: ask  "recursive chmod can affect many files"
+    777: deny  "world-writable permissions (777) is dangerous"
 
 # --- Search & Processing ---
 allow ls
