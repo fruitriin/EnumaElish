@@ -13,3 +13,5 @@ CLAUDE.repo.md
 # --- /ADDF Framework ---
 /ccchain
 /dist/
+
+.ccchain.conf
