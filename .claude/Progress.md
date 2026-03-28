@@ -53,6 +53,13 @@
 
 ---
 
-## タスク
+## タスク: Plan 0021 テストスメル修正
 
-（現在タスクなし）
+- [x] 対象ファイル読み込み・スメル実態確認
+- [x] #5 Silent Skip: args_test.go — `return` → `t.Skip` + `smell-allow`
+- [x] #6,7 fixture_test.go TestFixtureCompareRulesets — アサーション追加 + `smell-allow`
+- [x] #8 fixture_test.go TestFixtureCombination — ヘルパー抽出で Giant Test 解消
+- [x] #1,2 audit_test.go — `findAuditLine` ヘルパーで Conditional Test Logic 解消
+- [x] #3 lexer_test.go — `countTokenType` ヘルパーで Conditional Test Logic 解消
+- [x] #4 parser_test.go — サブテスト分割で Giant Test 解消
+- [x] `make smell` → 0件 + 2件 smell-allow、`go test ./...` + `make check` 全パス

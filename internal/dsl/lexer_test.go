@@ -92,12 +92,7 @@ func TestLexMultipleCommands(t *testing.T) {
 	tokens := lines[0].Tokens
 
 	// allow, cat, ',', echo, ',', head, ',', tail
-	identCount := 0
-	for _, tok := range tokens {
-		if tok.Type == TokenIdent {
-			identCount++
-		}
-	}
+	identCount := countTokenType(tokens, TokenIdent)
 	if identCount != 4 {
 		t.Errorf("expected 4 idents, got %d", identCount)
 	}
@@ -124,6 +119,16 @@ func TestLexContextVariants(t *testing.T) {
 		}
 		assertToken(t, lines[0].Tokens[0], TokenContext, tt.expected)
 	}
+}
+
+func countTokenType(tokens []Token, typ TokenType) int {
+	n := 0
+	for _, tok := range tokens {
+		if tok.Type == typ {
+			n++
+		}
+	}
+	return n
 }
 
 func assertToken(t *testing.T, got Token, expectedType TokenType, expectedValue string) {

@@ -36,7 +36,7 @@
 
 | 計画ファイル | 状態 | 概要 |
 |---|---|---|
-| `docs/plans/0021-test-smell-fixes.md` | 未着手 | savanna-smell-detector 検出の8件テストスメル修正 |
+| `docs/plans/0021-test-smell-fixes.md` | 完了 | savanna-smell-detector 検出の8件テストスメル修正 |
 
 ## ロードマップ（未計画）
 

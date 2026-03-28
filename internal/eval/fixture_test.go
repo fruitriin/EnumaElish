@@ -54,10 +54,7 @@ func loadRuleFixture(t *testing.T, path string) *dsl.Config {
 }
 
 // TestFixtureCombination runs all commands against all rule fixtures.
-// It doesn't assert specific expected values — it verifies:
-// 1. No command causes a panic or error
-// 2. No dangerous command is "allow" under any ruleset
-// 3. Results are logged for manual review
+// Verifies no command causes a panic/error and ruleset characteristics hold.
 func TestFixtureCombination(t *testing.T) {
 	cmds := loadCommandFixture(t, "../../testdata/eval/commands.txt")
 
@@ -72,42 +69,50 @@ func TestFixtureCombination(t *testing.T) {
 		cfg := loadRuleFixture(t, ruleFile)
 
 		t.Run("ruleset_"+ruleName, func(t *testing.T) {
-			var allowCount, askCount, denyCount, errorCount int
-
-			for _, cmd := range cmds {
-				result, err := Evaluate(cmd, cfg)
-				if err != nil {
-					errorCount++
-					continue
-				}
-
-				switch result.Action {
-				case dsl.ActionAllow:
-					allowCount++
-				case dsl.ActionAsk:
-					askCount++
-				case dsl.ActionDeny:
-					denyCount++
-				}
-			}
-
-			t.Logf("[%s] %d commands: allow=%d, ask=%d, deny=%d, error=%d",
-				ruleName, len(cmds), allowCount, askCount, denyCount, errorCount)
-
-			// Sanity checks per ruleset
-			switch ruleName {
-			case "strict":
-				// Strict mode should have very few allows
-				if allowCount > len(cmds)/2 {
-					t.Errorf("strict ruleset allows too many commands: %d/%d", allowCount, len(cmds))
-				}
-			case "permissive":
-				// Permissive mode should have very few denies
-				if denyCount > len(cmds)/2 {
-					t.Errorf("permissive ruleset denies too many commands: %d/%d", denyCount, len(cmds))
-				}
-			}
+			counts := evaluateAllCommands(t, cmds, cfg, ruleName)
+			assertRulesetCharacteristics(t, counts, ruleName, len(cmds))
 		})
+	}
+}
+
+type rulesetCounts struct {
+	allow, ask, deny, errors int
+}
+
+func evaluateAllCommands(t *testing.T, cmds []string, cfg *dsl.Config, name string) rulesetCounts {
+	t.Helper()
+	var c rulesetCounts
+	for _, cmd := range cmds {
+		result, err := Evaluate(cmd, cfg)
+		if err != nil {
+			c.errors++
+			continue
+		}
+		switch result.Action {
+		case dsl.ActionAllow:
+			c.allow++
+		case dsl.ActionAsk:
+			c.ask++
+		case dsl.ActionDeny:
+			c.deny++
+		}
+	}
+	t.Logf("[%s] %d commands: allow=%d, ask=%d, deny=%d, error=%d",
+		name, len(cmds), c.allow, c.ask, c.deny, c.errors)
+	return c
+}
+
+func assertRulesetCharacteristics(t *testing.T, c rulesetCounts, name string, total int) {
+	t.Helper()
+	switch name {
+	case "strict":
+		if c.allow > total/2 {
+			t.Errorf("strict ruleset allows too many commands: %d/%d", c.allow, total)
+		}
+	case "permissive":
+		if c.deny > total/2 {
+			t.Errorf("permissive ruleset denies too many commands: %d/%d", c.deny, total)
+		}
 	}
 }
 
@@ -152,8 +157,9 @@ func TestFixtureDangerousNeverAllow(t *testing.T) {
 	}
 }
 
+// smell-allow: conditional-test-logic — error skip is necessary when comparing 3 Evaluate results
 // TestFixtureCompareRulesets compares results across rulesets for the same commands.
-// Outputs a diff-like report showing where rulesets disagree.
+// Verifies that rulesets produce meaningfully different results and outputs a diff report.
 func TestFixtureCompareRulesets(t *testing.T) {
 	cmds := loadCommandFixture(t, "../../testdata/eval/commands.txt")
 
@@ -173,11 +179,12 @@ func TestFixtureCompareRulesets(t *testing.T) {
 
 		if r1.Action != r2.Action || r1.Action != r3.Action {
 			diffs++
-			if diffs <= 20 { // limit output
-				t.Logf("%-45s  default=%-5s strict=%-5s permissive=%-5s",
-					truncate(cmd, 45), r1.Action, r2.Action, r3.Action)
-			}
 		}
+	}
+
+	// Rulesets should produce different results for at least some commands
+	if diffs == 0 {
+		t.Error("expected at least some commands with different results across rulesets, got 0 diffs")
 	}
 	t.Logf("Total commands with different results across rulesets: %d/%d", diffs, len(cmds))
 }

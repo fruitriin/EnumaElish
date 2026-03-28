@@ -40,16 +40,8 @@ settings:
 	assertEqual(t, "line[0].command", out.Lines[0].Command, "ls")
 
 	// deny rm line
-	found := false
-	for _, line := range out.Lines {
-		if line.Action == dsl.ActionDeny && line.Command == "rm" {
-			found = true
-			assertEqual(t, "rm.message", line.Message, "dangerous")
-		}
-	}
-	if !found {
-		t.Error("expected deny rm line")
-	}
+	rm := findAuditLine(t, out.Lines, dsl.ActionDeny, "rm")
+	assertEqual(t, "rm.message", rm.Message, "dangerous")
 }
 
 func TestAuditWithTemplates(t *testing.T) {
@@ -70,25 +62,12 @@ settings:
 `)
 	out := Audit(cfg)
 
-	// Should have: allow find, deny find|rm (pipe), deny find-exec rm (exec), find && ...
-	foundPipe := false
-	foundExec := false
-	for _, line := range out.Lines {
-		if line.Action == dsl.ActionDeny && line.Command == "find | rm" {
-			foundPipe = true
-			assertEqual(t, "pipe.template", line.Template, "bulkExec")
-		}
-		if line.Action == dsl.ActionDeny && line.Command == "find -exec rm" {
-			foundExec = true
-			assertEqual(t, "exec.template", line.Template, "bulkExec.exec")
-		}
-	}
-	if !foundPipe {
-		t.Error("expected deny find|rm line")
-	}
-	if !foundExec {
-		t.Error("expected deny find-exec rm line")
-	}
+	// Should have: deny find|rm (pipe), deny find-exec rm (exec)
+	pipe := findAuditLine(t, out.Lines, dsl.ActionDeny, "find | rm")
+	assertEqual(t, "pipe.template", pipe.Template, "bulkExec")
+
+	exec := findAuditLine(t, out.Lines, dsl.ActionDeny, "find -exec rm")
+	assertEqual(t, "exec.template", exec.Template, "bulkExec.exec")
 }
 
 func TestAuditFormat(t *testing.T) {
@@ -135,6 +114,17 @@ settings:
 	out := Audit(cfg)
 	assertEqual(t, "rules", out.Stats.RuleCount, 2)
 	assertEqual(t, "templates", out.Stats.TemplateCount, 1)
+}
+
+func findAuditLine(t *testing.T, lines []AuditLine, action dsl.Action, command string) AuditLine {
+	t.Helper()
+	for _, line := range lines {
+		if line.Action == action && line.Command == command {
+			return line
+		}
+	}
+	t.Fatalf("expected %s %s line, not found", action, command)
+	return AuditLine{}
 }
 
 func assertEqual[T comparable](t *testing.T, name string, got, expected T) {

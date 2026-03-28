@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestParseBasicRules(t *testing.T) {
+func parseBasicRulesFixture(t *testing.T) *Config {
+	t.Helper()
 	f, err := os.Open("../../testdata/dsl/basic_rules.conf")
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
@@ -20,12 +21,14 @@ func TestParseBasicRules(t *testing.T) {
 	if len(cfg.Rules) != 3 {
 		t.Fatalf("expected 3 rules, got %d", len(cfg.Rules))
 	}
+	return cfg
+}
 
-	// Rule 1: allow find
+func TestParseBasicRules_AllowFind(t *testing.T) {
+	cfg := parseBasicRulesFixture(t)
 	r := cfg.Rules[0]
-	assertEqual(t, "rule[0].action", string(r.Action), "allow")
-	assertEqual(t, "rule[0].commands[0]", r.Commands[0], "find")
-	// Two |,>> blocks, each with 1 rule (allow touch,cat = 1 rule with 2 commands)
+	assertEqual(t, "action", string(r.Action), "allow")
+	assertEqual(t, "commands[0]", r.Commands[0], "find")
 	if len(r.PipeRules) != 2 {
 		t.Fatalf("expected 2 pipe rules for find, got %d", len(r.PipeRules))
 	}
@@ -33,32 +36,33 @@ func TestParseBasicRules(t *testing.T) {
 		t.Fatalf("expected 2 exec rules for find, got %d", len(r.ExecRules))
 	}
 
-	// Pipe rule: deny rm "don't combine find with rm"
 	pr := r.PipeRules[1]
-	assertEqual(t, "pipe[2].action", string(pr.Action), "deny")
-	assertEqual(t, "pipe[2].commands[0]", pr.Commands[0], "rm")
-	assertEqual(t, "pipe[2].message", pr.Message, "don't combine find with rm")
+	assertEqual(t, "pipe.action", string(pr.Action), "deny")
+	assertEqual(t, "pipe.commands[0]", pr.Commands[0], "rm")
+	assertEqual(t, "pipe.message", pr.Message, "don't combine find with rm")
 
-	// Exec rule: deny rm "expand to tempfile first"
 	er := r.ExecRules[0]
-	assertEqual(t, "exec[0].action", string(er.Action), "deny")
-	assertEqual(t, "exec[0].message", er.Message, "expand to tempfile first")
+	assertEqual(t, "exec.action", string(er.Action), "deny")
+	assertEqual(t, "exec.message", er.Message, "expand to tempfile first")
+}
 
-	// Rule 2: allow grep
+func TestParseBasicRules_AllowGrep(t *testing.T) {
+	cfg := parseBasicRulesFixture(t)
 	r2 := cfg.Rules[1]
-	assertEqual(t, "rule[1].action", string(r2.Action), "allow")
-	// "allow wc, sort, head, tail" = 1 rule with 4 commands
+	assertEqual(t, "action", string(r2.Action), "allow")
 	if len(r2.PipeRules) != 1 {
-		t.Errorf("expected 1 pipe rule for grep, got %d", len(r2.PipeRules))
+		t.Fatalf("expected 1 pipe rule for grep, got %d", len(r2.PipeRules))
 	}
-	if len(r2.PipeRules) > 0 && len(r2.PipeRules[0].Commands) != 4 {
+	if len(r2.PipeRules[0].Commands) != 4 {
 		t.Errorf("expected 4 commands in grep pipe rule, got %d", len(r2.PipeRules[0].Commands))
 	}
+}
 
-	// Rule 3: deny rm
+func TestParseBasicRules_DenyRm(t *testing.T) {
+	cfg := parseBasicRulesFixture(t)
 	r3 := cfg.Rules[2]
-	assertEqual(t, "rule[2].action", string(r3.Action), "deny")
-	assertEqual(t, "rule[2].commands[0]", r3.Commands[0], "rm")
+	assertEqual(t, "action", string(r3.Action), "deny")
+	assertEqual(t, "commands[0]", r3.Commands[0], "rm")
 }
 
 func TestParseTemplates(t *testing.T) {
