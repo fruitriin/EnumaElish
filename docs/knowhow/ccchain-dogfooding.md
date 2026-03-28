@@ -33,3 +33,15 @@ DSL パーサーの `parseKeyValue` はコロン直後の**1トークンしか**
 ### メッセージテンプレートの {id}
 
 `{id}` は `crypto/rand` で生成される12文字の hex。毎回異なるため一時ファイル名の衝突を防ぐ。deny メッセージに `"find -print > /tmp/targets_{id}.txt"` と書くと、Claude が実際にそのファイル名を使って書き直す。
+
+### Go モジュールパスとリポジトリ名の不一致
+
+`go.mod` のモジュールパスは `github.com/fruitriin/ccchain` だがリポジトリ名は `EnumaElish`。`go install` が混乱する。将来的にリポジトリ名の変更 or リダイレクト設定が必要。
+
+### Makefile タスクランナー
+
+Go プロジェクトでは `Makefile` が最もシンプル。`make check`（品質ゲート全部）、`make test-integration`、`make test-fixture`、`make bench` を定義。Task (go-task) や Mage もあるが、既に Makefile がある場合は追加依存を入れる理由がない。
+
+### .ccchain.conf の gitignore 注意
+
+初期状態で `.ccchain.conf` が `.gitignore` に入っていた。プロジェクト共有設定なのでコミット対象にすべき。`.ccchain.local.conf` を gitignore 対象にする（個人上書き用）。
