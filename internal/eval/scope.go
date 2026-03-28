@@ -52,7 +52,19 @@ func ClassifyPath(path string, workspacePaths []string) ScopeResult {
 		return ScopeOutside
 	}
 
-	// Pure relative path (no .., no /) → assume inside (CWD is typically workspace)
+	// Pure relative path — resolve against CLAUDE_PROJECT_DIR if available
+	if projectDir := os.Getenv("CLAUDE_PROJECT_DIR"); projectDir != "" {
+		abs := filepath.Clean(filepath.Join(projectDir, path))
+		for _, ws := range workspacePaths {
+			wsExpanded := filepath.Clean(expandTilde(ws))
+			if abs == wsExpanded || strings.HasPrefix(abs+"/", wsExpanded+"/") {
+				return ScopeInside
+			}
+		}
+		return ScopeOutside
+	}
+
+	// No CLAUDE_PROJECT_DIR — assume inside (CWD is typically workspace)
 	return ScopeInside
 }
 

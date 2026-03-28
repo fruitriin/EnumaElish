@@ -129,6 +129,7 @@ settings:
   max_context_depth: 2    # audit 展開の最大深度
   max_rules_per_cmd: 5    # audit でのコマンドあたりルール数上限
   fallback: ask           # マッチしないコマンドのデフォルト動作
+  workspace: ~/workspace  # ワークスペーススコープ（カンマ区切りで複数指定可）
 ```
 
 ## 複数コマンドの一行記法

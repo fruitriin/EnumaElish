@@ -98,7 +98,9 @@ func runHookPre(configPath string, defaultAction string) {
 		result = eval.EvaluateTool(ti.ToolName, wf.URL, cfg)
 
 	case strings.HasPrefix(ti.ToolName, "mcp__"):
-		result = eval.EvaluateTool(ti.ToolName, "", cfg)
+		// Best-effort: try to extract file_path, path, or url from MCP input
+		mcpArg := extractMCPArg(ti.Input)
+		result = eval.EvaluateTool(ti.ToolName, mcpArg, cfg)
 
 	default:
 		// Unknown tool — pass through
@@ -143,6 +145,23 @@ func outputResult(result *eval.Result) {
 	default:
 		os.Exit(0)
 	}
+}
+
+// extractMCPArg attempts to extract a file path or URL from MCP tool input.
+func extractMCPArg(input json.RawMessage) string {
+	var generic map[string]json.RawMessage
+	if json.Unmarshal(input, &generic) != nil {
+		return ""
+	}
+	for _, key := range []string{"file_path", "path", "url", "filePath"} {
+		if v, ok := generic[key]; ok {
+			var s string
+			if json.Unmarshal(v, &s) == nil && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 func runHookPost(configPath string) {

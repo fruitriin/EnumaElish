@@ -151,14 +151,17 @@ Usage:
   ccchain <command> [flags]
 
 Commands:
-  check       Validate configuration file syntax
-  hook pre    PreToolUse hook (reads tool JSON from stdin)
-  hook post   PostToolUse hook (reads tool JSON from stdin)
-  eval "cmd"  Evaluate a command and output result as JSON
-  suggest     Suggest rules for unmatched commands
-  audit       Display flat expansion of all rules
-  init        Generate default .ccchain.conf
-  version     Print version
+  check            Validate configuration file syntax
+  hook pre         PreToolUse hook (reads tool JSON from stdin)
+  hook post        PostToolUse hook (reads tool JSON from stdin)
+  eval "cmd"       Evaluate a command and output result as JSON
+  test [file]      Evaluate a list of commands (file or stdin)
+  suggest          Suggest rules for unmatched commands
+  detect           Auto-detect project type and suggest rules
+  generate-rules   Generate rules from built-in semantics table
+  audit            Display flat expansion of all rules
+  init             Generate default .ccchain.conf
+  version          Print version
 
 Flags:
   --config <path>            Configuration file path

@@ -150,6 +150,16 @@ var Table = map[string]CommandSemantics{
 	},
 }
 
+// normalizeSubcommands converts space-separated subcommands to regex-safe patterns.
+// "system prune" → "system\\s+prune"
+func normalizeSubcommands(subs []string) string {
+	normalized := make([]string, len(subs))
+	for i, sub := range subs {
+		normalized[i] = strings.ReplaceAll(sub, " ", "\\s+")
+	}
+	return strings.Join(normalized, "|")
+}
+
 // GenerateRules generates ccchain DSL rules from the semantics table.
 func GenerateRules() string {
 	var sb strings.Builder
@@ -171,7 +181,7 @@ func GenerateRules() string {
 		}
 
 		if len(sem.SafeSubcommands) > 0 {
-			pattern := "^(" + strings.Join(sem.SafeSubcommands, "|") + ")\\b"
+			pattern := "^(" + normalizeSubcommands(sem.SafeSubcommands) + ")\\b"
 			sb.WriteString(fmt.Sprintf("    %s: allow\n", pattern))
 		}
 
@@ -180,7 +190,7 @@ func GenerateRules() string {
 			if sem.ExecutesCode {
 				dangerAction = "ask"
 			}
-			pattern := "^(" + strings.Join(sem.DangerousSubcommands, "|") + ")\\b"
+			pattern := "^(" + normalizeSubcommands(sem.DangerousSubcommands) + ")\\b"
 			msg := name + " subcommand can have significant effects"
 			sb.WriteString(fmt.Sprintf("    %s: %s  \"%s\"\n", pattern, dangerAction, msg))
 		}

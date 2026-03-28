@@ -129,6 +129,7 @@ settings:
   max_context_depth: 2    # max depth for audit expansion
   max_rules_per_cmd: 5    # max rules per command in audit
   fallback: ask           # action for unmatched commands
+  workspace: ~/workspace  # workspace scope (comma-separated for multiple paths)
 ```
 
 ## Multiple Commands Per Rule
