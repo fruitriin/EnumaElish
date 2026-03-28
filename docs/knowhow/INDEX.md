@@ -12,6 +12,7 @@
 | [doc-drift-pattern.md](doc-drift-pattern.md) | ドキュメントドリフトのパターンと対策。ロードマップ未更新、printUsage忘れ、README一覧の古さ | ドキュメント, ドリフト, ロードマップ, printUsage, README, addf-doc-review-agent |
 | [workspace-scope-design.md](workspace-scope-design.md) | workspace スコープの設計思想と制限。ツール種別ごとの適用状況、複数パスホワイトリスト、ask止まりの設計判断、parseKeyValue デバッグ | workspace, scope, ScopeInside, ScopeOutside, ask, deny, Read, Edit, Bash, MCP, parseKeyValue |
 | [dsl-rule-design.md](dsl-rule-design.md) | DSL ルール設計パターン。last-rule-wins の活用、.conf/.local.conf 役割分担、args: 正規表現の罠、複合サブコマンド regex | last-rule-wins, args, 正規表現, .ccchain.conf, .ccchain.local.conf, chmod, 777, サブコマンド, normalizeSubcommands |
+| [savanna-smell-detector.md](savanna-smell-detector.md) | savanna-smell-detector Go 導入知見。Go イディオム相性、テストスメル修正パターン、フィードバックループ | savanna, テストスメル, smell-allow, Giant Test, Conditional Test Logic, Go, t.Fatal, assertEqual |
 
 ## プロセス・運用
 
