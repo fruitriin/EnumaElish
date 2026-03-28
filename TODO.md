@@ -3,7 +3,7 @@
 `docs/plans/` の完了状態・優先度をトラックする。
 `docs/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: 全プラン完了
+## 現在のフェーズ: Phase 18（ドキュメント同期 + セキュリティ修正）
 
 ## バックログ
 
@@ -27,7 +27,8 @@
 | 14 | 13 | `docs/plans/0013-command-semantics-table.md` | 完了 | 0010 のデフォルトルールと統合 |
 | 15 | 15 | `docs/plans/0015-project-auto-detect.md` | 完了 | 0013 のテーブルを活用できる |
 | 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
-| 17 | 17 | `docs/plans/0017-bash-args-scope.md` | 未着手 | Bash コマンド引数にもワークスペーススコープ適用 |
+| 17 | 18 | `docs/plans/0018-doc-sync-and-security-fixes.md` | 未着手 | ドキュメント同期 Critical 4件 + セキュリティ Medium 4件 |
+| 18 | 17 | `docs/plans/0017-bash-args-scope.md` | 未着手 | Bash コマンド引数にもワークスペーススコープ適用 |
 
 ## ロードマップ（未計画）
 
