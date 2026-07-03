@@ -275,13 +275,14 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 }
 
 // applyScopeToCommand checks if any path arguments are outside the workspace.
-// If so, escalates allow → ask.
+// If so, escalates allow → ask (or allow → deny when settings has
+// scope_violation: deny).
 func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Result) *Result {
 	if config.Settings == nil || len(config.Settings.WorkspacePaths) == 0 {
 		return baseResult
 	}
 	if baseResult.Action != dsl.ActionAllow {
-		return baseResult // only escalate allow → ask
+		return baseResult // only escalate allow (deny/ask are already restrictive)
 	}
 
 	paths := ExtractPathArgs(cmd.Args)
@@ -297,7 +298,7 @@ func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Res
 		scope := ClassifyPath(p, config.Settings.WorkspacePaths)
 		if scope == ScopeOutside {
 			return &Result{
-				Action:  dsl.ActionAsk,
+				Action:  scopeViolationAction(config),
 				Message: "workspace scope: command accesses path outside workspace",
 				Context: baseResult.Context,
 			}

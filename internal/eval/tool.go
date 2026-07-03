@@ -39,10 +39,11 @@ func EvaluateTool(toolName string, toolArg string, config *dsl.Config) *Result {
 	if toolArg != "" && config.Settings != nil && len(config.Settings.WorkspacePaths) > 0 {
 		scope := ClassifyPath(toolArg, config.Settings.WorkspacePaths)
 		if scope == ScopeOutside {
-			// Outside workspace → escalate to at least "ask" if currently "allow"
+			// Outside workspace → escalate "allow" to the configured
+			// scope_violation action (ask by default, deny for strict setups)
 			if lastMatch != nil && lastMatch.Action == dsl.ActionAllow {
 				return &Result{
-					Action:  dsl.ActionAsk,
+					Action:  scopeViolationAction(config),
 					Message: "workspace scope: accessing path outside workspace",
 					Context: []string{toolName, toolArg},
 				}

@@ -98,3 +98,21 @@ preToolUse
 	r2 := EvaluateTool("Write", "/workspace/.claude/settings.json", cfg)
 	assertEqual(t, "write settings", r2.Action, dsl.ActionDeny)
 }
+
+func TestEvaluateToolScopeViolationDeny(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: /workspace
+  scope_violation: deny
+
+preToolUse
+  allow Read
+`)
+	// Outside workspace → denied (not just ask)
+	r1 := EvaluateTool("Read", "/etc/passwd", cfg)
+	assertEqual(t, "read outside denied", r1.Action, dsl.ActionDeny)
+
+	// Inside workspace → still allowed
+	r2 := EvaluateTool("Read", "/workspace/README.md", cfg)
+	assertEqual(t, "read inside allowed", r2.Action, dsl.ActionAllow)
+}

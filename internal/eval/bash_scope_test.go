@@ -119,6 +119,71 @@ preToolUse
 	assertEqual(t, "no workspace", r.Action, dsl.ActionAllow)
 }
 
+func TestBashScopeViolationDeny(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	wsPath := filepath.Join(home, "workspace")
+
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: ~/workspace
+  scope_violation: deny
+  fallback: ask
+
+preToolUse
+  allow cat
+`)
+	// Outside workspace → denied (not just ask)
+	r, err := Evaluate("cat /etc/passwd", cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "outside workspace denied", r.Action, dsl.ActionDeny)
+
+	// Inside workspace → still allowed
+	r2, err := Evaluate("cat "+wsPath+"/README.md", cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "inside workspace allowed", r2.Action, dsl.ActionAllow)
+}
+
+func TestBashScopeViolationAskExplicit(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: ~/workspace
+  scope_violation: ask
+  fallback: ask
+
+preToolUse
+  allow cat
+`)
+	// Explicit ask behaves the same as the default
+	r, err := Evaluate("cat /etc/passwd", cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "outside workspace ask", r.Action, dsl.ActionAsk)
+}
+
+func TestBashScopeViolationDenyOnlyEscalatesAllow(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: ~/workspace
+  scope_violation: deny
+  fallback: ask
+
+preToolUse
+  ask cat
+`)
+	// An explicit ask rule is not escalated to deny — scope_violation
+	// only downgrades allow results
+	r, err := Evaluate("cat /etc/passwd", cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "ask rule not escalated", r.Action, dsl.ActionAsk)
+}
+
 func TestBashScopeDenyNotEscalated(t *testing.T) {
 	cfg := mustParseConfig(t, `
 settings:
