@@ -3,7 +3,7 @@
 `docs/plans/` の完了状態・優先度をトラックする。
 `docs/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Phase 18（ドキュメント同期 + セキュリティ修正）
+## 現在のフェーズ: Phase 22（ccchain 再起動 — auto モード時代の deny-first 安全網）
 
 ## バックログ
 
@@ -29,8 +29,11 @@
 | 16 | 12 | `docs/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
 | 17 | 18 | `docs/plans/0018-doc-sync-and-security-fixes.md` | 完了 | ドキュメント同期 Critical 4件 + セキュリティ Medium 4件 |
 | 18 | 17 | `docs/plans/0017-bash-args-scope.md` | 完了 | Bash コマンド引数にもワークスペーススコープ適用 |
-| 19 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 未着手 | eval REPL + diff + stats（開発体験改善） |
+| 19 | 22 | `docs/plans/0022-ask-strategy-and-deny-first-sentinel.md` | 未着手 | **最優先**。auto/dontAsk/headless で ask が人間に届かない穴を deny+hint で塞ぐ。hook I/O 現代化を含む |
 | 20 | 20 | `docs/plans/0020-ci-pipeline.md` | 未着手 | CI パイプライン（Go テスト + ドキュメントビルド） |
+| 21 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 未着手 | eval REPL + diff + stats（開発体験改善） |
+| 22 | 23 | `docs/plans/0023-addf-hook-integration.md` | 未着手（スタブ） | 0022 依存。/addf-init での hook 自動設営 |
+| 23 | 24 | `docs/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
 
 ## 割り込み対応
 

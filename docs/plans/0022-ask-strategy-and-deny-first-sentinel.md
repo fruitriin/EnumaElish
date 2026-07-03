@@ -1,0 +1,281 @@
+# Plan 0022: ccchain 再起動 — auto モード時代の deny-first 安全網
+
+## 実装状況: 未着手
+
+## 背景
+
+開発停止中に Claude Code のパーミッション仕様が大きく変わり、ccchain の設計が環境に追いつかれた。
+
+**2026-07 時点の Claude Code 仕様（オーナー確認済みの転写。実装前に Phase 0 で必ず再裏取りする）:**
+
+- PreToolUse hook の `permissionDecision` は `allow / deny / ask / defer` の4値。**hook は権限モードチェックの前に走る**
+- パーミッションモード: `default` / `acceptEdits` / `plan` / `auto`（v2.1.83+、classifier が審査）/ `dontAsk`（v2.1.199+）/ `bypassPermissions`（v2.1.126+）
+- 相互作用（最重要）:
+  - `deny`: **全モードで実行ブロック**。bypassPermissions でも有効
+  - `ask`: default・acceptEdits・**bypassPermissions → ダイアログが出る**。auto → defer 扱い（classifier 行き、人間への強制確認は不可）。dontAsk → プロンプトなしで拒否。headless（`claude -p`）→ defer
+  - `allow`: 全モードでプロンプトスキップ
+  - `defer`: モードの既定フローに委ねる（非インタラクティブ専用）
+- settings.json の `permissions.ask` 配列は存在し、評価順は deny > ask > allow。auto モードでも ask ルールはダイアログを出す
+- PermissionRequest hook は非インタラクティブでは実行されない。`--permission-prompt-tool` 相当の仕組みは現存しない
+
+**含意**: 旧構成（bypassPermissions + hook）は現仕様では正規のレイヤリングとして成立する。唯一の穴は **auto モードと headless での ask**（人間に届かず classifier / 既定フローに吸われる）。ccchain の `ask` は「人間に確認してほしい」という意図の表明なので、届かない環境では **deny+hint に降格して安全側に倒す**のが本計画の核心。
+
+### 現状とのギャップ（コードベース調査 2026-07-04）
+
+計画の前提となる実装済み事実と乖離:
+
+| 項目 | 現状 | ギャップ |
+|---|---|---|
+| hook 出力形式 | deny = stderr + **exit 2**、ask = `{"decision":"ask"}`、warn = `{"decision":"allow","message":...}`（`cmd/ccchain/hook.go:113` `outputResult`） | 新仕様の `hookSpecificOutput.permissionDecision` / `permissionDecisionReason` JSON 形式に未対応。**4値を返す土台がない** |
+| `permission_mode` 読取 | **未読取**（stdin パース構造体 `toolInput` は `tool_name` / `tool_input` のみ。grep 0 hit） | ask_strategy の分岐入力が取れていない |
+| `defer` アクション | DSL に存在しない（`ActionAllow/Deny/Warn/Ask/Hint`、`internal/dsl/ast.go:19-25`） | hook 出力としての defer をどう扱うか設計が必要 |
+| deny メッセージ | Plan 0012 のテンプレート展開あり（`internal/eval/message.go`、`{command}` 等の変数 + sanitize + 200 字切詰め） | 承認手順の埋め込みで 200 字制限と衝突する可能性 |
+| プリセット | `ccchain init` の `defaultConfig` 定数1種のみ（`cmd/ccchain/init_cmd.go:8-131`） | プリセット選択機構がない |
+| バージョン | git tag なし、`main.version = "dev"` | 破壊的変更を含むためタグ運用開始が必要 |
+
+## スコープ
+
+1. **hook I/O 現代化** — permissionDecision 4値出力と permission_mode 読取（他の全項目の前提）
+2. **ask_strategy** — DSL の ask アクションを実行時モードで解決
+3. **承認トークン（`ccchain approve`）** — deny+hint 経由の人間承認をワンショットで通す
+4. **deny-first プリセット（`ccchain init --sentinel`）** — キュレート済みルールセット同梱
+5. **ポジショニング刷新** — README/docs を「deny-first 安全網」へ書き直し
+
+**スコープ外**（別計画として登録済み）:
+- ADDF 統合（/addf-init での hook 自動設営）→ Plan 0023
+- Slack/リモート承認連携 → Plan 0024
+
+## 設計原則（オーナー指定の制約）
+
+- 既存 DSL・設定ファイルの後方互換を守る
+- シングルバイナリ・依存追加は最小限（承認トークンはファイルベース）
+- deny は必ずヒント付き。「ブロックが対話になる」思想を崩さない
+
+---
+
+## Phase 0: 仕様の再裏取り（実装前必須ゲート）
+
+背景セクションの転写を信じず、WebFetch で以下を再確認する。**結果は本 Plan のこのセクションに追記し、乖離があれば設計を修正してから Phase 1 に進む。**
+
+- [ ] https://code.claude.com/docs/en/hooks-guide.md — PreToolUse の入出力スキーマ（`permission_mode` フィールドの正確な名前と値集合、`hookSpecificOutput.permissionDecision` の4値、`permissionDecisionReason` の表示先）
+- [ ] https://code.claude.com/docs/en/permission-modes.md — 6モードの正確な挙動、auto での ask → defer 扱いの記述
+- [ ] https://code.claude.com/docs/en/permissions.md — deny > ask > allow の評価順、bypassPermissions での deny/ask の有効性
+- [ ] **headless の検出方法**: hook 入力 JSON から headless（`claude -p`）を判別できるか（permission_mode に現れるのか、別フィールドか、判別不能か）。判別不能なら ask_strategy の「headless」区分は「非インタラクティブ系モードと同一扱い」に設計変更する
+- [ ] **旧形式との共存**: exit 2 + stderr（現行の deny）と新 JSON 形式のどちらが優先されるか。旧 Claude Code バージョンに新 JSON を渡した場合の挙動（後方互換戦略の決定材料）
+- [ ] `permissionDecisionReason` の文字数制限・表示のされ方（deny+hint の承認手順埋め込みが読める形で届くか）
+
+検証結果の記録先: 本セクション末尾に「### 検証結果（YYYY-MM-DD）」を追記。docs/knowhow/ADDF/claude-code-hooks.md との乖離があれば `/addf-knowhow-revise` で更新する。
+
+## Phase 1: hook I/O 現代化
+
+### 入力: permission_mode の読取
+
+`cmd/ccchain/hook.go` の `toolInput` を拡張:
+
+```go
+type toolInput struct {
+    ToolName       string          `json:"tool_name"`
+    Input          json.RawMessage `json:"tool_input"`
+    PermissionMode string          `json:"permission_mode"` // Phase 0 で正確なキー名を確認
+}
+```
+
+- 未知の値・空文字は **最も保守的な非インタラクティブ扱い**にフォールバック（前方互換: 新モードが増えても安全側）
+- モード分類関数 `classifyMode(mode string) ModeClass` を `internal/eval` に置く（interactive / nonInteractive の2区分。Phase 0 の headless 調査結果次第で3区分）
+
+### 出力: permissionDecision 4値 JSON
+
+`outputResult` を新形式に書き換える:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "ccchain: curl|bash はパイプ実行のため deny。承認するには…"
+  }
+}
+```
+
+- deny も **exit 0 + JSON** に移行（現行の exit 2 + stderr から変更）
+- **後方互換オプション**: `settings:` に `hook_output: legacy | modern`（デフォルト modern）を追加。Phase 0 の共存調査で旧形式しか解さない環境が確認されたら legacy を残す。調査で新形式が全対象バージョンで機能するなら本オプションは**追加しない**（不要な設定面を増やさない）
+- `ActionHint` の出力未実装（現行 `default:` で exit 0 に落ちる）もこの機会に整理: hint は `permissionDecision: "allow"` + reason で警告文を届ける
+
+### DSL への影響
+
+- `defer` は **DSL のアクションには追加しない**。defer は「モード既定に委ねる」であり、ルール作者の意図としては fallback 未マッチと等価。hook 出力層でのみ使う（例: ccchain が判定不能なツールへの中立応答）
+- 既存 5 アクション（allow/deny/warn/ask/hint）はそのまま。**後方互換維持**
+
+## Phase 2: ask_strategy
+
+### 動作
+
+DSL 評価結果が `ask` のとき、hook 出力層で実行時モードにより解決する:
+
+| permission_mode | 既定の解決 | 根拠 |
+|---|---|---|
+| default / acceptEdits / bypassPermissions | `ask` をそのまま出力 | ダイアログが人間に届く |
+| plan | `ask` をそのまま出力 | 実行されない（read-only 計画中）。Phase 0 で要確認 |
+| auto | **deny に降格** + 承認手順 hint | ask は classifier 行きで人間に届かない |
+| dontAsk | **deny に降格** + 承認手順 hint | ask は無告知拒否になり対話にならない |
+| headless（判別可能なら） | **deny に降格** + 承認手順 hint | ask は defer 扱いで人間に届かない |
+
+### 設定（.ccchain.conf）
+
+```
+settings:
+  ask_strategy: degrade        # degrade（既定）| passthrough | deny-all
+```
+
+- `degrade`（既定）: 上表のとおり非インタラクティブで deny+hint に降格
+- `passthrough`: 常に ask をそのまま返す（旧挙動。classifier を信頼する運用向け）
+- `deny-all`: モードを問わず ask を deny+hint に格上げ（最保守。CI 等）
+- **後方互換**: `ask_strategy` 未記載の既存 conf は `degrade` になる。既存動作からの変化は「auto/dontAsk で ask が deny になる」ことだが、これは安全側への変化であり本計画の目的そのもの。CHANGELOG と README に明記する
+- 粒度の検討（設計時判断）: まずは settings 全体で1値。ルール単位の上書き（`ask_strategy:` をルール子ブロックに許す）は必要が観測されてから。YAGNI
+
+### 降格時の deny メッセージ
+
+Plan 0012 のテンプレート機構を拡張し、降格 deny に自動付加する定型文を用意する:
+
+```
+ccchain: このコマンドは人間の承認が必要ですが、現在のモード（auto）では
+確認ダイアログを表示できません。承認するには対話セッションで実行するか、
+オーナーがターミナルで `ccchain approve --last` を実行してください。
+```
+
+- 新テンプレート変数 `{permission_mode}` `{approve_command}` を `internal/eval/message.go` に追加
+- `sanitizeForMessage` の 200 字切詰めは承認手順が収まるよう見直す（切詰め値を定数化し、降格メッセージは切詰め対象外にするか上限を拡大。prompt injection 対策のサニタイズ自体は維持）
+
+## Phase 3: 承認トークン（`ccchain approve`）
+
+### 脅威モデル（設計の要）
+
+**hint にトークンそのものを埋め込んではならない。** hint はエージェントのコンテキストに入るため、トークンを見たエージェントが自分で `ccchain approve <token>` を実行して自己承認できてしまう。よって:
+
+- hint には**手順のみ**を書く（「オーナーがターミナルで `ccchain approve --last` を実行」）
+- deny した要求は pending ファイルに記録し、**人間が別ターミナルで** pending 一覧を確認・承認する
+- `ccchain approve` コマンド自体を sentinel プリセットで `deny`（エージェント経由の実行を ccchain 自身が止める。自己言及的だが hook 経由の Bash はすべて ccchain を通るため成立する）。加えて README で settings.json の `permissions.deny` に `Bash(ccchain approve*)` を追加する構成を推奨（二重防御）
+
+### フロー
+
+```
+1. auto モードで ask → deny 降格発生
+   → ~/.claude/ccchain/pending.jsonl に {正規化コマンド, ハッシュ, cwd, timestamp} を追記
+   → hint: 「承認するには: ccchain approve --last（オーナーのターミナルで）」
+2. 人間: ccchain approve --last（または ccchain approve --list で選択）
+   → ~/.claude/ccchain/approved.jsonl に {ハッシュ, 発行時刻, TTL, スコープ} を追記
+3. エージェントが同一コマンドを再実行
+   → hook が正規化ハッシュ一致 + TTL 内 + スコープ一致を確認 → allow（ワンショット消費: エントリを消費済みにマーク）
+```
+
+### 設計判断（実装時に確定、初期値を提示）
+
+- **正規化**: `mvdan.cc/sh` の AST を printer で再出力した文字列の SHA-256。空白・クォートの揺れを吸収し、意味の同一性で照合する。動的要素（`$VAR`、`$(...)`）を含むコマンドは**承認対象外**（展開結果が変わるため。pending 記録時に reject し hint で理由を伝える）
+- **TTL**: 既定 15 分。`ccchain approve --ttl 1h` で上書き
+- **スコープ**: 既定はセッション+ディレクトリ限定（`session_id` があれば併用 — Phase 0 で hook 入力に session_id が来るか確認。なければ cwd 一致のみ）。`--global` でマシン全体
+- **ワンショット**: 既定は1回消費。`--count N` は最初は実装しない（YAGNI）
+- **ストア**: `~/.claude/ccchain/` 配下の JSONL 2 ファイル + ファイルロック（`O_EXCL` の lock ファイル方式。依存追加なし）。ファイルパーミッション 0600
+- **監査**: 承認・消費は Plan 0004 の audit ログにも記録する
+
+### CLI 追加
+
+```
+ccchain approve --last          # 直近の pending を承認
+ccchain approve --list          # pending 一覧（番号選択）
+ccchain approve <hash-prefix>   # ハッシュ指定
+ccchain approve --revoke-all    # 未消費の承認を全破棄
+```
+
+`printUsage`（`cmd/ccchain/main.go`）への追加を忘れない（doc-drift-pattern.md の printUsage 整合チェック対象）。
+
+## Phase 4: deny-first プリセット（`ccchain init --sentinel`）
+
+### 方針
+
+エンジンの価値をルールセットで届ける。「classifier が構造を見ないから拾えないが、AST 解析なら確実に止められる」パターンをキュレートする。
+
+### 収録ルール（初期セット。fixture で全件検証）
+
+| パターン | アクション | 根拠 |
+|---|---|---|
+| `curl \| bash` / `wget \| sh`（パイプ先が任意シェル） | deny | 未検査コードの実行。プレフィックスマッチでは `curl` 全体を止めるしかなかった代表例 |
+| `find … -exec rm` / `-delete` | deny | ネスト実行の破壊操作（`evaluateNested` の主戦場） |
+| 保護パスへの `rm -rf`（`~`, `/`, `.git`, workspace 外） | deny | scope 機構 + args: の合わせ技 |
+| `git push --force` / `+refs` を main/master/develop へ | deny | args: regex。ブランチ名は `args:` パターンで判定 |
+| backup ref なしのブランチ削除（`git branch -D`） | ask（sentinel では deny+hint で「先に backup ref を作る手順」を提示） | my-environment.md の既知の再発ポイントでもある |
+| `git reset --hard` + `git clean -fd` のチェーン | deny | 未コミット変更の全損 |
+| `chmod -R 777` / `chown -R` の広域適用 | deny | |
+| `eval` / `source <(curl …)` | deny | 動的コード実行 |
+| dd / mkfs / diskutil の書込み系 | deny | |
+
+- 既存 `defaultConfig`（`init_cmd.go`）とは別定数 `sentinelConfig` として持ち、`--sentinel` フラグで選択。既定の `ccchain init` の出力は**変えない**（後方互換）
+- semantics テーブル（`internal/semantics/table.go`）に不足パターンがあれば追補し、`generate-rules` との整合を保つ
+- 各 deny ルールに **必ず message を付ける**（なぜ止めたか + 代替手順 + 承認手順）。「ブロックが対話になる」原則の実践
+- dsl-rule-design.md の args: regex の罠（範囲パターンの過度マッチ、複合サブコマンドのスペース正規化）に留意
+
+### 検証
+
+- fixture テスト（fixture-based-testing.md 方式）: `testdata/fixtures/rules-sentinel.conf` を追加し、`TestFixtureDangerousNeverAllow` の対象に組み込む
+- `TestIntegrationDangerousRealWorld` / `TestIntegrationDangerousIdealDeny` に sentinel 適用時の期待値を追加
+
+## Phase 5: ポジショニング刷新（README / docs）
+
+### 書き直しの軸
+
+「プレフィックスマッチの限界を補う」→ **「auto/bypass 時代に classifier が拾えない構造的パターンを止める deny-first 安全網」**
+
+- ccchain の deny は**全モードで有効**（bypassPermissions でも）— これが最上位の価値
+- auto モードの classifier は確率的判定。ccchain は AST 解析による決定的判定。「classifier の誤許可に対する最後の砦」
+- ask は届く環境でだけ使い、届かない環境では deny+hint + 承認トークンで「非同期の対話」に変換する
+
+### 成果物
+
+- README.md / README.en.md: ポジショニング書き直し + **モード×判定の互換表**（背景セクションの相互作用表を整形して掲載）+ sentinel プリセットのクイックスタート
+- docs/（VitePress）: ask_strategy・approve・sentinel のリファレンスページ追加、既存 DSL リファレンスに settings 追記
+- CHANGELOG: 破壊的変更（hook 出力形式）・安全側変更（ask 降格）を明記
+- doc-drift-pattern.md の4パターン（ロードマップ・printUsage・README 一覧・DSL リファレンス）をチェックリストとして品質ゲートで確認
+
+## 実装順序と依存
+
+```
+Phase 0（再裏取り）
+  └→ Phase 1（hook I/O） ← 全ての前提
+       ├→ Phase 2（ask_strategy）
+       │    └→ Phase 3（承認トークン）… 降格 deny の hint が approve に言及するため
+       └→ Phase 4（sentinel プリセット）… Phase 2/3 と並行可能（worktree 分離）
+Phase 5（ドキュメント）… Phase 2〜4 の確定後
+```
+
+リリース: 完了時に初の git tag（`v1.0.0` を提案 — hook 出力形式の破壊的変更を含む節目。Makefile の `git describe` 運用が始動する）。
+
+## テスト戦略
+
+- 単体: `classifyMode` / ask 解決 / 正規化ハッシュ / TTL・スコープ判定 / pending-approved ストア（並行アクセス含む）
+- 統合: 既存 `TestIntegration*` を permission_mode 別にパラメタライズ（interactive/auto で期待値が変わるケースを明示）。`TestIntegrationDangerousRealWorld` に「auto モードで ask が deny に降格していること」の検証を追加
+- fixture: rules-sentinel.conf の全収録ルール × commands.txt
+- E2E 手動: 実際の Claude Code auto モードで hook を設定し、降格 deny → approve → 再実行 allow の一連フローを確認（品質ゲートの human-judgment 項目）
+
+## セキュリティレビュー観点（addf-security-review-agent への申し送り)
+
+- 承認トークンの自己承認経路（hint にトークンが漏れていないか、approve 自体の deny が効いているか）
+- pending/approved ファイルの権限・シンボリックリンク攻撃・ロック競合
+- 正規化ハッシュの衝突・バイパス（コメント挿入、エンコーディング、IFS 操作で同一ハッシュの別意味コマンドが作れないか）
+- 降格メッセージ経由の prompt injection（sanitize の維持を確認）
+- security-review-findings.md の既知パターン（相対パス、MCP 引数未検査）が新コードパスで再発していないか
+
+## 参照ノウハウ
+
+- docs/knowhow/dsl-rule-design.md — args: regex の罠、last-rule-wins、conf の役割分担
+- docs/knowhow/security-review-findings.md — 過去の脆弱性5パターン
+- docs/knowhow/ADDF/pretooluse-block-with-rationale.md — deny 時の根拠伝達
+- docs/knowhow/ADDF/claude-code-hooks.md — hook 入出力仕様（Phase 0 で鮮度再検証）
+- docs/knowhow/doc-drift-pattern.md — ドキュメント同期の4パターン
+- docs/knowhow/fixture-based-testing.md — プリセット検証方式
+
+## AI 実装時間の見積もり
+
+- Phase 0: 1セッション枠（WebFetch 調査 + Plan 追記）
+- Phase 1–2: 1〜2セッション（hook I/O は影響範囲が広くテスト更新が主コスト）
+- Phase 3: 1〜2セッション（ストア設計 + セキュリティレビュー往復）
+- Phase 4: 1セッション（ルール設計 + fixture）
+- Phase 5: 1セッション（ドキュメント一式）
