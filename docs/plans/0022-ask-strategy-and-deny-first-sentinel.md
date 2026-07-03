@@ -18,7 +18,7 @@
 - settings.json の `permissions.ask` 配列は存在し、評価順は deny > ask > allow。auto モードでも ask ルールはダイアログを出す
 - PermissionRequest hook は非インタラクティブでは実行されない。`--permission-prompt-tool` 相当の仕組みは現存しない
 
-**含意**: 旧構成（bypassPermissions + hook）は現仕様では正規のレイヤリングとして成立する。唯一の穴は **auto モードと headless での ask**（人間に届かず classifier / 既定フローに吸われる）。ccchain の `ask` は「人間に確認してほしい」という意図の表明なので、届かない環境では **deny+hint に降格して安全側に倒す**のが本計画の核心。
+**含意**: 旧構成（bypassPermissions + hook）は現仕様では正規のレイヤリングとして成立する。唯一の穴は **auto モードと headless での ask**（人間に届かず classifier / 既定フローに吸われる）。ccchain の `ask` は「人間に確認してほしい」という意図の表明なので、届かない環境では **deny+hint または allow+hint に明示的に倒す**のが本計画の核心。どちらに倒すかは内容次第でユーザーがルール単位に指定し、既定は deny 側（安全側）とする。
 
 ### 現状とのギャップ（コードベース調査 2026-07-04）
 
@@ -110,28 +110,42 @@ type toolInput struct {
 
 ### 動作
 
-DSL 評価結果が `ask` のとき、hook 出力層で実行時モードにより解決する:
+DSL 評価結果が `ask` のとき、hook 出力層で実行時モードにより解決する。ask が人間に届かないモードでは **deny+hint / allow+hint のどちらかに倒す**。どちらに倒すかは内容次第でユーザーがルール単位に指定でき、既定は deny 側（オーナーレビュー 2026-07-04 反映）:
 
 | permission_mode | 既定の解決 | 根拠 |
 |---|---|---|
 | default / acceptEdits / bypassPermissions | `ask` をそのまま出力 | ダイアログが人間に届く |
 | plan | `ask` をそのまま出力 | 実行されない（read-only 計画中）。Phase 0 で要確認 |
-| auto | **deny に降格** + 承認手順 hint | ask は classifier 行きで人間に届かない |
-| dontAsk | **deny に降格** + 承認手順 hint | ask は無告知拒否になり対話にならない |
-| headless（判別可能なら） | **deny に降格** + 承認手順 hint | ask は defer 扱いで人間に届かない |
+| auto | **降格**: deny+hint（既定）または allow+hint（ルール指定時） | ask は classifier 行きで人間に届かない |
+| dontAsk | 同上 | ask は無告知拒否になり対話にならない |
+| headless（判別可能なら） | 同上 | ask は defer 扱いで人間に届かない |
+
+**倒す方向の使い分け**:
+- **deny+hint**（既定）: 人間の判断なしに実行させたくないもの。hint に承認手順（Phase 3）を埋め込み、「非同期の対話」に変換する
+- **allow+hint**: 止めるほどではないが注意喚起したいもの（例: workspace 外の読取り、初回実行のツール）。`permissionDecision: "allow"` + reason で実行を通しつつ、エージェントのコンテキストに注意文を残す。既存の `warn` アクションと同じ出力形態であり、実装は warn への降格として整理できる
 
 ### 設定（.ccchain.conf）
+
+グローバル既定 + ルール単位の上書きの2層:
 
 ```
 settings:
   ask_strategy: degrade        # degrade（既定）| passthrough | deny-all
+  ask_degrade_default: deny    # deny（既定）| allow — degrade 時に倒す側の全体既定
+
+preToolUse:
+  ask docker "コンテナ操作は確認したい"
+    unattended: allow          # このルールの ask は非対話時 allow+hint に倒す
+
+  ask git-branch-delete "ブランチ削除は backup ref を先に"
+    unattended: deny           # 明示（既定と同じ）。非対話時 deny+hint + 承認手順
 ```
 
-- `degrade`（既定）: 上表のとおり非インタラクティブで deny+hint に降格
+- `degrade`（既定）: 上表のとおり非インタラクティブで降格。倒す側は `unattended:`（ルール単位）→ `ask_degrade_default`（グローバル）→ `deny`（組込み既定）の順で解決
 - `passthrough`: 常に ask をそのまま返す（旧挙動。classifier を信頼する運用向け）
-- `deny-all`: モードを問わず ask を deny+hint に格上げ（最保守。CI 等）
-- **後方互換**: `ask_strategy` 未記載の既存 conf は `degrade` になる。既存動作からの変化は「auto/dontAsk で ask が deny になる」ことだが、これは安全側への変化であり本計画の目的そのもの。CHANGELOG と README に明記する
-- 粒度の検討（設計時判断）: まずは settings 全体で1値。ルール単位の上書き（`ask_strategy:` をルール子ブロックに許す）は必要が観測されてから。YAGNI
+- `deny-all`: モードを問わず ask を deny+hint に格上げ（最保守。CI 等。`unattended: allow` 指定より優先）
+- **後方互換**: `ask_strategy` / `unattended:` 未記載の既存 conf は degrade + deny 側になる。既存動作からの変化は「auto/dontAsk で ask が deny になる」ことだが、これは安全側への変化であり本計画の目的そのもの。CHANGELOG と README に明記する
+- パーサー変更: ルール子ブロックに `unattended:` キーワードを追加（`parseRule` の子ブロック分岐、`args:` ブロック内の個別アクションにも同様の指定を許すかは実装時に判断）。sentinel プリセット（Phase 4）の各 ask ルールにも方向を明示的にキュレートして同梱する
 
 ### 降格時の deny メッセージ
 
@@ -250,7 +264,7 @@ Phase 5（ドキュメント）… Phase 2〜4 の確定後
 
 ## テスト戦略
 
-- 単体: `classifyMode` / ask 解決 / 正規化ハッシュ / TTL・スコープ判定 / pending-approved ストア（並行アクセス含む）
+- 単体: `classifyMode` / ask 解決（`unattended:` → `ask_degrade_default` → 組込み既定の3層解決、deny-all の優先を含む）/ 正規化ハッシュ / TTL・スコープ判定 / pending-approved ストア（並行アクセス含む）
 - 統合: 既存 `TestIntegration*` を permission_mode 別にパラメタライズ（interactive/auto で期待値が変わるケースを明示）。`TestIntegrationDangerousRealWorld` に「auto モードで ask が deny に降格していること」の検証を追加
 - fixture: rules-sentinel.conf の全収録ルール × commands.txt
 - E2E 手動: 実際の Claude Code auto モードで hook を設定し、降格 deny → approve → 再実行 allow の一連フローを確認（品質ゲートの human-judgment 項目）
@@ -261,6 +275,7 @@ Phase 5（ドキュメント）… Phase 2〜4 の確定後
 - pending/approved ファイルの権限・シンボリックリンク攻撃・ロック競合
 - 正規化ハッシュの衝突・バイパス（コメント挿入、エンコーディング、IFS 操作で同一ハッシュの別意味コマンドが作れないか）
 - 降格メッセージ経由の prompt injection（sanitize の維持を確認）
+- `unattended: allow` の指定範囲の妥当性（sentinel プリセット内に allow 側へ倒す ask ルールを含める場合、その選定根拠。広すぎる allow 降格は安全網の穴になる）
 - security-review-findings.md の既知パターン（相対パス、MCP 引数未検査）が新コードパスで再発していないか
 
 ## 参照ノウハウ
