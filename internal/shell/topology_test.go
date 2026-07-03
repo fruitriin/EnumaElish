@@ -133,6 +133,39 @@ func TestBuildTopologyCommandSubstitution(t *testing.T) {
 	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
 }
 
+// TestBuildTopologyQuoteRemoval pins shell-style quote removal at word
+// extraction: names and args carry the value the shell would pass to the
+// command, not the source text with quotes.
+func TestBuildTopologyQuoteRemoval(t *testing.T) {
+	cases := []struct {
+		name     string
+		cmd      string
+		wantName string
+		wantArgs []string
+	}{
+		{"double-quoted arg", `curl -X "POST" https://example.com`, "curl", []string{"-X", "POST", "https://example.com"}},
+		{"single-quoted arg", `curl -X 'POST' https://example.com`, "curl", []string{"-X", "POST", "https://example.com"}},
+		{"partially quoted arg", `curl -X PO"ST" https://example.com`, "curl", []string{"-X", "POST", "https://example.com"}},
+		{"quoted command name", `"rm" -rf /tmp/x`, "rm", []string{"-rf", "/tmp/x"}},
+		{"quoted path with space", `rm -rf "/tmp/some dir"`, "rm", []string{"-rf", "/tmp/some dir"}},
+		{"quoted dynamic keeps marker", `curl -X "$METHOD"`, "curl", []string{"-X", "$METHOD"}},
+	}
+	for _, tc := range cases {
+		topo, err := BuildTopology(tc.cmd)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		cmd := topo.Segments[0].Commands[0]
+		assertEqual(t, tc.name+" name", cmd.Name, tc.wantName)
+		if len(cmd.Args) != len(tc.wantArgs) {
+			t.Fatalf("%s: expected args %q, got %q", tc.name, tc.wantArgs, cmd.Args)
+		}
+		for i := range cmd.Args {
+			assertEqual(t, tc.name+" arg", cmd.Args[i], tc.wantArgs[i])
+		}
+	}
+}
+
 func assertEqual[T comparable](t *testing.T, name string, got, expected T) {
 	t.Helper()
 	if got != expected {

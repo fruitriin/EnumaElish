@@ -93,6 +93,8 @@ The pattern is a Go regular expression matched against the **joined argument str
 - If arguments contain dynamic expansion (`$VAR`, `` `cmd` ``), args: evaluation is skipped and the parent rule's action is used
 - Multiple args: patterns follow last-rule-wins
 - Args: rules override the parent rule's action when matched
+- Shell quoting is removed before matching, just as the shell removes it before executing the command: `curl -X "POST"` matches the pattern `-X POST`
+- If the joined argument string exceeds **4096 bytes**, args: rules are not applied and the result is escalated to `ask` (a stricter parent action such as `deny` is kept). Falling back to the parent action would let argument padding bypass an escalating args: rule
 
 ## Templates
 

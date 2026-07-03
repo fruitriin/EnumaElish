@@ -584,6 +584,12 @@ func TestIntegrationDangerousRealWorld(t *testing.T) {
 			dsl.ActionAllow, "destroys shell config via symlink"},
 		{"crontab clear", "crontab -r",
 			dsl.ActionAllow, "removes all cron jobs"},
+
+		// === Quoting / Padding Evasion (Plan 0009 Phase 3) ===
+		{"quoted command name", `"rm" -rf /`,
+			dsl.ActionAllow, "quoting the command name must not evade name-based rules"},
+		{"quoted rm flags", `rm "-rf" /`,
+			dsl.ActionAllow, "quoting flags must not evade args-based rules"},
 	}
 
 	for _, tt := range tests {

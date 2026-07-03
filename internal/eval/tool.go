@@ -85,9 +85,14 @@ func matchesToolRule(toolName string, rule *dsl.Rule) bool {
 }
 
 // applyToolArgsRules evaluates args: rules against a tool argument string.
+// Over-length arguments are escalated to ask (see maxArgsLen in evaluate.go).
 func applyToolArgsRules(toolArg string, rule *dsl.Rule, baseResult *Result) *Result {
 	if len(rule.ArgsRules) == 0 {
 		return baseResult
+	}
+
+	if len(toolArg) > maxArgsLen {
+		return argsTooLongResult(baseResult)
 	}
 
 	// Skip if arg contains dynamic expansion

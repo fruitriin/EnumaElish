@@ -504,13 +504,50 @@ func appendContext(base []string, items ...string) []string {
 	return append(out, items...)
 }
 
+// maxArgsLen bounds the length (in bytes) of the argument string that args:
+// patterns are matched against. Go's regexp is RE2-based and runs in linear
+// time, so catastrophic backtracking (classic ReDoS) is not possible, but
+// matching many patterns against megabyte-scale argument strings still costs
+// CPU and memory proportional to input size. 4096 bytes comfortably covers
+// legitimate CLI invocations (typical args: patterns target short flag
+// sequences) while bounding the per-rule work.
+//
+// Exceeding the limit does NOT fall back to the parent rule's action: padding
+// arguments past the limit would otherwise trivially bypass an escalating
+// args: rule (e.g. `allow curl` + `args: -X POST: ask`). Consistent with the
+// project's fail-open policy — which applies only to ccchain's own errors,
+// not to "analyzed but safety could not be determined" cases (see
+// docs/guide/structural-context.md) — the result is escalated to ask instead,
+// while an already stricter parent action (ask/deny) is kept.
+const maxArgsLen = 4096
+
+// argsTooLongResult returns the safe-side result for an over-length argument
+// string: at least ask, or the base result if it is already as restrictive.
+func argsTooLongResult(baseResult *Result) *Result {
+	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
+		return baseResult
+	}
+	return &Result{
+		Action:  dsl.ActionAsk,
+		Message: "args: rules skipped: argument string exceeds max length, escalating to ask",
+		Context: baseResult.Context,
+	}
+}
+
 // applyArgsRules evaluates args: rules against a command's arguments.
 // If a pattern matches, the action overrides the parent rule's action (last-rule-wins).
 // If arguments contain dynamic expansion ($VAR, $(cmd)), args: evaluation is skipped
 // and the base result is returned unchanged.
+// If the joined argument string exceeds maxArgsLen, args: rules cannot be
+// applied safely and the result is escalated to ask (see maxArgsLen).
 func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Result {
 	if len(rule.ArgsRules) == 0 {
 		return baseResult
+	}
+
+	argsStr := strings.Join(cmd.Args, " ")
+	if len(argsStr) > maxArgsLen {
+		return argsTooLongResult(baseResult)
 	}
 
 	// Skip args: evaluation if arguments contain dynamic expansion
@@ -518,7 +555,6 @@ func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Res
 		return baseResult
 	}
 
-	argsStr := strings.Join(cmd.Args, " ")
 	var lastMatch *Result
 
 	for _, ar := range rule.ArgsRules {

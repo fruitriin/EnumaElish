@@ -206,14 +206,44 @@ func wordParts(args []*syntax.Word) []string {
 // defaultPrinter is reused across calls (Printer is stateless).
 var defaultPrinter = syntax.NewPrinter()
 
-// wordToString converts a syntax.Word to its string representation.
+// wordToString converts a syntax.Word to its string representation,
+// applying shell quote removal to static quoting so that `-X "POST"`,
+// `-X 'POST'`, and `-X PO"ST"` all yield the same string the shell would
+// pass to the command (`-X POST`). Without this, quoted arguments (and even
+// quoted command names like `"rm"`) would evade rule matching.
+// Dynamic parts (ParamExp, CmdSubst, ...) are printed as written so that
+// downstream dynamic-content checks still see the `$` / backtick markers.
 func wordToString(w *syntax.Word) string {
 	if w == nil {
 		return ""
 	}
 	var buf strings.Builder
-	defaultPrinter.Print(&buf, w)
+	for _, part := range w.Parts {
+		writeWordPart(&buf, part)
+	}
 	return buf.String()
+}
+
+// writeWordPart writes a single word part with static quote removal.
+func writeWordPart(buf *strings.Builder, part syntax.WordPart) {
+	switch p := part.(type) {
+	case *syntax.SglQuoted:
+		if p.Dollar {
+			// $'...' ANSI-C quoting: escapes are not processed here, keep as
+			// written. The leading $ makes dynamic-content checks treat the
+			// argument conservatively.
+			defaultPrinter.Print(buf, p)
+			return
+		}
+		buf.WriteString(p.Value)
+	case *syntax.DblQuoted:
+		for _, inner := range p.Parts {
+			writeWordPart(buf, inner)
+		}
+	default:
+		// Lit (kept verbatim, incl. backslashes), ParamExp, CmdSubst, etc.
+		defaultPrinter.Print(buf, part)
+	}
 }
 
 // isAnalyzable checks if a word can be statically analyzed.
