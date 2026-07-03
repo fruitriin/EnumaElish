@@ -247,6 +247,82 @@ func TestBashCDynamicInDoubleQuotes(t *testing.T) {
 	assertEqual(t, "nested.analyzable", nestedCmd.Analyzable, false)
 }
 
+// TestBashCDynamicQuoteStripped verifies (dynamic-shell) detection when the
+// -c argument arrives WITHOUT quotes — e.g. when upstream word extraction has
+// already removed static quotes (integration with args-hardening). Detection
+// must not depend on quote characters surviving in the argument string.
+func TestBashCDynamicQuoteStripped(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  string
+	}{
+		{"param expansion", `echo $x && rm -rf /`},
+		{"cmd substitution", `echo $(id)`},
+		{"backquote substitution", "echo `id`"},
+		{"arithmetic expansion", `echo $((1+1))`},
+		{"dynamic deep in pipeline", `cat /etc/passwd | grep $user`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			topo := parseBashC([]string{"-c", tt.arg})
+			if topo == nil {
+				t.Fatal("expected topology from parseBashC")
+			}
+			cmd := topo.Segments[0].Commands[0]
+			assertEqual(t, "nested.name", cmd.Name, "(dynamic-shell)")
+			assertEqual(t, "nested.analyzable", cmd.Analyzable, false)
+		})
+	}
+}
+
+// TestBashCStaticQuoteStripped verifies that quote-stripped STATIC arguments
+// are still fully analyzed (no false (dynamic-shell) positives).
+func TestBashCStaticQuoteStripped(t *testing.T) {
+	topo := parseBashC([]string{"-c", `echo hello | grep h`})
+	if topo == nil {
+		t.Fatal("expected topology from parseBashC")
+	}
+	seg := topo.Segments[0]
+	assertEqual(t, "type", seg.Type, SegmentTypePipeline)
+	assertEqual(t, "cmd[0]", seg.Commands[0].Name, "echo")
+	assertEqual(t, "cmd[1]", seg.Commands[1].Name, "grep")
+}
+
+// TestBashCEscapedDollarIsStatic verifies that an escaped dollar in the
+// nested script (`bash -c 'echo \$x'` — single quotes preserve the
+// backslash, so the inner script is `echo \$x` with a literal dollar) is not
+// flagged as dynamic. The AST-based check parses `\$` as a literal; a
+// plain-text "$" scan would false-positive here.
+func TestBashCEscapedDollarIsStatic(t *testing.T) {
+	topo, err := BuildTopology(`bash -c 'echo \$x'`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+
+	cmd := topo.Segments[0].Commands[0]
+	assertEqual(t, "cmd.name", cmd.Name, "bash")
+	if cmd.Nested == nil {
+		t.Fatal("expected nested topology for bash -c")
+	}
+	nestedCmd := cmd.Nested.Segments[0].Commands[0]
+	assertEqual(t, "nested.name", nestedCmd.Name, "echo")
+	assertEqual(t, "nested.analyzable", nestedCmd.Analyzable, true)
+}
+
+// TestEvalDynamicQuoteStripped verifies (dynamic-eval) detection when eval's
+// argument arrives without quotes (same integration scenario as
+// TestBashCDynamicQuoteStripped).
+func TestEvalDynamicQuoteStripped(t *testing.T) {
+	topo := parseEval([]string{`echo $x`})
+	if topo == nil {
+		t.Fatal("expected topology from parseEval")
+	}
+	cmd := topo.Segments[0].Commands[0]
+	assertEqual(t, "nested.name", cmd.Name, "(dynamic-eval)")
+	assertEqual(t, "nested.analyzable", cmd.Analyzable, false)
+}
+
 // TestEvalMultipleQuotedArgs verifies eval's argument concatenation: quotes on
 // each argument are resolved before the joined string is re-parsed. The old
 // implementation corrupted `'a' b 'c'` into `a' b 'c`.

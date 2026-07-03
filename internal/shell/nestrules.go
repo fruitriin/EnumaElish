@@ -80,20 +80,27 @@ func unquoteWords(s string) (string, bool) {
 	return strings.Join(parts, " "), true
 }
 
-// isStaticWord reports whether w contains no dynamic expansion (parameter
-// expansion, command substitution, process substitution, arithmetic
-// expansion) at any nesting depth. Unlike isAnalyzable, it recurses into
-// double-quoted parts, so `"echo $x"` is correctly detected as dynamic.
-func isStaticWord(w *syntax.Word) bool {
-	static := true
-	syntax.Walk(w, func(node syntax.Node) bool {
-		switch node.(type) {
+// hasDynamicNode reports whether the AST subtree contains any dynamic
+// expansion node (parameter expansion, command substitution, process
+// substitution, arithmetic expansion) at any nesting depth. Unlike
+// isAnalyzable, it recurses into double-quoted parts, so `"echo $x"` is
+// correctly detected as dynamic. Escaped forms (`\$x`) parse as literals
+// and are correctly treated as static.
+func hasDynamicNode(node syntax.Node) bool {
+	dynamic := false
+	syntax.Walk(node, func(n syntax.Node) bool {
+		switch n.(type) {
 		case *syntax.ParamExp, *syntax.CmdSubst, *syntax.ProcSubst, *syntax.ArithmExp:
-			static = false
+			dynamic = true
 		}
-		return static
+		return !dynamic
 	})
-	return static
+	return dynamic
+}
+
+// isStaticWord reports whether w contains no dynamic expansion at any depth.
+func isStaticWord(w *syntax.Word) bool {
+	return !hasDynamicNode(w)
 }
 
 // parseFindExec extracts commands from find -exec CMD {} \;
@@ -185,27 +192,34 @@ func parseBashC(args []string) *Topology {
 			raw := args[i+1]
 			cmdStr, ok := unquoteWords(raw)
 			if !ok {
-				// Quoting could not be statically resolved. If the argument
-				// contains dynamic expansion (e.g. bash -c "echo $x"), the
-				// nested command cannot be known statically — mark it,
-				// mirroring parseEval's (dynamic-eval).
-				if strings.ContainsAny(raw, "$`") {
-					return &Topology{
-						Segments: []Segment{{
-							Type: SegmentTypeSingle,
-							Commands: []Command{{
-								Name:       "(dynamic-shell)",
-								Analyzable: false,
-							}},
-						}},
-					}
-				}
-				// Otherwise (e.g. unclosed quotes) fall back to the raw
-				// string; the re-parse below yields (unparseable).
+				// Quoting could not be statically resolved (dynamic expansion
+				// or unclosed quotes). Fall back to the raw string; the
+				// dynamic check and re-parse below classify it as
+				// (dynamic-shell) or (unparseable).
 				cmdStr = raw
 			}
 			if cmdStr == "" {
 				return nil
+			}
+
+			// Detect unresolved dynamic expansion anywhere in the script,
+			// mirroring parseEval's (dynamic-eval). The check runs on the
+			// parsed AST of the final string, so it works whether or not the
+			// argument still carries quotes — upstream word extraction may
+			// already have removed static quotes (e.g. `bash -c "echo $x"`
+			// arriving here as `echo $x`). An unresolved $x can rewrite the
+			// script structure (x='; rm -rf /'), so the nested command
+			// cannot be known statically.
+			if file, err := ParseCommand(cmdStr); err == nil && hasDynamicNode(file) {
+				return &Topology{
+					Segments: []Segment{{
+						Type: SegmentTypeSingle,
+						Commands: []Command{{
+							Name:       "(dynamic-shell)",
+							Analyzable: false,
+						}},
+					}},
+				}
 			}
 
 			// Re-parse the command string
