@@ -169,7 +169,7 @@ func collectPipeRules(rule *dsl.Rule, config *dsl.Config) []*dsl.Rule {
 	if rule.Next != "" {
 		tmpl := dsl.LookupTemplate(config, rule.Next)
 		if tmpl != nil {
-			rules = append(rules, collectTemplatePipeRules(tmpl, config, make(map[string]bool))...)
+			rules = append(rules, dsl.CollectTemplatePipeRules(tmpl, config)...)
 		}
 	}
 
@@ -183,45 +183,7 @@ func collectExecRules(rule *dsl.Rule, config *dsl.Config) []*dsl.Rule {
 	if rule.Next != "" {
 		tmpl := dsl.LookupTemplate(config, rule.Next)
 		if tmpl != nil {
-			rules = append(rules, collectTemplateExecRules(tmpl, config, make(map[string]bool))...)
-		}
-	}
-
-	return rules
-}
-
-func collectTemplatePipeRules(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.PipeRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplatePipeRules(nextTmpl, config, visited)...)
-		}
-	}
-
-	return rules
-}
-
-func collectTemplateExecRules(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.ExecRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplateExecRules(nextTmpl, config, visited)...)
+			rules = append(rules, dsl.CollectTemplateExecRules(tmpl, config)...)
 		}
 	}
 

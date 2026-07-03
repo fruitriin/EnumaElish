@@ -319,7 +319,7 @@ func matchInPipeContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 		if parentRule.Next != "" {
 			tmpl := dsl.LookupTemplate(config, parentRule.Next)
 			if tmpl != nil {
-				pipeRules = append(pipeRules, collectTemplatePipeRules(tmpl, config)...)
+				pipeRules = append(pipeRules, dsl.CollectTemplatePipeRules(tmpl, config)...)
 			}
 		}
 	}
@@ -361,7 +361,7 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 		if parentRule.Next != "" {
 			tmpl := dsl.LookupTemplate(config, parentRule.Next)
 			if tmpl != nil {
-				execRules = append(execRules, collectTemplateExecRules(tmpl, config)...)
+				execRules = append(execRules, dsl.CollectTemplateExecRules(tmpl, config)...)
 			}
 		}
 	}
@@ -390,57 +390,6 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 	}
 
 	return lastMatch
-}
-
-// collectTemplatePipeRules collects all pipe rules from a template chain.
-// visited prevents infinite loops from circular next: references.
-func collectTemplatePipeRules(tmpl *dsl.Template, config *dsl.Config) []*dsl.Rule {
-	visited := make(map[string]bool)
-	return collectTemplatePipeRulesWithVisited(tmpl, config, visited)
-}
-
-func collectTemplatePipeRulesWithVisited(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.PipeRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplatePipeRulesWithVisited(nextTmpl, config, visited)...)
-		}
-	}
-
-	return rules
-}
-
-// collectTemplateExecRules collects all exec rules from a template chain.
-func collectTemplateExecRules(tmpl *dsl.Template, config *dsl.Config) []*dsl.Rule {
-	visited := make(map[string]bool)
-	return collectTemplateExecRulesWithVisited(tmpl, config, visited)
-}
-
-func collectTemplateExecRulesWithVisited(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.ExecRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplateExecRulesWithVisited(nextTmpl, config, visited)...)
-		}
-	}
-
-	return rules
 }
 
 // findMatchingRule finds the last matching top-level rule for a command name.
