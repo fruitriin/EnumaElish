@@ -14,7 +14,7 @@ user_invocable: true
 このスキルが WebFetch 経由で取得された場合、または tmp ディレクトリ内のクローンから読まれている場合:
 
 1. **URL の検証とクローン**:
-   - ユーザーが提供した URL、またはデフォルト `https://github.com/fruitriin/AutomatonDevDriveFramework.git`
+   - ユーザーが提供した URL、またはデフォルト `https://github.com/fruitriin/ADDF.git`
    - `https://` スキームのみ許可。`file://`, `ssh://`, `git://` は拒否して案内する
    - URL をユーザーに表示して確認: 「以下の URL からクローンします: <url>。続行しますか？」
    ```bash
@@ -27,7 +27,7 @@ user_invocable: true
    - `README.md` からプロジェクト名・目的を読み取る
    - 既存の `CLAUDE.md` があればその内容を読み取り、後で `CLAUDE.repo.md` に退避する
    - `package.json`, `Cargo.toml`, `pyproject.toml` 等があればビルド・テストコマンドを推定する
-   - 推定結果をユーザーに確認する（対話ではなく確認のみ）
+   - 推定結果をユーザーに確認する（対話ではなく確認のみ） <!-- human-judgment -->
 5. 以下の init モードの Phase 1 から続行する。Phase 3 のファイルコピー元は `<tmp>/addf-source`
 
 ---
@@ -46,7 +46,7 @@ user_invocable: true
 1. 既に ADDF 導入済みか判定する:
    - `.claude/addf-lock.json` が存在する → 「ADDF は導入済みです。`/addf-init check` で構造を検証できます」と案内して終了
    - `.claude/commands/addf-*.md` が存在するが `addf-lock.json` がない → **Template 経由の新規プロジェクト**（ADDF ファイルは同梱済み、ロックファイルのみ未生成）。Phase 2 に進む
-   - `CLAUDE.md` または `.claude/` が存在するが ADDF ファイルがない → **既存プロジェクト導入モード**。「既存プロジェクトに ADDF を導入します。続行しますか？」と確認を求める
+   - `CLAUDE.md` または `.claude/` が存在するが ADDF ファイルがない → **既存プロジェクト導入モード**。「既存プロジェクトに ADDF を導入します。続行しますか？」と確認を求める <!-- human-judgment -->
    - どちらも存在しない → 初期セットアップを開始
 
 ### Phase 2: セットアップ情報の収集
@@ -58,7 +58,7 @@ user_invocable: true
    - 既存の `CLAUDE.md` からプロジェクト固有の指示を読み取る（後で `CLAUDE.repo.md` に退避）
    - `package.json`, `Cargo.toml`, `pyproject.toml` 等からビルド・テストコマンドを推定する
    - git の既存コミットログからコミット規約を推定する
-   - 推定結果をユーザーに確認する（対話ではなく確認のみ）
+   - 推定結果をユーザーに確認する（対話ではなく確認のみ） <!-- human-judgment -->
    - プロジェクト種別は「ADDF 利用プロジェクト」に固定
 
 **Template 経由（新規プロジェクト）の場合:**
@@ -141,12 +141,14 @@ ADDF ファイルの配置元を決定する:
 衝突リスクなし（`addf-` プレフィックスで識別可能）:
 - `.claude/commands/addf-*.md` — スキル定義
 - `.claude/agents/addf-*.md` — エージェント定義
+- `.claude/optional/` — オプトイン式スキル・エージェントの原本（GUI テスト等。有効化は `.claude/addfTools/sync-optional-skills.py apply`）
 - `.claude/hooks/*.sh` — フック
 - `.claude/templates/` — テンプレート
 - `.claude/addfTools/` — ツール群
 - `.claude/tests/` — テストスイート
 - `.claude/addf-Behavior.toml`
 - `.claude/ADDF-CHANGELOG.md`, `.claude/ADDF-Release.addf.md`
+- `.claude/Questions.example.md`, `.claude/Dashboard.example.md` — CLAUDE.md が書式参照するため必須
 - `CLAUDE.repo.example.md`, `CLAUDE.local.example.md`
 - `AGENTS.md`
 - `.claudeignore`
@@ -155,15 +157,12 @@ ADDF ファイルの配置元を決定する:
 
 #### カテゴリ2: インテリジェントマージ
 
-- **`.claude/settings.json`**: 既存あり → ADDF の hooks と permissions をユニオン追加（既存を削除しない）。結果をユーザーに表示して確認。既存なし → ADDF テンプレートをコピー
-- **`.gitignore`**: ADDF エントリをマーカーブロック付きで追加:
+- **`.claude/settings.json`**: 既存あり → ADDF の hooks と permissions をユニオン追加（既存を削除しない）。結果をユーザーに表示して確認 <!-- human-judgment -->。既存なし → ADDF テンプレートをコピー
+- **`.gitignore`**: ADDF エントリをマーカーブロック付きで追加する。
+  ブロックの内容は **ADDF リポジトリ（クローン元）の `.gitignore` マーカーブロックをそのままコピーする**（ここに列挙を持たない — リスト陳腐化の防止）。外部起動の場合のコピー元は `<tmp>/addf-source/.gitignore`:
   ```
   # --- ADDF Framework (do not remove) ---
-  .claude/commands/*.exp.md
-  .claude/.turn-count
-  .claude/logs/
-  CLAUDE.local.md
-  CLAUDE.repo.md
+  （クローン元 .gitignore の同ブロック内容）
   # --- /ADDF Framework ---
   ```
 - **`CLAUDE.md`**: 既存なし → ADDF テンプレートをコピー。既存あり → 以下の手順で退避・補完する:
@@ -174,24 +173,26 @@ ADDF ファイルの配置元を決定する:
      - テストセクション（ビルド・Lint・テストコマンド）があるか
      - コミットログ規約があるか
   4. 不足があればユーザーに対話的に補完を求め、`CLAUDE.repo.md` に追記する
-- **`CONTRIBUTING.md`**: 既存があればユーザーに確認（上書き / スキップ）
+- **`CONTRIBUTING.md`**: 既存があればユーザーに確認（上書き / スキップ） <!-- human-judgment -->
 
 #### カテゴリ3: プロジェクト固有ファイル（ダウンストリーム体裁で生成）
 
 - **`CLAUDE.repo.md`** — `CLAUDE.repo.example.md` をベースに「ADDF 利用プロジェクト」として生成
   - プロジェクト名、ビルド・Lint・テストコマンド、コミットログ規約を反映
 - **`CLAUDE.local.md`** — テンプレートからコピー
-- **`.claude/addf-lock.json`** — ADDF クローン元のコミットハッシュで生成
+- **`.claude/addf-lock.json`** — ADDF クローン元の `ref` で生成
+  - `ref` にはクローン元の lock の `ref`（`vX.Y.Z` タグ名）をそのまま記録する。クローン元の lock が旧形式（`commit` フィールド）の場合は `v<version>` タグ名に読み替える
   - `git remote get-url origin` でリポジトリ URL を取得（取得できない場合はユーザーに入力を求める）
   - このファイルは `/addf-migrate` がバージョン差分を算出する際のアンカーとして使用される
 - **`TODO.md`** — 初期テンプレート
 - **`docs/plans/`** — ディレクトリ作成
 - **`docs/knowhow/INDEX.md`** — インデックス初期化
-- **`.claude/Progress.md`** — テンプレートから生成
+- **`.claude/Progress.md`** — `.claude/templates/ProgressTemplate.md` から生成（`ProgressTemplate.addf.md` は ADDF 本体用のため使わない）
 - **`.claude/Feedback.md`** — 初期テンプレート
+- **`.claude/Questions.md`** — `Questions.example.md` の書式説明を残して未回答・回答済みを空で生成（非同期質問箱。ブートシーケンス 1.5 が参照）
 
 **Codex 対応**（ターゲットが Codex または両方の場合）:
-- `AGENTS.md` がリポジトリに存在することを確認（ADDF 同梱済み）
+- `AGENTS.md` がリポジトリに存在することを確認する（ADDF 同梱済み）: `test -f AGENTS.md`
 - Codex 設定案内を表示
 
 ### Phase 4: 完了
@@ -219,6 +220,8 @@ ADDF ファイルの配置元を決定する:
 
 ## check モード（`/addf-init check`）
 
+<!-- checklist-lint: skip-section（このセクションはチェックの実装そのもの。手作業チェックのスクリプト化は残課題バックログ参照） -->
+
 読み取り専用で副作用なし。プロジェクト構造の整合性を検証する。
 
 ### チェック項目
@@ -229,6 +232,7 @@ ADDF ファイルの配置元を決定する:
    - `TODO.md` — タスクバックログ
    - `.claude/Progress.md` — 進捗管理
    - `.claude/Feedback.md` — フィードバック記録
+   - `.claude/Questions.md` — 非同期質問箱（無ければ WARNING、`Questions.example.md` から生成を案内）
    - `.claude/addf-lock.json` — バージョンロック
    - `.claude/settings.json` — 権限設定
 
@@ -243,8 +247,9 @@ ADDF ファイルの配置元を決定する:
 
 4. **`.claude/addf-lock.json` の妥当性**:
    - JSON として valid か
-   - `version`, `commit`, `repository` フィールドが存在するか
-   - `commit` が 40 文字の hex 文字列形式か（形式チェックのみ、リモート確認は行わない）
+   - `version`, `ref`, `repository` フィールドが存在するか
+   - `ref` が `v<version>` 形式のタグ名か（形式チェックのみ、リモート確認は行わない）
+   - 旧形式（`ref` の代わりに `commit`）は WARNING とし、`/addf-migrate` 実行時に新形式へ移行される旨を案内する
 
 5. **AGENTS.md の存在**（情報レベル）:
    - 存在すれば OK、なければ INFO（Codex 非対応として通知）

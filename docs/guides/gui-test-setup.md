@@ -14,7 +14,12 @@ ADD フレームワークの GUI テスト機能は、スクリーンショッ�
 
 ## セットアップ手順
 
-### 1. プラットフォーム設定
+### 1. プラットフォーム設定とスキルの有効化
+
+GUI 関連スキル（`addf-gui-test` / `addf-annotate-grid` / `addf-clip-image` /
+`addf-ui-test-agent`）は**オプトイン式**です。原本は `.claude/optional/` に退避されており、
+有効化するまで発見パスに存在しません（GUI の無い環境でコンテキストを消費せず、
+エージェントが GUI テストを試みることもありません）。
 
 `.claude/addf-Behavior.toml` を編集:
 
@@ -23,6 +28,18 @@ ADD フレームワークの GUI テスト機能は、スクリーンショッ�
 enable = true
 machine = "mac"
 ```
+
+続けて同期スクリプトでスキルの有効化コピーを配置:
+
+```bash
+uv run --python 3.11 .claude/addfTools/sync-optional-skills.py apply
+```
+
+uv が無い環境では `python3` で直接実行できます（Python 3.11+ が必要。旧い Python では実行できない旨の案内が出ます）。
+
+無効に戻すときは `enable = false` にして同コマンドを再実行します（配置と撤去の両方を担います。
+有効化コピーを直接編集していた場合は削除されず WARNING になります — 変更は
+`.claude/optional/` の原本に対して行ってください）。整合チェックは `/addf-lint` セクション10。
 
 ### 2. ツールのビルド
 

@@ -54,7 +54,7 @@ allow curl
 - [ ] `args:` パターンのクォート含む引数への対応（Security Low）
 - [ ] `args:` パターン最大長制限の追加（Security Info）
 
-## 状態: 完了（2026-03-28）
+## 実装状況: 完了（2026-03-28）
 
 選択肢 A を採用: mode: を deprecated 化
 - パーサーで mode: 使用時に stderr 警告出力
