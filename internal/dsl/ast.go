@@ -5,12 +5,12 @@ import "regexp"
 
 // Config represents the top-level parsed DSL configuration.
 type Config struct {
-	Templates      []*Template
-	TemplateIndex  map[string]*Template // populated by ResolveTemplates
-	PreRules       []*Rule              // rules under preToolUse section
-	PostRules      []*Rule              // rules under postToolUse section
-	Rules          []*Rule              // rules outside any section (legacy/default = preToolUse)
-	Settings       *Settings
+	Templates     []*Template
+	TemplateIndex map[string]*Template // populated by ResolveTemplates
+	PreRules      []*Rule              // rules under preToolUse section
+	PostRules     []*Rule              // rules under postToolUse section
+	Rules         []*Rule              // rules outside any section (legacy/default = preToolUse)
+	Settings      *Settings
 }
 
 // Action represents the action type of a rule.
@@ -40,14 +40,14 @@ type Rule struct {
 	Message  string   // optional deny/warn message
 
 	// Nested context rules
-	PipeRules []*Rule // rules under |,>> context
-	ExecRules []*Rule // rules under exec: context
+	PipeRules []*Rule     // rules under |,>> context
+	ExecRules []*Rule     // rules under exec: context
 	ArgsRules []*ArgsRule // rules under args: context
 	ScopeRule *ScopeRule  // rule under scope: context (Plan 0011 v2)
 
 	// Properties
-	Mode    string // "block", "warn", "hint"
-	Next    string // template delegation
+	Mode string // "block", "warn", "hint"
+	Next string // template delegation
 
 	// Source location for error reporting
 	Line int
@@ -79,7 +79,7 @@ type ScopeAction struct {
 
 // ArgsRule represents a pattern-based argument rule.
 type ArgsRule struct {
-	Pattern  string         // regex pattern
+	Pattern  string // regex pattern
 	Action   Action
 	Message  string
 	Line     int

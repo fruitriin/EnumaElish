@@ -12,21 +12,21 @@ import (
 type ScopeResult int
 
 const (
-	ScopeInside  ScopeResult = iota
+	ScopeInside ScopeResult = iota
 	ScopeOutside
 )
 
 // ClassifyPath determines if a path is inside or outside the workspace.
 // Security measures (from security review):
-// - Paths containing ".." are forced to ScopeOutside (path traversal protection)
-// - filepath.Clean normalizes paths before prefix comparison
-// - Trailing slash comparison prevents ~/workspace2 matching ~/workspace
-// - Relative paths without ".." are treated as inside (CWD is typically workspace)
-// - Symbolic links are resolved via filepath.EvalSymlinks before comparison
-//   (Dashboard 気になった点 #4). If a workspace-relative link points outside the
-//   workspace (e.g. ~/workspace/link → /etc), the target is ScopeOutside.
-//   For non-existent paths (e.g. new files to be created), the longest existing
-//   ancestor is resolved and the remaining suffix is appended.
+//   - Paths containing ".." are forced to ScopeOutside (path traversal protection)
+//   - filepath.Clean normalizes paths before prefix comparison
+//   - Trailing slash comparison prevents ~/workspace2 matching ~/workspace
+//   - Relative paths without ".." are treated as inside (CWD is typically workspace)
+//   - Symbolic links are resolved via filepath.EvalSymlinks before comparison
+//     (Dashboard 気になった点 #4). If a workspace-relative link points outside the
+//     workspace (e.g. ~/workspace/link → /etc), the target is ScopeOutside.
+//     For non-existent paths (e.g. new files to be created), the longest existing
+//     ancestor is resolved and the remaining suffix is appended.
 func ClassifyPath(path string, workspacePaths []string) ScopeResult {
 	if len(workspacePaths) == 0 {
 		return ScopeInside // no scope configured → everything is inside
@@ -97,14 +97,17 @@ func ClassifyPath(path string, workspacePaths []string) ScopeResult {
 // path, then appends the remaining (non-existent) suffix. This handles the
 // common case of a not-yet-created file inside an existing directory tree.
 //
-// Returns (resolved, true) on success. Returns ("", false) only when the path
-// has no existing ancestor that can be resolved (i.e. no meaningful comparison
-// is possible) — callers should treat that as ScopeOutside per fail-closed policy.
+// Returns (resolved, true) when some ancestor (possibly the filesystem root)
+// resolves. Returns ("", false) only when even the root cannot be resolved
+// (circular symlink / ELOOP, or permission errors on every level). Callers
+// treat (_, false) as ScopeOutside per the fail-closed policy documented in
+// ClassifyPath — this is what makes `outside-write: deny` an actual sentinel
+// instead of best-effort.
 //
-// os.IsNotExist errors are expected (new-file paths) and cause upward walking.
-// Any other error (e.g. permission) also causes upward walking; if the root is
-// reached without resolving, we return the cleaned input as best-effort — the
-// caller then compares against workspace roots as-is.
+// Rationale for walking upward on any error (not only ENOENT): a permission
+// error on the exact path does not tell us whether an ancestor is inside the
+// workspace, so we try the ancestor. Only after exhausting every ancestor
+// (including the root) do we give up and fail closed.
 func resolveSymlinks(path string) (string, bool) {
 	cleaned := filepath.Clean(path)
 
@@ -113,21 +116,24 @@ func resolveSymlinks(path string) (string, bool) {
 		return resolved, true
 	}
 
-	// Walk up ancestors until one resolves.
+	// Walk up ancestors until one resolves. Give up (fail closed) when we
+	// have tried the root and it still fails.
 	suffix := ""
 	dir := cleaned
 	for {
 		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached filesystem root without finding an existing ancestor.
-			// Best-effort: use the cleaned original path so at least prefix
-			// comparison against workspace roots is possible.
-			return cleaned, true
-		}
 		if suffix == "" {
 			suffix = filepath.Base(dir)
 		} else {
 			suffix = filepath.Join(filepath.Base(dir), suffix)
+		}
+		if parent == dir {
+			// Reached the filesystem root. Try it once; if even the root
+			// fails to resolve, give up entirely.
+			if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+				return filepath.Join(resolved, suffix), true
+			}
+			return "", false
 		}
 		dir = parent
 		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
@@ -162,15 +168,52 @@ func expandTilde(path string) string {
 	return filepath.Join(home, path[2:])
 }
 
-// ExtractPathArgs extracts arguments that look like file paths from a command's args.
+// ExtractPathArgs extracts arguments that look like file paths from a command's
+// args. Common CLI flag-glue forms (--key=/path, -k=/path, -k/path for
+// well-known single-letter flags) are stripped so the DSL and semantics table
+// see the actual path value — otherwise `cp --target-directory=/outside` etc
+// slip past scope classification (Critical C2).
 func ExtractPathArgs(args []string) []string {
 	var paths []string
 	for _, arg := range args {
-		if looksLikePath(arg) {
-			paths = append(paths, arg)
+		p := stripFlagPrefix(arg)
+		if looksLikePath(p) {
+			paths = append(paths, p)
 		}
 	}
 	return paths
+}
+
+// stripFlagPrefix normalizes a token that combines a flag and a path into
+// just the path portion.
+//
+// Handles:
+//
+//	--key=/path → /path
+//	-k=/path    → /path
+//	-k/path     → /path  (short flag glued to a path-like value)
+//
+// Tokens with no flag prefix are returned unchanged. Bare flags like "-v" or
+// "--verbose" are returned unchanged and then rejected by looksLikePath.
+func stripFlagPrefix(arg string) string {
+	if !strings.HasPrefix(arg, "-") || arg == "-" || arg == "--" {
+		return arg
+	}
+	if eq := strings.Index(arg, "="); eq > 0 {
+		// --key=value or -k=value
+		return arg[eq+1:]
+	}
+	// -k/path (short flag glued to path). We only strip when the byte after
+	// the flag letter unambiguously looks like a path start; otherwise a
+	// cluster like "-tv" would be corrupted.
+	if !strings.HasPrefix(arg, "--") && len(arg) > 2 {
+		rest := arg[2:]
+		if strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, "./") ||
+			strings.HasPrefix(rest, "../") || strings.HasPrefix(rest, "~/") {
+			return rest
+		}
+	}
+	return arg
 }
 
 func looksLikePath(arg string) bool {

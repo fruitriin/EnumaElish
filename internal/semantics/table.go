@@ -18,6 +18,13 @@ const (
 	PathKindRead PathKind = iota
 	// PathKindWrite means the command writes to (creates/modifies/deletes) this path.
 	PathKindWrite
+	// PathKindUnknown means the command is not in the semantics table so the
+	// evaluator cannot say which args are read vs write. The scope evaluator
+	// MUST consider outside-write actions for these paths (Critical C3) —
+	// otherwise tools like `sed -i` / `rsync` / `dd` / `wget -O` silently
+	// bypass write-side rules. selectScopeAction chooses the most restrictive
+	// of outside-write / outside-read / outside when it sees this kind.
+	PathKindUnknown
 )
 
 // ArgSemanticsKind describes how a command's path arguments are classified.
@@ -38,31 +45,31 @@ const (
 // existing scope check treated everything as an access without direction).
 var PathArgSemantics = map[string]ArgSemanticsKind{
 	// Read-only paths
-	"cat":  KindAllRead,
-	"head": KindAllRead,
-	"tail": KindAllRead,
-	"less": KindAllRead,
-	"more": KindAllRead,
-	"grep": KindAllRead,
-	"egrep": KindAllRead,
-	"fgrep": KindAllRead,
-	"rg":   KindAllRead,
-	"awk":  KindAllRead,
-	"wc":   KindAllRead,
-	"file": KindAllRead,
-	"stat": KindAllRead,
-	"diff": KindAllRead,
-	"cmp":  KindAllRead,
-	"md5sum": KindAllRead,
+	"cat":       KindAllRead,
+	"head":      KindAllRead,
+	"tail":      KindAllRead,
+	"less":      KindAllRead,
+	"more":      KindAllRead,
+	"grep":      KindAllRead,
+	"egrep":     KindAllRead,
+	"fgrep":     KindAllRead,
+	"rg":        KindAllRead,
+	"awk":       KindAllRead,
+	"wc":        KindAllRead,
+	"file":      KindAllRead,
+	"stat":      KindAllRead,
+	"diff":      KindAllRead,
+	"cmp":       KindAllRead,
+	"md5sum":    KindAllRead,
 	"sha256sum": KindAllRead,
 
 	// Write-only paths (destination arguments only)
-	"rm":    KindAllWrite,
-	"rmdir": KindAllWrite,
-	"shred": KindAllWrite,
-	"tee":   KindAllWrite,
-	"touch": KindAllWrite,
-	"mkdir": KindAllWrite,
+	"rm":     KindAllWrite,
+	"rmdir":  KindAllWrite,
+	"shred":  KindAllWrite,
+	"tee":    KindAllWrite,
+	"touch":  KindAllWrite,
+	"mkdir":  KindAllWrite,
 	"unlink": KindAllWrite,
 
 	// Last argument is write, others are read
@@ -71,16 +78,19 @@ var PathArgSemantics = map[string]ArgSemanticsKind{
 	"ln": KindLastWrite,
 }
 
-// ClassifyPathArg returns whether the path at position i within pathPositions
-// (0-indexed list of path arguments) is a read or write for the given command.
-// numPaths is the total number of extracted path arguments.
+// ClassifyPathArg returns whether the path at position i (in the extracted
+// path list of length numPaths) is a read or write for the given command.
 //
-// Unknown commands default to PathKindRead: this matches the pre-v2 behavior
-// where the scope check did not distinguish direction, so migration is safe.
+// This shim exists for backward compatibility; new callers should prefer
+// ClassifyPathArgs which is flag-aware (Critical C2: `cp -t DIR src...`
+// is not the same as `cp src... DIR`).
+//
+// Unknown commands return PathKindUnknown (Critical C3): the scope evaluator
+// treats unknown paths as potentially-write for outside-write rule matching.
 func ClassifyPathArg(cmdName string, i, numPaths int) PathKind {
 	kind, ok := PathArgSemantics[cmdName]
 	if !ok {
-		return PathKindRead
+		return PathKindUnknown
 	}
 	switch kind {
 	case KindAllRead:
@@ -94,6 +104,104 @@ func ClassifyPathArg(cmdName string, i, numPaths int) PathKind {
 		return PathKindRead
 	}
 	return PathKindRead
+}
+
+// ClassifyPathArgs returns the PathKind for each element of paths, given the
+// command's full argv (rawArgs, without the command name). This lets us honor
+// coreutils flags like `-t DIR` / `--target-directory=DIR` where the
+// destination is not the last positional argument.
+//
+// Contract:
+//   - len(result) == len(paths)
+//   - When cp/mv/ln is invoked with -t DIR or --target-directory=DIR, the DIR
+//     path is PathKindWrite and all other path arguments are PathKindRead.
+//   - Unknown commands: every entry is PathKindUnknown.
+//   - rawArgs is the argv AFTER the command name (i.e. what shell.Command.Args
+//     already contains).
+//
+// This function assumes callers extracted `paths` from `rawArgs` in the same
+// left-to-right order via a "looks like path" heuristic. The mapping between
+// them is by identity: each path in `paths` must appear (by string equality)
+// in `rawArgs`. The first matching argv position wins.
+func ClassifyPathArgs(cmdName string, rawArgs []string, paths []string) []PathKind {
+	out := make([]PathKind, len(paths))
+	kind, ok := PathArgSemantics[cmdName]
+	if !ok {
+		for i := range out {
+			out[i] = PathKindUnknown
+		}
+		return out
+	}
+
+	// Flag-aware overrides (Critical C2).
+	// For cp/mv/ln, detect -t DIR / --target-directory=DIR / -T (no dir dest).
+	if cmdName == "cp" || cmdName == "mv" || cmdName == "ln" {
+		if targetDir, hasTargetDir := findTargetDirectory(rawArgs); hasTargetDir {
+			// -t DIR: DIR is the sole write, all other paths are reads.
+			for i, p := range paths {
+				if p == targetDir {
+					out[i] = PathKindWrite
+				} else {
+					out[i] = PathKindRead
+				}
+			}
+			return out
+		}
+		// -T (no target directory): treat last path as write, as usual.
+		// Fall through to KindLastWrite.
+	}
+
+	switch kind {
+	case KindAllRead:
+		for i := range out {
+			out[i] = PathKindRead
+		}
+	case KindAllWrite:
+		for i := range out {
+			out[i] = PathKindWrite
+		}
+	case KindLastWrite:
+		for i := range out {
+			if i == len(out)-1 {
+				out[i] = PathKindWrite
+			} else {
+				out[i] = PathKindRead
+			}
+		}
+	}
+	return out
+}
+
+// findTargetDirectory scans argv for GNU coreutils -t / --target-directory=
+// flags and returns the DIR value. Handles the four forms:
+//
+//	-t DIR       (separate arg)
+//	-tDIR        (glued)
+//	--target-directory DIR
+//	--target-directory=DIR
+func findTargetDirectory(argv []string) (string, bool) {
+	for i := 0; i < len(argv); i++ {
+		a := argv[i]
+		switch {
+		case a == "-t" || a == "--target-directory":
+			if i+1 < len(argv) {
+				return argv[i+1], true
+			}
+		case strings.HasPrefix(a, "--target-directory="):
+			return strings.TrimPrefix(a, "--target-directory="), true
+		case strings.HasPrefix(a, "-t") && len(a) > 2:
+			// -tDIR (glued short form). Guard against -t being part of a
+			// larger cluster like `-tv`: we accept only if the char after -t
+			// looks like a path (starts with / or . or contains /).
+			rest := a[2:]
+			if strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, "~/") ||
+				strings.HasPrefix(rest, "./") || strings.HasPrefix(rest, "../") ||
+				strings.Contains(rest, "/") {
+				return rest, true
+			}
+		}
+	}
+	return "", false
 }
 
 // CommandSemantics describes the semantic properties of a CLI command.

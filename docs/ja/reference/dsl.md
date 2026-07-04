@@ -42,6 +42,7 @@ settings:
   max_context_depth: <整数>
   max_rules_per_cmd: <整数>
   fallback: <action>
+  workspace: <path>[, <path> ...]   # ワークスペーススコープのルート（`scope:` 参照）
 ```
 
 ## アクション
@@ -133,15 +134,23 @@ allow cat
 | `cat`, `head`, `tail`, `less`, `more`, `grep`, `awk`, `wc`, `file`, `stat`, `diff`, `cmp`, `md5sum`, `sha256sum`, `rg` | 全パス = read |
 | `rm`, `rmdir`, `shred`, `tee`, `touch`, `mkdir`, `unlink` | 全パス = write |
 | `cp`, `mv`, `ln` | 最後のパス = write、それ以外 = read |
-| 上記以外 | read として扱う |
+| 上記以外 | **unknown** — `outside-write` / `outside-read` / `outside` すべてを候補として最も制限的なものを採用 |
 
-**シンボリックリンクの解決**: 引数パスは `filepath.EvalSymlinks` で存在する最も長い祖先を解決してから比較する。workspace 内のリンクが外を指していれば `outside` になり、外のリンクが内を指していれば `inside` になる。解決が完全に失敗した場合（全祖先で権限エラー等）は安全側で `outside` として扱う（fail-closed）。
+**GNU coreutils の `-t` フラグ**: `cp -t DIR src...` / `cp --target-directory=DIR src...` / `cp -tDIR src...` を認識し、`DIR` を write、それ以外の path 引数を read として分類する。`mv` / `ln` も同様（Critical C2）。
+
+**シェルの書き込みリダイレクト**: `>`, `>>`, `>|`, `&>`, `&>>` のリダイレクト先は、コマンド自身の引数と独立して write として扱う。`cat /ws/x > /outside/y` は `cat` の引数が read でも `outside-write` に該当する。読み取りリダイレクト（`<`, `<<`）は write として追跡しない（Critical C1）。
+
+**未知コマンド**: セマンティクステーブルに無いコマンドの path 引数は `PathKindUnknown` になる。この場合スコープ評価は `outside-write` → `outside-read` → `outside` の順で候補を評価し、最も制限的なアクションを採用する。`sed -i` / `rsync` / `wget -O` / `dd` / `tar` などにも `outside-write: deny` が正しく発火する（Critical C3）。
+
+**ツール呼び出し（Read / Edit / Write / MCP）**: `scope:` ブロックは Bash 以外のツールにも適用される。`Read` は read、`Write` / `Edit` / `NotebookEdit` は write、MCP ツールは unknown として分類する（Critical C6）。
+
+**シンボリックリンクの解決**: 引数パスは `filepath.EvalSymlinks` で存在する最も長い祖先を解決してから比較する。workspace 内のリンクが外を指していれば `outside` になり、外のリンクが内を指していれば `inside` になる。ファイルシステムのルートまで遡っても解決できない場合（循環リンク / 全祖先で権限エラー）は fail-closed で `outside` として扱う（Critical C7）。
 
 **存在しないパス**: `cp foo new-file.txt` のように新規作成予定のパスは、存在する親ディレクトリを解決してから残りの部分を結合する。workspace 内の新規ファイルは正しく `inside` と判定される。
 
 **後方互換性**: `scope:` ブロックを持たないルールは従来通りの動作（workspace 外パス引数を検出したら `allow` → `ask` にエスカレーション）。`scope: outside: allow` を明示すると、そのコマンドではエスカレーションを行わない。
 
-**動的引数**: `args:` と同様、`$VAR` / `$(cmd)` / `` `cmd` `` を含むパス引数は判定不能としてスキップする。全パスが動的なら親ルールのアクションが最終結果になる。
+**動的引数**: `$VAR` / `$(cmd)` / `` `cmd` `` を含むパス引数は判定不能。fail-closed で `outside` として扱い、未知コマンドの場合は kind を write に昇格して `outside-write` を発火させる。`cp /ws/src $(echo /elsewhere)/dst` は `outside-write: deny` が設定されていれば deny になる（Critical C4）。
 
 ## テンプレート
 

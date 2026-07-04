@@ -42,6 +42,7 @@ settings:
   max_context_depth: <int>
   max_rules_per_cmd: <int>
   fallback: <action>
+  workspace: <path>[, <path> ...]   # workspace scope roots (see `scope:`)
 ```
 
 ## Actions
@@ -133,15 +134,23 @@ allow cat
 | `cat`, `head`, `tail`, `less`, `more`, `grep`, `awk`, `wc`, `file`, `stat`, `diff`, `cmp`, `md5sum`, `sha256sum`, `rg` | all path args = read |
 | `rm`, `rmdir`, `shred`, `tee`, `touch`, `mkdir`, `unlink` | all path args = write |
 | `cp`, `mv`, `ln` | last path arg = write, others = read |
-| any other command | defaults to read |
+| any other command | **unknown** — `outside-write`, `outside-read`, and `outside` clauses are all considered (most restrictive wins) |
 
-**Symbolic link resolution.** Path classification uses `filepath.EvalSymlinks` on the longest existing ancestor of the argument. A link inside the workspace that points outside resolves to `outside`; a link outside that points inside resolves to `inside`. If resolution fails entirely (e.g. permission error on every ancestor), the path is treated as `outside` (fail-closed).
+**GNU coreutils `-t` flag.** `cp -t DIR src...`, `cp --target-directory=DIR src...`, and `cp -tDIR src...` are recognized: `DIR` is classified as a write and the remaining path arguments as reads. Same for `mv` and `ln`. (Critical C2.)
+
+**Shell write redirects.** Redirect targets on `>`, `>>`, `>|`, `&>`, `&>>` are captured and classified as writes independently of the command's own args. `cat /ws/x > /outside/y` therefore triggers `outside-write` even though `cat` reads `/ws/x`. Read redirects (`<`, `<<`) are not tracked as writes. (Critical C1.)
+
+**Unknown commands.** A command not listed in the semantics table produces `PathKindUnknown` for each path arg. The scope evaluator then considers the `outside-write`, `outside-read`, and `outside` clauses in that order and applies the most restrictive one — so `outside-write: deny` still fires for tools like `sed -i`, `rsync`, `wget -O`, `dd`, `tar`. (Critical C3.)
+
+**Tool calls (Read / Edit / Write / MCP).** The `scope:` block is honored by the non-Bash tool evaluator as well. `Read` is classified as read, `Write` / `Edit` / `NotebookEdit` as write, and MCP tools as unknown. (Critical C6.)
+
+**Symbolic link resolution.** Path classification uses `filepath.EvalSymlinks` on the longest existing ancestor of the argument. A link inside the workspace that points outside resolves to `outside`; a link outside that points inside resolves to `inside`. If resolution fails on every ancestor including the filesystem root (circular symlink / permission errors), the path is treated as `outside` (fail-closed; Critical C7).
 
 **Non-existent paths.** For paths that don't yet exist (e.g. `cp foo new-file.txt`), the parent directory chain is resolved and the remaining suffix is appended — so a new file inside the workspace is still `inside`.
 
 **Backward compatibility.** Rules without any `scope:` block keep the previous auto-escalation behavior: `allow` escalates to `ask` whenever any path argument is outside the workspace. Rules with `scope: outside: allow` explicitly opt out of that escalation for the whole command.
 
-**Dynamic arguments.** As with `args:`, path arguments containing `$VAR` / `$(cmd)` / `` `cmd` `` are skipped (undecidable). If every path is dynamic, the parent rule's action stands.
+**Dynamic arguments.** A path argument containing `$VAR` / `$(cmd)` / `` `cmd` `` is undecidable — the evaluator treats it as `outside` (fail-closed) and, for unknown commands, promotes its kind to write so `outside-write` clauses still fire. `cp /ws/src $(echo /elsewhere)/dst` is therefore denied when `outside-write: deny` is set. (Critical C4.)
 
 ## Templates
 
