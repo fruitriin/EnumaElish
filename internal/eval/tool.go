@@ -35,13 +35,28 @@ func EvaluateTool(toolName string, toolArg string, config *dsl.Config) *Result {
 		lastMatch = applyToolArgsRules(toolArg, lastMatchRule, lastMatch)
 	}
 
-	// Apply workspace scope for file-based tools
+	// Apply workspace scope for file-based tools.
+	// Escalate any result less restrictive than ask (allow/warn/hint), and
+	// also cover the fallback path so that `fallback: allow` doesn't
+	// bypass `scope_violation: deny`.
 	if toolArg != "" && config.Settings != nil && len(config.Settings.WorkspacePaths) > 0 {
 		scope := ClassifyPath(toolArg, config.Settings.WorkspacePaths)
 		if scope == ScopeOutside {
-			// Outside workspace → escalate "allow" to the configured
-			// scope_violation action (ask by default, deny for strict setups)
-			if lastMatch != nil && lastMatch.Action == dsl.ActionAllow {
+			effective := lastMatch
+			if effective == nil {
+				// Synthesize the fallback result so scope escalation
+				// can act on it uniformly.
+				fallback := dsl.ActionAsk
+				if config.Settings != nil {
+					fallback = config.Settings.Fallback
+				}
+				effective = &Result{
+					Action:  fallback,
+					Message: "no matching rule (fallback)",
+					Context: []string{toolName},
+				}
+			}
+			if restrictionLevel(effective.Action) < restrictionLevel(dsl.ActionAsk) {
 				return &Result{
 					Action:  scopeViolationAction(config),
 					Message: "workspace scope: accessing path outside workspace",
