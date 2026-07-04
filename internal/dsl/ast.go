@@ -75,6 +75,12 @@ type Template struct {
 }
 
 // Settings represents the settings block.
+//
+// Explicit tracks which fields the user set in a settings: block (keyed by DSL
+// key name — e.g. "fallback", "workspace", "strict_config_error"). Field-wise
+// merging in mergeConfigs relies on this to decide whether an overlay's
+// Settings field should override the base. Without it, an overlay `settings:`
+// block that touches one field silently blanks all the others (Plan 0006 C5).
 type Settings struct {
 	MaxContextDepth   int
 	MaxRulesPerCmd    int
@@ -82,6 +88,9 @@ type Settings struct {
 	WorkspacePaths    []string // scope: workspace paths
 	StrictConfigError bool     // if true, hook denies when config load fails
 	Line              int
+
+	// Explicit fields set by the parser (keyed by DSL key name).
+	Explicit map[string]bool
 }
 
 // DefaultSettings returns settings with default values.
@@ -90,5 +99,6 @@ func DefaultSettings() *Settings {
 		MaxContextDepth: 2,
 		MaxRulesPerCmd:  5,
 		Fallback:        ActionAsk,
+		Explicit:        map[string]bool{},
 	}
 }

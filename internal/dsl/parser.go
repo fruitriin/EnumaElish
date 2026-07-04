@@ -359,6 +359,10 @@ func (p *parser) parseSettings() (*Settings, error) {
 			return nil, err
 		}
 
+		if settings.Explicit == nil {
+			settings.Explicit = map[string]bool{}
+		}
+
 		switch key {
 		case "max_context_depth":
 			n, err := strconv.Atoi(val)
@@ -366,17 +370,20 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid number for max_context_depth: %q", val)}
 			}
 			settings.MaxContextDepth = n
+			settings.Explicit["max_context_depth"] = true
 		case "max_rules_per_cmd":
 			n, err := strconv.Atoi(val)
 			if err != nil {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid number for max_rules_per_cmd: %q", val)}
 			}
 			settings.MaxRulesPerCmd = n
+			settings.Explicit["max_rules_per_cmd"] = true
 		case "fallback":
 			if !IsValidAction(val) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid fallback action: %q", val)}
 			}
 			settings.Fallback = Action(val)
+			settings.Explicit["fallback"] = true
 		case "strict_config_error":
 			switch val {
 			case "true":
@@ -386,6 +393,7 @@ func (p *parser) parseSettings() (*Settings, error) {
 			default:
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid bool for strict_config_error: %q (expected true|false)", val)}
 			}
+			settings.Explicit["strict_config_error"] = true
 		case "workspace":
 			// Collect all tokens after colon (parseKeyValue only returns first)
 			var allParts []string
@@ -405,6 +413,7 @@ func (p *parser) parseSettings() (*Settings, error) {
 					settings.WorkspacePaths = append(settings.WorkspacePaths, p)
 				}
 			}
+			settings.Explicit["workspace"] = true
 		default:
 			return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("unknown setting: %q", key)}
 		}

@@ -100,10 +100,12 @@ If ccchain encounters any error (invalid JSON, parse failure, config error), it 
 
 **Risk:** If the config file is missing or corrupted, all commands are allowed. Always run `ccchain check` after config changes.
 
-**Opt-out:** To fail closed on config load errors, set
-[`settings.strict_config_error: true`](./dsl.md#strict_config_error) in a config
-file that loads before the failing one, or export
-`CCCHAIN_STRICT_CONFIG_ERROR=1` when no config file is available.
+**Opt-in to fail-closed:** To make ccchain deny (rather than allow) on config
+load errors, set
+[`settings.strict_config_error: true`](./dsl.md#strict_config_error) in a
+config file that loads successfully (e.g. a global `~/.claude/ccchain.conf`).
+When no config file can be read at all, export
+`CCCHAIN_STRICT_CONFIG_ERROR=1` as a fallback opt-in path.
 
 ## Recommended `.gitignore` Entries
 

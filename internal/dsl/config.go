@@ -102,19 +102,62 @@ func loadAndParse(path string) (*Config, error) {
 }
 
 func mergeConfigs(base, overlay *Config) *Config {
-	merged := &Config{
+	return &Config{
 		Templates: mergeSlice(base.Templates, overlay.Templates),
 		PreRules:  mergeSlice(base.PreRules, overlay.PreRules),
 		PostRules: mergeSlice(base.PostRules, overlay.PostRules),
 		Rules:     mergeSlice(base.Rules, overlay.Rules),
-		Settings:  overlay.Settings,
+		Settings:  mergeSettings(base.Settings, overlay.Settings),
+	}
+}
+
+// mergeSettings performs field-wise merge: only fields the overlay explicitly
+// set (tracked by Settings.Explicit) override the base. This prevents an
+// overlay `settings:` block that touches one field from silently blanking all
+// the others — the previous behavior swapped the whole Settings struct, which
+// meant a two-line `.ccchain.local.conf` could wipe out `workspace`,
+// `strict_config_error`, `fallback`, etc. set in the project config
+// (Plan 0006 review C5).
+func mergeSettings(base, overlay *Settings) *Settings {
+	if overlay == nil {
+		return base
+	}
+	if base == nil {
+		return overlay
 	}
 
-	if overlay.Settings == nil {
-		merged.Settings = base.Settings
+	// Shallow copy base into out
+	out := *base
+	// Deep copy Explicit so mutating out.Explicit doesn't affect base
+	out.Explicit = map[string]bool{}
+	for k, v := range base.Explicit {
+		out.Explicit[k] = v
 	}
 
-	return merged
+	if overlay.Explicit["max_context_depth"] {
+		out.MaxContextDepth = overlay.MaxContextDepth
+		out.Explicit["max_context_depth"] = true
+	}
+	if overlay.Explicit["max_rules_per_cmd"] {
+		out.MaxRulesPerCmd = overlay.MaxRulesPerCmd
+		out.Explicit["max_rules_per_cmd"] = true
+	}
+	if overlay.Explicit["fallback"] {
+		out.Fallback = overlay.Fallback
+		out.Explicit["fallback"] = true
+	}
+	if overlay.Explicit["workspace"] {
+		out.WorkspacePaths = append([]string(nil), overlay.WorkspacePaths...)
+		out.Explicit["workspace"] = true
+	}
+	if overlay.Explicit["strict_config_error"] {
+		out.StrictConfigError = overlay.StrictConfigError
+		out.Explicit["strict_config_error"] = true
+	}
+	if len(overlay.Explicit) > 0 {
+		out.Line = overlay.Line
+	}
+	return &out
 }
 
 func mergeSlice[T any](a, b []T) []T {

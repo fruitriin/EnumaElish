@@ -152,6 +152,20 @@ Use strict mode when running unattended in high-security environments where
 silent fail-open is unacceptable. Pair it with the `ccchain check` command
 during CI to catch config errors before deployment.
 
+**Warning — self-DoS failure mode:** With strict mode enabled AND a broken
+config file, **every** PreToolUse hook call exits 2. That blocks Bash *and*
+Read/Edit/Write, so Claude cannot even open the config to fix it. Recovery
+requires shell-level intervention outside Claude Code:
+
+1. Prefer prevention: run `ccchain check` before enabling strict mode, and
+   again in CI on every config change.
+2. If you get locked out:
+   - If strict mode came from `CCCHAIN_STRICT_CONFIG_ERROR`, `unset` it in
+     your shell (or restart Claude Code without the variable).
+   - If strict mode came from a config file, edit the broken config directly
+     in a normal terminal (bypassing ccchain), or temporarily rename the
+     broken file so it fails the stat check in the search path.
+
 ## Multiple Commands Per Rule
 
 Comma-separated commands share the same rule:
