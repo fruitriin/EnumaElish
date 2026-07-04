@@ -43,6 +43,7 @@ type Rule struct {
 	PipeRules []*Rule // rules under |,>> context
 	ExecRules []*Rule // rules under exec: context
 	ArgsRules []*ArgsRule // rules under args: context
+	ScopeRule *ScopeRule  // rule under scope: context (Plan 0011 v2)
 
 	// Properties
 	Mode    string // "block", "warn", "hint"
@@ -50,6 +51,30 @@ type Rule struct {
 
 	// Source location for error reporting
 	Line int
+}
+
+// ScopeRule describes per-scope actions for a rule (Plan 0011 v2).
+// Fields are pointers so unset entries can be distinguished from explicit "allow".
+//
+// Precedence when classifying a path:
+//   - inside path → Inside (or the rule's base action if Inside is nil)
+//   - outside path used as read arg  → OutsideRead, else Outside
+//   - outside path used as write arg → OutsideWrite, else Outside
+//
+// Backward compatibility: writing only `outside:` applies to both read and write.
+type ScopeRule struct {
+	Inside       *ScopeAction
+	Outside      *ScopeAction // fallback for both read and write when specific ones not set
+	OutsideRead  *ScopeAction
+	OutsideWrite *ScopeAction
+	Line         int
+}
+
+// ScopeAction is a scope-clause action + optional message.
+type ScopeAction struct {
+	Action  Action
+	Message string
+	Line    int
 }
 
 // ArgsRule represents a pattern-based argument rule.

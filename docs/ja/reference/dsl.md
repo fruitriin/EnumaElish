@@ -16,6 +16,11 @@ ccchain はインデントベースのテキスト DSL を使用します。
     <action> <command>[, command2, ...] ["メッセージ"]
   args:
     <パターン>: <action>
+  scope:
+    inside: <action> ["メッセージ"]
+    outside: <action> ["メッセージ"]         # read/write 両方に適用
+    outside-read: <action> ["メッセージ"]    # outside より優先
+    outside-write: <action> ["メッセージ"]   # outside より優先
   # プロパティ
   mode: block | warn | hint  # 非推奨: パースされるが評価に影響しない。warn/hint アクションを直接使用
   message: "..."
@@ -93,6 +98,50 @@ allow curl
 - 引数に動的展開（`$VAR`, `` `cmd` ``）が含まれる場合、args: 評価はスキップされ親ルールのアクションが使用される
 - 複数の args: パターンがマッチした場合は last-rule-wins
 - args: ルールがマッチすると親ルールのアクションを上書きする
+
+### `scope:`
+
+ルール単位のワークスペーススコープ制御。`settings: workspace: <paths>` の指定が前提。コマンドの引数からパスを抽出し、workspace 内外+read/write の組み合わせで別々のアクションを適用できる:
+
+```
+allow cp
+  scope:
+    inside: allow
+    outside-read: allow          # 外部からの読み取りは OK
+    outside-write: deny  "workspace 外への書き込みは禁止"
+
+allow rm
+  scope:
+    inside: ask  "削除を確認"
+    outside-write: deny  "workspace 外のファイル削除は禁止"
+
+allow cat
+  scope:
+    inside: allow
+    outside: ask  "workspace 外のファイルです"   # read/write 両方に適用
+```
+
+**優先順位**（各パス引数について）:
+- パスが workspace 内 → `inside:`（設定されていれば）
+- パスが workspace 外かつ書き込み引数 → `outside-write:` > `outside:` の順で採用
+- パスが workspace 外かつ読み取り引数 → `outside-read:` > `outside:` の順で採用
+
+**read/write の判定**は組み込みセマンティクステーブル（[`internal/semantics/table.go`](../../../internal/semantics/table.go)）で行う:
+
+| コマンド | 判定 |
+|---|---|
+| `cat`, `head`, `tail`, `less`, `more`, `grep`, `awk`, `wc`, `file`, `stat`, `diff`, `cmp`, `md5sum`, `sha256sum`, `rg` | 全パス = read |
+| `rm`, `rmdir`, `shred`, `tee`, `touch`, `mkdir`, `unlink` | 全パス = write |
+| `cp`, `mv`, `ln` | 最後のパス = write、それ以外 = read |
+| 上記以外 | read として扱う |
+
+**シンボリックリンクの解決**: 引数パスは `filepath.EvalSymlinks` で存在する最も長い祖先を解決してから比較する。workspace 内のリンクが外を指していれば `outside` になり、外のリンクが内を指していれば `inside` になる。解決が完全に失敗した場合（全祖先で権限エラー等）は安全側で `outside` として扱う（fail-closed）。
+
+**存在しないパス**: `cp foo new-file.txt` のように新規作成予定のパスは、存在する親ディレクトリを解決してから残りの部分を結合する。workspace 内の新規ファイルは正しく `inside` と判定される。
+
+**後方互換性**: `scope:` ブロックを持たないルールは従来通りの動作（workspace 外パス引数を検出したら `allow` → `ask` にエスカレーション）。`scope: outside: allow` を明示すると、そのコマンドではエスカレーションを行わない。
+
+**動的引数**: `args:` と同様、`$VAR` / `$(cmd)` / `` `cmd` `` を含むパス引数は判定不能としてスキップする。全パスが動的なら親ルールのアクションが最終結果になる。
 
 ## テンプレート
 

@@ -16,6 +16,11 @@ ccchain uses an indent-based text DSL for rule configuration.
     <action> <command>[, command2, ...] ["message"]
   args:
     <pattern>: <action>
+  scope:
+    inside: <action> ["message"]
+    outside: <action> ["message"]         # applies to both read and write
+    outside-read: <action> ["message"]    # more specific than outside
+    outside-write: <action> ["message"]   # more specific than outside
   # Properties
   mode: block | warn | hint  # DEPRECATED: parsed but has no effect. Use warn/hint actions directly.
   message: "..."
@@ -93,6 +98,50 @@ The pattern is a Go regular expression matched against the **joined argument str
 - If arguments contain dynamic expansion (`$VAR`, `` `cmd` ``), args: evaluation is skipped and the parent rule's action is used
 - Multiple args: patterns follow last-rule-wins
 - Args: rules override the parent rule's action when matched
+
+### `scope:`
+
+Per-rule workspace scope actions. Requires `settings: workspace: <paths>`. Path arguments in the command are classified against the workspace(s) and matched against the scope clauses:
+
+```
+allow cp
+  scope:
+    inside: allow
+    outside-read: allow          # reading outside is fine
+    outside-write: deny  "cannot write outside workspace"
+
+allow rm
+  scope:
+    inside: ask  "confirm deletion"
+    outside-write: deny  "cannot delete outside workspace"
+
+allow cat
+  scope:
+    inside: allow
+    outside: ask  "please confirm outside access"   # applies to read and write
+```
+
+**Precedence** (per path argument):
+- If path is inside workspace → `inside:` action (if set)
+- If path is outside and used as a write argument → `outside-write:` > `outside:` (in that order)
+- If path is outside and used as a read argument → `outside-read:` > `outside:` (in that order)
+
+**Read/write classification** uses a built-in [semantics table](../../internal/semantics/table.go):
+
+| Command family | Kind |
+|---|---|
+| `cat`, `head`, `tail`, `less`, `more`, `grep`, `awk`, `wc`, `file`, `stat`, `diff`, `cmp`, `md5sum`, `sha256sum`, `rg` | all path args = read |
+| `rm`, `rmdir`, `shred`, `tee`, `touch`, `mkdir`, `unlink` | all path args = write |
+| `cp`, `mv`, `ln` | last path arg = write, others = read |
+| any other command | defaults to read |
+
+**Symbolic link resolution.** Path classification uses `filepath.EvalSymlinks` on the longest existing ancestor of the argument. A link inside the workspace that points outside resolves to `outside`; a link outside that points inside resolves to `inside`. If resolution fails entirely (e.g. permission error on every ancestor), the path is treated as `outside` (fail-closed).
+
+**Non-existent paths.** For paths that don't yet exist (e.g. `cp foo new-file.txt`), the parent directory chain is resolved and the remaining suffix is appended — so a new file inside the workspace is still `inside`.
+
+**Backward compatibility.** Rules without any `scope:` block keep the previous auto-escalation behavior: `allow` escalates to `ask` whenever any path argument is outside the workspace. Rules with `scope: outside: allow` explicitly opt out of that escalation for the whole command.
+
+**Dynamic arguments.** As with `args:`, path arguments containing `$VAR` / `$(cmd)` / `` `cmd` `` are skipped (undecidable). If every path is dynamic, the parent rule's action stands.
 
 ## Templates
 

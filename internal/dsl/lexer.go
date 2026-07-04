@@ -74,6 +74,7 @@ var keywords = map[string]bool{
 	"args":        true,
 	"mode":        true,
 	"message":     true,
+	"scope":       true,
 }
 
 // Line represents a tokenized line with its indentation.

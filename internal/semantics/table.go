@@ -8,6 +8,94 @@ import (
 	"strings"
 )
 
+// PathKind classifies a path argument as read or write access.
+// Used by the workspace scope evaluator (Plan 0011 v2) to distinguish
+// e.g. `cp src dst` where src is read and dst is write.
+type PathKind int
+
+const (
+	// PathKindRead means the command reads from this path.
+	PathKindRead PathKind = iota
+	// PathKindWrite means the command writes to (creates/modifies/deletes) this path.
+	PathKindWrite
+)
+
+// ArgSemanticsKind describes how a command's path arguments are classified.
+type ArgSemanticsKind int
+
+const (
+	// KindAllRead: every path argument is a read (cat, head, tail, grep).
+	KindAllRead ArgSemanticsKind = iota
+	// KindAllWrite: every path argument is a write (rm, shred, tee).
+	KindAllWrite
+	// KindLastWrite: the last path argument is a write, all prior paths are reads
+	// (cp src... dst, mv src... dst, ln src dst).
+	KindLastWrite
+)
+
+// PathArgSemantics maps a command name to how its path arguments read/write.
+// Missing commands default to KindAllRead (backward-compatible, since the
+// existing scope check treated everything as an access without direction).
+var PathArgSemantics = map[string]ArgSemanticsKind{
+	// Read-only paths
+	"cat":  KindAllRead,
+	"head": KindAllRead,
+	"tail": KindAllRead,
+	"less": KindAllRead,
+	"more": KindAllRead,
+	"grep": KindAllRead,
+	"egrep": KindAllRead,
+	"fgrep": KindAllRead,
+	"rg":   KindAllRead,
+	"awk":  KindAllRead,
+	"wc":   KindAllRead,
+	"file": KindAllRead,
+	"stat": KindAllRead,
+	"diff": KindAllRead,
+	"cmp":  KindAllRead,
+	"md5sum": KindAllRead,
+	"sha256sum": KindAllRead,
+
+	// Write-only paths (destination arguments only)
+	"rm":    KindAllWrite,
+	"rmdir": KindAllWrite,
+	"shred": KindAllWrite,
+	"tee":   KindAllWrite,
+	"touch": KindAllWrite,
+	"mkdir": KindAllWrite,
+	"unlink": KindAllWrite,
+
+	// Last argument is write, others are read
+	"cp": KindLastWrite,
+	"mv": KindLastWrite,
+	"ln": KindLastWrite,
+}
+
+// ClassifyPathArg returns whether the path at position i within pathPositions
+// (0-indexed list of path arguments) is a read or write for the given command.
+// numPaths is the total number of extracted path arguments.
+//
+// Unknown commands default to PathKindRead: this matches the pre-v2 behavior
+// where the scope check did not distinguish direction, so migration is safe.
+func ClassifyPathArg(cmdName string, i, numPaths int) PathKind {
+	kind, ok := PathArgSemantics[cmdName]
+	if !ok {
+		return PathKindRead
+	}
+	switch kind {
+	case KindAllRead:
+		return PathKindRead
+	case KindAllWrite:
+		return PathKindWrite
+	case KindLastWrite:
+		if numPaths > 0 && i == numPaths-1 {
+			return PathKindWrite
+		}
+		return PathKindRead
+	}
+	return PathKindRead
+}
+
 // CommandSemantics describes the semantic properties of a CLI command.
 type CommandSemantics struct {
 	SafeSubcommands      []string // subcommands that are read-only or safe
