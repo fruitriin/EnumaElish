@@ -218,18 +218,30 @@ func wordToString(w *syntax.Word) string {
 
 // isAnalyzable checks if a word can be statically analyzed.
 // Returns false for variable expansions, command substitutions, etc.
+//
+// The check traverses the word at all depths using syntax.Walk so that
+// dynamic parts nested inside *syntax.DblQuoted (e.g. `"$(cmd)"`, `"$VAR"`)
+// are detected. Only inspecting w.Parts at the top level would incorrectly
+// treat `"$(rm)" -rf /` as fully static and bypass the deny-first safety
+// net for dynamic command names.
 func isAnalyzable(w *syntax.Word) bool {
-	for _, part := range w.Parts {
-		switch part.(type) {
-		case *syntax.ParamExp:
-			return false // $var, ${var}
-		case *syntax.CmdSubst:
-			return false // $(cmd)
-		case *syntax.ProcSubst:
-			return false // <(cmd)
-		case *syntax.ArithmExp:
-			return false // $((expr))
-		}
+	if w == nil {
+		return true
 	}
-	return true
+	analyzable := true
+	syntax.Walk(w, func(node syntax.Node) bool {
+		if node == nil {
+			return false
+		}
+		switch node.(type) {
+		case *syntax.ParamExp, // $var, ${var}
+			*syntax.CmdSubst,  // $(cmd), `cmd`
+			*syntax.ProcSubst, // <(cmd), >(cmd)
+			*syntax.ArithmExp: // $((expr))
+			analyzable = false
+			return false
+		}
+		return true
+	})
+	return analyzable
 }
