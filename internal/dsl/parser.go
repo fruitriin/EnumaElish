@@ -377,6 +377,15 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid fallback action: %q", val)}
 			}
 			settings.Fallback = Action(val)
+		case "strict_config_error":
+			switch val {
+			case "true":
+				settings.StrictConfigError = true
+			case "false":
+				settings.StrictConfigError = false
+			default:
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid bool for strict_config_error: %q (expected true|false)", val)}
+			}
 		case "workspace":
 			// Collect all tokens after colon (parseKeyValue only returns first)
 			var allParts []string

@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -187,4 +188,48 @@ func TestParseArgsRules(t *testing.T) {
 	assertEqual(t, "args[0].action", string(r.ArgsRules[0].Action), "allow")
 	assertEqual(t, "args[1].pattern", r.ArgsRules[1].Pattern, "-X POST")
 	assertEqual(t, "args[1].action", string(r.ArgsRules[1].Action), "ask")
+}
+
+func TestParseSettings_StrictConfigError(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantErr  bool
+		wantFlag bool
+	}{
+		{
+			name:     "true enables strict mode",
+			input:    "settings:\n  strict_config_error: true\n",
+			wantFlag: true,
+		},
+		{
+			name:     "false keeps default fail-open",
+			input:    "settings:\n  strict_config_error: false\n",
+			wantFlag: false,
+		},
+		{
+			name:    "invalid bool errors",
+			input:   "settings:\n  strict_config_error: maybe\n",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := Parse(strings.NewReader(tc.input))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected parse error: %v", err)
+			}
+			if cfg.Settings == nil {
+				t.Fatal("settings is nil")
+			}
+			assertEqual(t, "strict_config_error", cfg.Settings.StrictConfigError, tc.wantFlag)
+		})
+	}
 }

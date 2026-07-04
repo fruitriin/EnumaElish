@@ -37,6 +37,7 @@ settings:
   max_context_depth: <int>
   max_rules_per_cmd: <int>
   fallback: <action>
+  strict_config_error: true | false   # deny on config load failure (default false = fail-open)
 ```
 
 ## Actions
@@ -126,11 +127,30 @@ allow find
 
 ```
 settings:
-  max_context_depth: 2    # max depth for audit expansion
-  max_rules_per_cmd: 5    # max rules per command in audit
-  fallback: ask           # action for unmatched commands
-  workspace: ~/workspace  # workspace scope (comma-separated for multiple paths)
+  max_context_depth: 2         # max depth for audit expansion
+  max_rules_per_cmd: 5         # max rules per command in audit
+  fallback: ask                # action for unmatched commands
+  workspace: ~/workspace       # workspace scope (comma-separated for multiple paths)
+  strict_config_error: true    # fail closed (deny) when config load fails; default: false
 ```
+
+### `strict_config_error`
+
+By default, ccchain is fail-open — any config load failure (missing file,
+parse error, unresolved template) is logged to stderr and the command is
+**allowed** (see [Error Handling](./config.md#error-handling-fail-open)).
+Setting `strict_config_error: true` in any config file that loaded
+successfully (e.g. a global `~/.claude/ccchain.conf`) opts into fail-closed:
+if a later config file fails to load, the PreToolUse hook denies the tool
+call with exit 2.
+
+When no config file could be loaded at all, the only way to opt into strict
+mode is the environment variable `CCCHAIN_STRICT_CONFIG_ERROR=1`
+(or `true`).
+
+Use strict mode when running unattended in high-security environments where
+silent fail-open is unacceptable. Pair it with the `ccchain check` command
+during CI to catch config errors before deployment.
 
 ## Multiple Commands Per Rule
 

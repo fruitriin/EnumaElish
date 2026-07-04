@@ -81,3 +81,10 @@ These are automatically **denied** with a message explaining why:
   "message": "dynamic command detected: static analysis not possible"
 }
 ```
+
+ccchain's policy is "deny what we can't analyze," but ccchain's *own* errors
+(config parse failure, template resolution failure, etc.) are fail-open by
+default — see [Error Handling](../reference/config.md#error-handling-fail-open).
+For environments where fail-open is unacceptable, opt into fail-closed with
+[`settings.strict_config_error: true`](../reference/dsl.md#strict_config_error)
+or `CCCHAIN_STRICT_CONFIG_ERROR=1`.

@@ -37,6 +37,7 @@ settings:
   max_context_depth: <整数>
   max_rules_per_cmd: <整数>
   fallback: <action>
+  strict_config_error: true | false   # 設定ロード失敗時に deny (デフォルト false = fail-open)
 ```
 
 ## アクション
@@ -126,11 +127,29 @@ allow find
 
 ```
 settings:
-  max_context_depth: 2    # audit 展開の最大深度
-  max_rules_per_cmd: 5    # audit でのコマンドあたりルール数上限
-  fallback: ask           # マッチしないコマンドのデフォルト動作
-  workspace: ~/workspace  # ワークスペーススコープ（カンマ区切りで複数指定可）
+  max_context_depth: 2         # audit 展開の最大深度
+  max_rules_per_cmd: 5         # audit でのコマンドあたりルール数上限
+  fallback: ask                # マッチしないコマンドのデフォルト動作
+  workspace: ~/workspace       # ワークスペーススコープ（カンマ区切りで複数指定可）
+  strict_config_error: true    # 設定ロード失敗時に fail-closed（deny）にする。デフォルト: false
 ```
+
+### `strict_config_error`
+
+デフォルトでは ccchain は fail-open — 設定ロードの失敗（ファイル欠損、
+パースエラー、テンプレート未解決など）は stderr にログ出力しつつコマンドを
+**許可**します（[エラー処理（Fail-Open）](./config.md#エラー処理fail-open) 参照）。
+
+`strict_config_error: true` を **すでに読み込めた設定ファイル**（例:
+グローバルの `~/.claude/ccchain.conf`）で有効にすると、後続の設定ファイルが
+ロードに失敗したときに PreToolUse フックが exit 2 で deny します。
+
+設定ファイルが1つも読めなかった場合は、環境変数
+`CCCHAIN_STRICT_CONFIG_ERROR=1`（または `true`）だけが strict モードへの
+オプトイン手段になります。
+
+fail-open が許容できない unattended 運用・高セキュリティ環境で使用してください。
+デプロイ前の CI で `ccchain check` と組み合わせると効果的です。
 
 ## 複数コマンドの一行記法
 

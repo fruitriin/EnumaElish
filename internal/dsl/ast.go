@@ -76,11 +76,12 @@ type Template struct {
 
 // Settings represents the settings block.
 type Settings struct {
-	MaxContextDepth int
-	MaxRulesPerCmd  int
-	Fallback        Action
-	WorkspacePaths  []string // scope: workspace paths
-	Line            int
+	MaxContextDepth   int
+	MaxRulesPerCmd    int
+	Fallback          Action
+	WorkspacePaths    []string // scope: workspace paths
+	StrictConfigError bool     // if true, hook denies when config load fails
+	Line              int
 }
 
 // DefaultSettings returns settings with default values.

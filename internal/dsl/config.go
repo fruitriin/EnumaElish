@@ -15,27 +15,44 @@ import (
 // 5. ~/.claude/ccchain.conf (fallback)
 //
 // Files are merged in order: later files override earlier ones via last-rule-wins.
+//
+// On error, LoadConfig returns a best-effort partial Config (merged from files
+// successfully loaded before the failure) alongside the error. Callers may
+// inspect the partial Config's Settings (e.g. StrictConfigError) to decide
+// whether to fail closed. The partial Config is never nil.
 func LoadConfig(configPath string) (*Config, error) {
 	if configPath != "" {
-		return loadAndParse(configPath)
+		cfg, err := loadAndParse(configPath)
+		if err != nil {
+			return &Config{Settings: DefaultSettings()}, err
+		}
+		return cfg, nil
 	}
 
 	paths := searchPaths()
 	var configs []*Config
+	var loadErr error
 
+	// Try every path even if one fails, so callers can inspect Settings from
+	// any file that loaded successfully (e.g. discovering StrictConfigError
+	// from a global config when a project-local config has a parse error).
+	// The first error encountered is preserved.
 	for _, p := range paths {
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			continue
 		}
 		cfg, err := loadAndParse(p)
 		if err != nil {
-			return nil, fmt.Errorf("error in %s: %w", p, err)
+			if loadErr == nil {
+				loadErr = fmt.Errorf("error in %s: %w", p, err)
+			}
+			continue
 		}
 		configs = append(configs, cfg)
 	}
 
 	if len(configs) == 0 {
-		return &Config{Settings: DefaultSettings()}, nil
+		return &Config{Settings: DefaultSettings()}, loadErr
 	}
 
 	// Merge configs (later overrides earlier)
@@ -44,7 +61,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		merged = mergeConfigs(merged, configs[i])
 	}
 
-	return merged, nil
+	return merged, loadErr
 }
 
 func searchPaths() []string {

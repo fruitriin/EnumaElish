@@ -87,3 +87,5 @@ eval "$dynamic"       # 動的な eval 引数
 ```
 
 ccchain は「分からないものは拒否する」方針です。ただし ccchain 自身のエラー（パース失敗等）は Fail-Open で許可します — この区別が重要です。動的コマンドは「分析した結果、安全性を判断できなかった」のであり、「分析自体に失敗した」のではありません。
+
+fail-open を許容できない環境では [`settings.strict_config_error: true`](../reference/dsl.md#strict_config_error)（または `CCCHAIN_STRICT_CONFIG_ERROR=1`）で設定ロード失敗時に fail-closed に切り替えられます。

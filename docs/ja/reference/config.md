@@ -92,6 +92,12 @@ ccchain がエラーに遭遇した場合（JSON 不正、パース失敗、設�
 
 これにより ccchain 自身のバグが Claude の操作をブロックすることはありません。
 
+**オプトアウト:** 設定ロードエラー時に fail-closed（deny）にするには、
+先に読み込めた設定ファイルで
+[`settings.strict_config_error: true`](./dsl.md#strict_config_error) を
+指定するか、設定ファイルが1つも無い場合は
+`CCCHAIN_STRICT_CONFIG_ERROR=1` を export してください。
+
 ## 推奨 `.gitignore`
 
 ```gitignore
