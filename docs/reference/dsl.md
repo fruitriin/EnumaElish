@@ -37,7 +37,11 @@ settings:
   max_context_depth: <int>
   max_rules_per_cmd: <int>
   fallback: <action>
+  workspace: <path>[,<path>...]
+  scope_violation: ask | deny
 ```
+
+**Shell-quoting note:** Both command-name and argument matching operate on strings *after* shell quote removal, just like the shell does before executing the command — `"rm"` matches a `deny rm` rule, `curl -X "POST"` matches an `args:` pattern of `-X POST`, and `rm "-rf" /` matches `-rf` in args:. Only literal single/double-quote wrappers are stripped; backslash escapes inside double quotes (`\"`, `\$`, `\\`, `` \` ``, etc.) and ANSI-C `$'...'` sequences are passed through as written, so patterns that need to defend against escaped variants must account for them explicitly.
 
 ## Actions
 
@@ -93,8 +97,8 @@ The pattern is a Go regular expression matched against the **joined argument str
 - If arguments contain dynamic expansion (`$VAR`, `` `cmd` ``), args: evaluation is skipped and the parent rule's action is used
 - Multiple args: patterns follow last-rule-wins
 - Args: rules override the parent rule's action when matched
-- Shell quoting is removed before matching, just as the shell removes it before executing the command: `curl -X "POST"` matches the pattern `-X POST`
-- If the joined argument string exceeds **4096 bytes**, args: rules are not applied and the result is escalated to `ask` (a stricter parent action such as `deny` is kept). Falling back to the parent action would let argument padding bypass an escalating args: rule
+- Shell quoting is removed before matching, just as the shell removes it before executing the command: `curl -X "POST"` matches the pattern `-X POST`. The same quote removal is applied to command-name matching (see the shell-quoting note in the Grammar section). Only literal `'...'` / `"..."` wrappers are stripped; backslash escapes inside double quotes (`\!`, `foo\ bar`, `\"`, `\$`, `` \` ``) and ANSI-C `$'...'` sequences are passed through as-is
+- If the joined argument string exceeds **4096 bytes**, args: rules are not applied and the result is escalated to the **strictest action declared in this rule's `args:` block**, with a floor of `ask` (a stricter parent action such as `deny` is kept). Concretely: an `args:` block containing a `deny` entry denies on over-length input; a block whose strictest entry is `ask` (or only `allow`) escalates to `ask`. Falling back to the parent action would let argument padding bypass an escalating args: rule (e.g. `allow rm` + `args: -rf /: deny`)
 
 ## Templates
 

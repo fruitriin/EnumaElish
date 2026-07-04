@@ -158,7 +158,9 @@ deny rm  "rm is not allowed"
 // TestArgsMaxLenEscalatesToAsk: when the joined argument string exceeds
 // maxArgsLen, args: rules cannot be applied safely. Falling back to the
 // parent action would let padding bypass an escalating args: rule, so the
-// result is escalated to ask instead (Plan 0009 Phase 3, Security Info).
+// result is escalated to the strictest action in the ArgsRules block. For a
+// block whose strictest action is ask, that means ask (Plan 0009 Phase 3,
+// Security Info; attacker-persona finding C3).
 func TestArgsMaxLenEscalatesToAsk(t *testing.T) {
 	cfg := mustParseConfig(t, `
 allow curl
@@ -171,6 +173,60 @@ allow curl
 		t.Fatalf("evaluate error: %v", err)
 	}
 	assertEqual(t, "over-length action", r.Action, dsl.ActionAsk)
+}
+
+// TestArgsMaxLenParentAllowDenyPreserved pins the C3 fix: when a rule's
+// ArgsRules block contains a `deny` entry, over-length input must still deny
+// — a plain escalation to ask would be a de-escalation of deny → ask and let
+// `allow rm` + `args: -rf /: deny` be bypassed by argument padding.
+func TestArgsMaxLenParentAllowDenyPreserved(t *testing.T) {
+	cfg := mustParseConfig(t, `
+allow rm
+  args:
+    ^-rf /$: deny  "rm -rf / is not allowed"
+`)
+	padding := strings.Repeat("A", maxArgsLen+1)
+	r, err := Evaluate("rm -rf / "+padding, cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "over-length action must stay deny", r.Action, dsl.ActionDeny)
+}
+
+// TestArgsMaxLenPicksStrictestOfArgsBlock: when multiple ArgsRules of
+// differing strictness are present, over-length input is escalated to the
+// strictest one — not merely ask.
+func TestArgsMaxLenPicksStrictestOfArgsBlock(t *testing.T) {
+	cfg := mustParseConfig(t, `
+allow curl
+  args:
+    -X GET: allow
+    -X POST: ask
+    ^--data.*password: deny
+`)
+	padding := strings.Repeat("A", maxArgsLen+1)
+	r, err := Evaluate("curl -X GET "+padding, cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "over-length action picks deny", r.Action, dsl.ActionDeny)
+}
+
+// TestArgsMaxLenAllowOnlyBlockAsks: a block whose entries are all `allow`
+// still escalates to ask on over-length — the floor is ask so an all-allow
+// block cannot be used to silently permit unverifiable input.
+func TestArgsMaxLenAllowOnlyBlockAsks(t *testing.T) {
+	cfg := mustParseConfig(t, `
+allow curl
+  args:
+    ^https://safe\.example\.com/: allow
+`)
+	padding := strings.Repeat("A", maxArgsLen+1)
+	r, err := Evaluate("curl https://safe.example.com/"+padding, cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "over-length all-allow block asks", r.Action, dsl.ActionAsk)
 }
 
 // TestArgsMaxLenKeepsStricterParent: an already stricter parent action (deny)
@@ -222,6 +278,8 @@ allow curl
 }
 
 // TestToolArgsMaxLen: the same limit protects EvaluateTool's args: matching.
+// A `deny` entry in the ArgsRules block means over-length input denies —
+// falling back to ask would let padding bypass the deny (attacker C3).
 func TestToolArgsMaxLen(t *testing.T) {
 	cfg := mustParseConfig(t, `
 allow WebFetch
@@ -230,7 +288,20 @@ allow WebFetch
 `)
 	longURL := "https://example.com/" + strings.Repeat("A", maxArgsLen)
 	r := EvaluateTool("WebFetch", longURL, cfg)
-	assertEqual(t, "tool over-length action", r.Action, dsl.ActionAsk)
+	assertEqual(t, "tool over-length action must stay deny", r.Action, dsl.ActionDeny)
+}
+
+// TestToolArgsMaxLenAskOnlyEscalatesToAsk: for an EvaluateTool rule whose
+// strictest args entry is ask, over-length input escalates to ask.
+func TestToolArgsMaxLenAskOnlyEscalatesToAsk(t *testing.T) {
+	cfg := mustParseConfig(t, `
+allow WebFetch
+  args:
+    ^https://example\.com/: ask
+`)
+	longURL := "https://example.com/" + strings.Repeat("A", maxArgsLen)
+	r := EvaluateTool("WebFetch", longURL, cfg)
+	assertEqual(t, "tool over-length ask-only escalates to ask", r.Action, dsl.ActionAsk)
 }
 
 func TestArgsNoMatchFallsThrough(t *testing.T) {

@@ -514,22 +514,41 @@ func appendContext(base []string, items ...string) []string {
 //
 // Exceeding the limit does NOT fall back to the parent rule's action: padding
 // arguments past the limit would otherwise trivially bypass an escalating
-// args: rule (e.g. `allow curl` + `args: -X POST: ask`). Consistent with the
-// project's fail-open policy — which applies only to ccchain's own errors,
-// not to "analyzed but safety could not be determined" cases (see
-// docs/guide/structural-context.md) — the result is escalated to ask instead,
-// while an already stricter parent action (ask/deny) is kept.
+// args: rule (e.g. `allow curl` + `args: -X POST: ask`, or worse,
+// `allow rm` + `args: -rf /: deny`). Consistent with the project's fail-open
+// policy — which applies only to ccchain's own errors, not to "analyzed but
+// safety could not be determined" cases (see docs/guide/structural-context.md
+// / docs/ja/guide/structural-context.md) — the result is escalated to the
+// strictest action declared in that rule's ArgsRules block, floored at ask.
+// If the block contains a `deny` entry, deny wins; otherwise ask. An already
+// stricter parent action (ask/deny) is always kept — the limit never
+// de-escalates.
 const maxArgsLen = 4096
 
 // argsTooLongResult returns the safe-side result for an over-length argument
-// string: at least ask, or the base result if it is already as restrictive.
-func argsTooLongResult(baseResult *Result) *Result {
-	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
+// string. The strictest action declared anywhere in the rule's ArgsRules
+// block is used as the ceiling, so `allow rm` + `args: -rf /: deny` still
+// denies when the argument string is over-length. The floor is ask — even
+// an ArgsRules block that only allows escalates over-length inputs to ask,
+// since we could not verify the pattern.
+func argsTooLongResult(rule *dsl.Rule, baseResult *Result) *Result {
+	// Ceiling: the strictest action in this rule's ArgsRules block, capped
+	// below by ask so an all-allow block still asks.
+	strictest := dsl.ActionAsk
+	strictestLevel := restrictionLevel(strictest)
+	for _, ar := range rule.ArgsRules {
+		if lvl := restrictionLevel(ar.Action); lvl > strictestLevel {
+			strictest = ar.Action
+			strictestLevel = lvl
+		}
+	}
+	// Never de-escalate: if the parent action is already stricter, keep it.
+	if restrictionLevel(baseResult.Action) >= strictestLevel {
 		return baseResult
 	}
 	return &Result{
-		Action:  dsl.ActionAsk,
-		Message: "args: rules skipped: argument string exceeds max length, escalating to ask",
+		Action:  strictest,
+		Message: "args: rules skipped: argument string exceeds max length, escalating to strictest args: action",
 		Context: baseResult.Context,
 	}
 }
@@ -547,7 +566,7 @@ func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Res
 
 	argsStr := strings.Join(cmd.Args, " ")
 	if len(argsStr) > maxArgsLen {
-		return argsTooLongResult(baseResult)
+		return argsTooLongResult(rule, baseResult)
 	}
 
 	// Skip args: evaluation if arguments contain dynamic expansion

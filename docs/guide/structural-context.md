@@ -81,3 +81,5 @@ These are automatically **denied** with a message explaining why:
   "message": "dynamic command detected: static analysis not possible"
 }
 ```
+
+ccchain's policy is "deny what we cannot understand," but ccchain's *own* errors (parse failures, etc.) are Fail-Open — this distinction matters. A dynamic command is "analyzed, and safety could not be determined," not "analysis itself failed." Downstream safety mechanisms (e.g. the `args:` maximum length in `internal/eval/evaluate.go`) treat their limits the same way: exceeding a limit is "we could not verify," so the result is escalated on the safe side rather than falling back to the parent action.
