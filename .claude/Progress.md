@@ -84,7 +84,17 @@
 
 ## タスク
 
-（現在タスクなし）
+### 現在のタスク: `/loop 1h /addf-speculate` 投機サイクル1周（2026-07-04〜05）
+
+（サイクル完了。以下は日記のみを残しアーカイブせず、次サイクルで再度上書きされる想定）
+
+#### 日記
+
+##### 2026-07-05 — 投機サイクル1周を実行、3本統合成功・1本衝突で外し
+**やったこと**: 4本の投機（stripquotes-escape / template-dedup / args-hardening / scope-violation-deny）を並列で立ち上げ、いずれも単体 Stage 1 は通過。integration 統合で stripquotes-escape と args-hardening が同じ AST 層（topology の word 抽出）を触るため意図が衝突し、堅牢化を1周依頼しても両者の意図を同時に満たせず stripquotes-escape を「衝突」で外した。残る3本は Stage 2（相互作用テスト + skeptic/attacker/newcomer 3ペルソナ並列レビュー）通過。ペルソナが本 PR 起因の Critical 2件（args 長さ超過時の deny 格下げ、scope_violation の warn/hint/fallback バイパス）と既存バグ 4件（バックスラッシュエスケープ回避、DblQuoted 内動的展開の Analyzable スキップ、DblQuoted 内エスケープ4種、シンボリックリンク未解決）を検出。本 PR 起因は担当エージェントに1周依頼して修正、既存バグは Dashboard「気になった点」に列挙してオーナー起票判断に委ねた。修正後 integration 再統合で全テスト PASS、4本すべて origin に push 済み。
+**今の見立て**: 投機の設計目的（軽量な残課題の消化・独立性）はほぼ達成できたが、`args-hardening` と `stripquotes-escape` の衝突は選定時に見抜けなかった。ファイル集合の重なりだけでなく「意味論の同一 AST 層への干渉」を投機選定のチェック軸に加える必要がある — この教訓は `docs/knowhow/ADDF/speculative-cycle-lessons.md` に残した。
+**次の自分へ**: Dashboard.md はブートシーケンス 1.6 でオーナーに提示される。オーナー応答があるまで削除しない。Dashboard に列挙した既存バグ 4件は Plan 起票の候補 — オーナー判断を仰いでから TODO へ落とすこと。次サイクルの `/addf-speculate` 起動時は同じ AST 層（topology, evaluate）の兄弟課題を1本のブランチに束ねる方針で選定してほしい。
+**気になっていること**: `stripquotes-escape` は push 済みでブランチは残っているが、`args-hardening` と同居できる形の再設計をしないと採用できない。オーナーが「片方採用/両方破棄/新 Plan で再設計」のいずれを選ぶかで扱いが変わる。それまでは speculative/ のまま塩漬け。
 
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）

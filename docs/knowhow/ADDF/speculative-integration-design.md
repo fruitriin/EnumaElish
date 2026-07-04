@@ -1,7 +1,7 @@
 ---
 title: 投機 feature の squash 統合設計 — 副作用を worktree に閉じ込める
 created: 2026-07-03
-last_verified: 2026-07-03
+last_verified: 2026-07-05
 depends_on:
   - .claude/addfTools/speculate-integrate.py
   - .claude/tests/tools/test-speculate-integrate.sh
@@ -74,3 +74,4 @@ tomllib の PYTHONPATH シムと同系の「環境起因の失敗を決定的に
 - [worktree-dotdir-copy.md](worktree-dotdir-copy.md) — feature worktree への .claude 複製の罠
   （integration worktree では複製不要 — 実装の場ではないため）
 - [optional-skill-optin.md](optional-skill-optin.md) — 「silent に捨てない」報告設計の前例
+- [speculative-cycle-lessons.md](speculative-cycle-lessons.md) — 統合フローの上位で見えてきた運用教訓（意図の衝突・ペルソナ指摘のさばき・兄弟課題の同一ブランチ化）
