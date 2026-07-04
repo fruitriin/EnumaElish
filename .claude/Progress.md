@@ -96,5 +96,11 @@
 **次の自分へ**: Dashboard.md はブートシーケンス 1.6 でオーナーに提示される。オーナー応答があるまで削除しない。Dashboard に列挙した既存バグ 4件は Plan 起票の候補 — オーナー判断を仰いでから TODO へ落とすこと。次サイクルの `/addf-speculate` 起動時は同じ AST 層（topology, evaluate）の兄弟課題を1本のブランチに束ねる方針で選定してほしい。
 **気になっていること**: `stripquotes-escape` は push 済みでブランチは残っているが、`args-hardening` と同居できる形の再設計をしないと採用できない。オーナーが「片方採用/両方破棄/新 Plan で再設計」のいずれを選ぶかで扱いが変わる。それまでは speculative/ のまま塩漬け。
 
+##### 2026-07-05 サイクル2 — 3本並列 + Stage 2 で Critical 7件を全部潰し切り、再統合で全通過
+**やったこと**: サイクル2として `workspace-scope-hardening`（Plan 0011 v2 read/write 分離 + シンボリックリンク解決の兄弟課題を同一ブランチに束ねた） / `bash-c-analyzable-fix`（前サイクル Dashboard #2 の既存バグ修正）/ `strict-config-error`（Plan 0006 VULN-07）の 3 本を並列で立ち上げ。全部単体 Stage 1 通過、3本とも integration に統合できて相互作用テスト一発 PASS（サイクル1の教訓「同じ AST 層への干渉」を選定時にチェックした成果）。ペルソナ並列レビューが Critical 7件を検出（うち 3 件はコンセンサス補正で強化、attacker が全部再現コード付きで実証）。担当エージェント2本に修正依頼し、`workspace-scope-hardening` は 6/7 の Critical（C1 リダイレクト・C2 `cp -t`・C3 未知コマンド・C4 動的 path・C6 ツール経路・C7 fail-closed）を1コミットで対応、`strict-config-error` は C5（`mergeConfigs` の Settings 丸ごと swap）を `Settings.Explicit` フィールドでフィールド単位マージに改造して対応。修正後の統合で workspace-scope-hardening と strict-config-error が Grammar 早見表への追記でコンフリクトしたが自明な解消（両行を並べる）で処理し、3本統合成功。全テスト・全統合テスト・全 ADDF テスト通過、3本すべて origin に push 済み。
+**今の見立て**: 「兄弟課題を同一ブランチに束ねる」教訓が機能し、`workspace-scope-hardening` に read/write 分離とシンボリックリンク解決を束ねたことで、単体レビューで両方の相互作用が発覚した（片方だけ入れると `outside-write: deny` が symlink 経由でバイパスされる非対称）。attacker ペルソナが実証コード付きで Critical を7件検出したのは大きな成果。既存バグ2件（バックスラッシュエスケープバイパス・DblQuoted 内エスケープ4種）は次サイクル以降の投機対象または新 Plan 候補として Dashboard に残した。
+**次の自分へ**: サイクル1・2 合計で 7 本の投機ブランチが採否判断待ち。オーナーからの応答を受けたら、採否判断に沿って `git branch -D speculative/<xxx>`（破棄）または main への squash マージ（採用）を実行する。**採用判断はオーナー承認必須**（`/addf-speculate` 手順書のとおり、自動マージ経路は存在しない）。サイクル2の Critical 7件対応はすべて追加コミットとしてブランチに残っているので、履歴を追うときは各 speculative ブランチの複数コミットを見ること。
+**気になっていること**: `bash-c-analyzable-fix` が実装した `isAnalyzable` 全深度検査と、サイクル1 で塩漬けの `stripquotes-escape` の `(dynamic-shell)` 検出は、内容が重複気味。統合するとどちらかが冗長。オーナーが `stripquotes-escape` を「採用」判断した場合、`bash-c-analyzable-fix` は先に main へ入っている前提で rebase する必要が出るかもしれない。両ブランチの意図の重複は Dashboard に書ききれなかったが、統合設計時の判断材料として意識してほしい。
+
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
