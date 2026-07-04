@@ -270,12 +270,86 @@ func (p *parser) parseRule(parentIndent int) (*Rule, error) {
 			rule.Message = val
 			p.advance()
 
+		case tok.Type == TokenKeyword && tok.Value == "scope":
+			p.advance()
+			sr, err := p.parseScopeBlock(childLine.Indent)
+			if err != nil {
+				return nil, err
+			}
+			rule.ScopeRule = sr
+
 		default:
 			return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("unexpected token in rule: %q", tok.Value)}
 		}
 	}
 
 	return rule, nil
+}
+
+// parseScopeBlock parses a `scope:` block on a rule (Plan 0011 v2).
+// Supported keys: inside, outside, outside-read, outside-write.
+// Values: <action> ["message"].
+func (p *parser) parseScopeBlock(parentIndent int) (*ScopeRule, error) {
+	sr := &ScopeRule{}
+	if p.current() != nil {
+		sr.Line = p.current().LineNo
+	}
+
+	for p.current() != nil && p.current().Indent > parentIndent {
+		line := p.current()
+		if len(line.Tokens) == 0 {
+			p.advance()
+			continue
+		}
+
+		// The key is an Ident token (e.g. "inside", "outside-read"). We use
+		// Ident because "-" is a legal word character; keywords doesn't list
+		// them and that's intentional (they are only meaningful inside scope:).
+		keyTok := line.Tokens[0]
+		if keyTok.Type != TokenIdent {
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("expected scope key (inside/outside/outside-read/outside-write), got %q", keyTok.Value)}
+		}
+
+		colonIdx := -1
+		for i, tok := range line.Tokens {
+			if tok.Type == TokenColon {
+				colonIdx = i
+				break
+			}
+		}
+		if colonIdx < 0 {
+			return nil, &ParseError{Line: line.LineNo, Message: "expected ':' after scope key"}
+		}
+
+		act := &ScopeAction{Line: line.LineNo}
+		for i := colonIdx + 1; i < len(line.Tokens); i++ {
+			tok := line.Tokens[i]
+			if tok.Type == TokenAction || (tok.Type == TokenIdent && actions[tok.Value]) {
+				act.Action = Action(tok.Value)
+			} else if tok.Type == TokenString {
+				act.Message = tok.Value
+			}
+		}
+		if act.Action == "" {
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("scope %q: missing or invalid action", keyTok.Value)}
+		}
+
+		switch keyTok.Value {
+		case "inside":
+			sr.Inside = act
+		case "outside":
+			sr.Outside = act
+		case "outside-read":
+			sr.OutsideRead = act
+		case "outside-write":
+			sr.OutsideWrite = act
+		default:
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("unknown scope key: %q (expected inside/outside/outside-read/outside-write)", keyTok.Value)}
+		}
+		p.advance()
+	}
+
+	return sr, nil
 }
 
 func (p *parser) parseRulesBlock(parentIndent int) ([]*Rule, error) {

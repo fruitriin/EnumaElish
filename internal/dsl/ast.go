@@ -5,12 +5,12 @@ import "regexp"
 
 // Config represents the top-level parsed DSL configuration.
 type Config struct {
-	Templates      []*Template
-	TemplateIndex  map[string]*Template // populated by ResolveTemplates
-	PreRules       []*Rule              // rules under preToolUse section
-	PostRules      []*Rule              // rules under postToolUse section
-	Rules          []*Rule              // rules outside any section (legacy/default = preToolUse)
-	Settings       *Settings
+	Templates     []*Template
+	TemplateIndex map[string]*Template // populated by ResolveTemplates
+	PreRules      []*Rule              // rules under preToolUse section
+	PostRules     []*Rule              // rules under postToolUse section
+	Rules         []*Rule              // rules outside any section (legacy/default = preToolUse)
+	Settings      *Settings
 }
 
 // Action represents the action type of a rule.
@@ -40,21 +40,46 @@ type Rule struct {
 	Message  string   // optional deny/warn message
 
 	// Nested context rules
-	PipeRules []*Rule // rules under |,>> context
-	ExecRules []*Rule // rules under exec: context
+	PipeRules []*Rule     // rules under |,>> context
+	ExecRules []*Rule     // rules under exec: context
 	ArgsRules []*ArgsRule // rules under args: context
+	ScopeRule *ScopeRule  // rule under scope: context (Plan 0011 v2)
 
 	// Properties
-	Mode    string // "block", "warn", "hint"
-	Next    string // template delegation
+	Mode string // "block", "warn", "hint"
+	Next string // template delegation
 
 	// Source location for error reporting
 	Line int
 }
 
+// ScopeRule describes per-scope actions for a rule (Plan 0011 v2).
+// Fields are pointers so unset entries can be distinguished from explicit "allow".
+//
+// Precedence when classifying a path:
+//   - inside path → Inside (or the rule's base action if Inside is nil)
+//   - outside path used as read arg  → OutsideRead, else Outside
+//   - outside path used as write arg → OutsideWrite, else Outside
+//
+// Backward compatibility: writing only `outside:` applies to both read and write.
+type ScopeRule struct {
+	Inside       *ScopeAction
+	Outside      *ScopeAction // fallback for both read and write when specific ones not set
+	OutsideRead  *ScopeAction
+	OutsideWrite *ScopeAction
+	Line         int
+}
+
+// ScopeAction is a scope-clause action + optional message.
+type ScopeAction struct {
+	Action  Action
+	Message string
+	Line    int
+}
+
 // ArgsRule represents a pattern-based argument rule.
 type ArgsRule struct {
-	Pattern  string         // regex pattern
+	Pattern  string // regex pattern
 	Action   Action
 	Message  string
 	Line     int
