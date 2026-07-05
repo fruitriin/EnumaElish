@@ -79,6 +79,16 @@ func EvaluatePathScope(filePath string, config *dsl.Config) *ScopeResult {
 	return &result
 }
 
+// scopeViolationAction returns the action configured for workspace scope
+// violations (settings: scope_violation). Defaults to ask for backward
+// compatibility when unset.
+func scopeViolationAction(config *dsl.Config) dsl.Action {
+	if config.Settings != nil && config.Settings.ScopeViolation != "" {
+		return config.Settings.ScopeViolation
+	}
+	return dsl.ActionAsk
+}
+
 // expandTilde expands ~ to the user's home directory.
 func expandTilde(path string) string {
 	if !strings.HasPrefix(path, "~/") && path != "~" {

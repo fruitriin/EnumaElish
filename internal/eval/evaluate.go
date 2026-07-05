@@ -69,10 +69,23 @@ func EvaluateTopology(topo *shell.Topology, config *dsl.Config) (*Result, error)
 		if config.Settings != nil {
 			fallback = config.Settings.Fallback
 		}
-		return &Result{
+		fallbackResult := &Result{
 			Action:  fallback,
 			Message: "no matching rule (fallback)",
-		}, nil
+		}
+		// Even without a matching rule, workspace scope must still apply.
+		// Otherwise `fallback: allow` (or fallback: warn/hint, which behave
+		// like allow at the hook layer) would let paths outside workspace
+		// through, bypassing `scope_violation: deny`.
+		if restrictionLevel(fallbackResult.Action) < restrictionLevel(dsl.ActionAsk) {
+			for i := range topo.Segments {
+				seg := &topo.Segments[i]
+				for j := range seg.Commands {
+					fallbackResult = applyScopeToCommand(&seg.Commands[j], config, fallbackResult)
+				}
+			}
+		}
+		return fallbackResult, nil
 	}
 
 	return worstResult, nil
@@ -275,13 +288,19 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 }
 
 // applyScopeToCommand checks if any path arguments are outside the workspace.
-// If so, escalates allow → ask.
+// If so, escalates allow → ask (or allow → deny when settings has
+// scope_violation: deny).
 func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Result) *Result {
 	if config.Settings == nil || len(config.Settings.WorkspacePaths) == 0 {
 		return baseResult
 	}
-	if baseResult.Action != dsl.ActionAllow {
-		return baseResult // only escalate allow → ask
+	// Escalate any result that is less restrictive than ask.
+	// Rationale: warn and hint return {"decision":"allow"} at the hook layer
+	// (cmd/ccchain/hook.go outputResult), so they must not be treated as
+	// safer than allow for scope-violation purposes. This matches the
+	// step-comparison used by argsTooLongResult.
+	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
+		return baseResult // already ask/deny → nothing to escalate
 	}
 
 	paths := ExtractPathArgs(cmd.Args)
@@ -297,7 +316,7 @@ func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Res
 		scope := ClassifyPath(p, config.Settings.WorkspacePaths)
 		if scope == ScopeOutside {
 			return &Result{
-				Action:  dsl.ActionAsk,
+				Action:  scopeViolationAction(config),
 				Message: "workspace scope: command accesses path outside workspace",
 				Context: baseResult.Context,
 			}
