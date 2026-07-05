@@ -14,9 +14,16 @@
 
 ## 改善アクション
 
-- ADDF テストランナー (`bash .claude/tests/run-all.sh`) と Go テスト (`go test ./...`) が共存する構成。CLAUDE.repo.md のテストセクションに Go テストも明記すべき
+## 完了済み
 
-### savanna-smell-detector Go 相性評価（v0.3.0）
+### 2026-07-05 — CLAUDE.repo.md のテストセクションに Go テスト明記
+
+- **元の改善アクション**: ADDF テストランナー (`bash .claude/tests/run-all.sh`) と Go テスト (`go test ./...`) が共存する構成。CLAUDE.repo.md のテストセクションに Go テストも明記すべき
+- **対応済み**: CLAUDE.repo.md の「テスト」セクションに Go テスト（`go test ./...` / `go vet ./...` / `go build ./cmd/ccchain`）と ADDF テスト（`bash .claude/tests/run-all.sh`）の両方を明記済み
+
+### 2026-07-05 — savanna-smell-detector Go 相性評価（v0.3.0）
+
+- **対応済み**: 分析完了。上流 issue 候補は別リポジトリ（savanna-smell-detector）で管理
 
 112件検出。内訳と Go イディオムとの相性:
 
@@ -33,5 +40,3 @@
 2. `t.Fatal` / `t.Fatalf` / `t.Error` / `t.Errorf` をアサーションとして認識すべき
 3. カスタムアサーションヘルパー（`assertEqual` 等）を設定で登録できるとよい
 4. JSON 出力で severity が全て 0 になるバグ（コンソール出力では正しく表示される）
-
-## 完了済み
