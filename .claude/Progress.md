@@ -147,5 +147,11 @@
 **次の自分へ**: 次サイクル発火時（毎時 :13）、slots=5（本サイクルの 2 本が採否判断待ち）。継続の場合、Dashboard 気になった点の 4 件 Suggestion のうち独立性が高いもの（no-op scope 検出、初見読者フレンドリー化）が投機候補。ただしオーナー採否判断が滞留しないよう、blessed が動くまで 2〜3 本以上は起こさない。Feedback.md 同時編集は避けること（今回の教訓）。
 **気になっていること**: Cron が 1 本だけになったので次回発火まで最大 60 分。オーナー採否判断のペースと合わせやすい構成になった。ただしオーナーが本 2 本をレビュー・マージする前に次サイクルが動くとまたブランチが積み上がるリスクは残る — その際は選定時に「まだレビュー中の兄弟課題と衝突しないか」を追加チェック軸にする。
 
+##### 2026-07-05 セッション後半 — 2 PR マージ → ADDF v0.4.0 → v0.5.0 マイグレーション
+**やったこと**: オーナーが PR #8 (docs-warnings-cycle2) と #9 (feedback-archive-sweep) を両方 Approve → squash merge → worktree/branch 掃除。slots=7 に完全復帰した直後、ADDF v0.5.0 リリース検知（本日 12:37 UTC 公開）。/addf-migrate 実行、v0.4.0 → v0.5.0 マイグレーション完了。新規 17件・更新 21件・DIVERGED 2件手動マージ・スキップ 2件（README）。Plan 0037 の ProgressTemplate.addf.md → ProgressTemplate.md 正規化に伴う Progress.md step 13/14 参照更新も併せて実施。Go テスト・ccchain ビルド通過。ADDF テスト側で test-template-sync.sh の Test 1/8/12 が downstream context で失敗（既知パターン、migrate.exp.md に記録済み）。
+**今の見立て**: v0.5.0 の目玉は speculate 周りの再構築（speculate-reconcile.py で check/clean/昇格運用、worktree の .claude 複製が venv/node_modules 除外化、speculate-integrate.py の base 自動検出）。今のプロジェクト（ccchain）は speculate を活発に使っているので、次サイクル以降で新機能を試せる。特に `speculate-reconcile.py clean` が使えるようになれば、採否判断済みブランチの掃除が半自動化できる。
+**次の自分へ**: Cron `9fe62904`（毎時 :13）は継続稼働中。次サイクルは v0.5.0 の新機能を使って動く。特に (a) `speculate-reconcile.py` を回して worktree 状態を再確認、(b) 次の投機対象は Dashboard 気になった点の 4 件 Suggestion から独立性の高いものを選ぶ、の 2 点。addf-lock.json は `commit` → `ref` 形式に正規化済み。
+**気になっていること**: ADDF テスト側の Test 1/8/12 downstream 失敗は毎回 exp に記録するが、根本解決は upstream 側でテストを downstream-aware にするしかない（Plan 0034 downstream-feedback-fixes の対象になるかも）。今回はマイグレーションブロッカーではないのでスルー。
+
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
