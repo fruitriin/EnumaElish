@@ -240,19 +240,52 @@ Use strict mode when running unattended in high-security environments where
 silent fail-open is unacceptable. Pair it with the `ccchain check` command
 during CI to catch config errors before deployment.
 
-**Warning — self-DoS failure mode:** With strict mode enabled AND a broken
-config file, **every** PreToolUse hook call exits 2. That blocks Bash *and*
-Read/Edit/Write, so Claude cannot even open the config to fix it. Recovery
-requires shell-level intervention outside Claude Code:
+**Warning — self-DoS failure mode.** This section assumes the `PreToolUse`
+hook is registered to match every tool (or Read/Edit/Write **in addition to**
+Bash). If your registration only matches `"Bash"`, Read/Edit are not routed
+through ccchain and remain usable during a broken-config state — you can fix
+the file directly from Claude Code and only step 2 below applies. The steps
+below cover the harder case where the hook is wired to all tools.
 
-1. Prefer prevention: run `ccchain check` before enabling strict mode, and
-   again in CI on every config change.
-2. If you get locked out:
-   - If strict mode came from `CCCHAIN_STRICT_CONFIG_ERROR`, `unset` it in
-     your shell (or restart Claude Code without the variable).
-   - If strict mode came from a config file, edit the broken config directly
-     in a normal terminal (bypassing ccchain), or temporarily rename the
-     broken file so it fails the stat check in the search path.
+With `strict_config_error` enabled **and the hook wired to all tools**, if
+you save a `.ccchain.conf` that fails to parse, **every** PreToolUse hook
+call exits 2 — including Read and Edit. Claude Code can no longer open the
+broken config to fix it.
+
+**Prevention (recommended):** Run `ccchain check --config <path>` before
+saving any change to a config file. Wire it into CI on every commit that
+touches `.ccchain.conf`.
+
+Note: `check` requires `--config` to validate a specific file. A bare
+positional path (e.g. `ccchain check broken.conf`) is silently ignored and
+`check` falls back to the default search path (see the table at the top of
+[config.md](./config.md)), so it may report "config OK" while the file you
+meant to test is still broken.
+
+**Recovery steps if you are already locked out:**
+
+1. In a shell outside Claude Code, `unset CCCHAIN_STRICT_CONFIG_ERROR` (or
+   set it to `false`) if strict mode came from the env var. Note that
+   unsetting the variable in a fresh shell does **not** propagate to an
+   already-running Claude Code process — Unix environment variables are
+   copied at `fork(2)` time and are not shared live between sibling
+   processes. You must restart Claude Code (step 3) for the change to take
+   effect. If strict mode came from a loaded config file, skip to step 2.
+2. Open a normal terminal outside Claude Code (so ccchain's hook is not in
+   the way) and edit `.ccchain.conf` directly to fix the parse error — or
+   temporarily rename the broken file so it drops out of the search path.
+
+   Warning: renaming the file away does not merely disable strict-mode — it
+   silently drops **all** your project-specific rules (deny/ask/scope:) and
+   falls back to ccchain's generic built-in semantics table, with no error
+   logged. Restore the original filename (and re-validate with
+   `ccchain check --config <path>`) immediately after fixing it — do not
+   leave it renamed.
+3. Restart Claude Code if you changed the env var in step 1 (a restart is
+   the only way to pick up the new environment). If you only fixed the
+   config file in step 2, no restart is needed — `dsl.LoadConfig` runs on
+   every hook invocation, so the next tool call reloads the corrected
+   config automatically and the workspace unblocks.
 
 ## Multiple Commands Per Rule
 
