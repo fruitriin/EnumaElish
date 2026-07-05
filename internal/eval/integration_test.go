@@ -585,6 +585,12 @@ func TestIntegrationDangerousRealWorld(t *testing.T) {
 		{"crontab clear", "crontab -r",
 			dsl.ActionAllow, "removes all cron jobs"},
 
+		// === Quoting / Padding Evasion (Plan 0009 Phase 3) ===
+		{"quoted command name", `"rm" -rf /`,
+			dsl.ActionAllow, "quoting the command name must not evade name-based rules"},
+		{"quoted rm flags", `rm "-rf" /`,
+			dsl.ActionAllow, "quoting flags must not evade args-based rules"},
+
 		// === Dynamic command name hidden inside double quotes ===
 		// Before the isAnalyzable full-depth Walk fix, wrapping a dynamic
 		// expansion in double quotes let attackers bypass the deny-first

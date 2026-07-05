@@ -87,4 +87,4 @@ ccchain's policy is "deny what we can't analyze," but ccchain's *own* errors
 default — see [Error Handling](../reference/config.md#error-handling-fail-open).
 For environments where fail-open is unacceptable, opt into fail-closed with
 [`settings.strict_config_error: true`](../reference/dsl.md#strict_config_error)
-or `CCCHAIN_STRICT_CONFIG_ERROR=1`.
+or `CCCHAIN_STRICT_CONFIG_ERROR=1`. A dynamic command is "analyzed, and safety could not be determined," not "analysis itself failed." Downstream safety mechanisms (e.g. the `args:` maximum length in `internal/eval/evaluate.go`) treat their limits the same way: exceeding a limit is "we could not verify," so the result is escalated on the safe side rather than falling back to the parent action.

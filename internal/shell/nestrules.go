@@ -185,31 +185,26 @@ func parseXargs(args []string) *Topology {
 	}
 }
 
-// parseBashC extracts and re-parses commands from bash -c "CMD" / sh -c "CMD"
+// parseBashC extracts and re-parses commands from bash -c "CMD" / sh -c "CMD".
+//
+// The `raw` string here is already post-`wordToString`: upstream quote removal
+// has run, so `raw` is exactly what the outer shell would hand bash -c. That
+// means we can re-parse it directly — no `unquoteWords` normalization step,
+// which would otherwise consume backslash escapes (e.g. turn `echo \$x` into
+// `echo $x`) and false-flag the script as dynamic when it is actually static.
 func parseBashC(args []string) *Topology {
 	for i, arg := range args {
 		if arg == "-c" && i+1 < len(args) {
-			raw := args[i+1]
-			cmdStr, ok := unquoteWords(raw)
-			if !ok {
-				// Quoting could not be statically resolved (dynamic expansion
-				// or unclosed quotes). Fall back to the raw string; the
-				// dynamic check and re-parse below classify it as
-				// (dynamic-shell) or (unparseable).
-				cmdStr = raw
-			}
+			cmdStr := args[i+1]
 			if cmdStr == "" {
 				return nil
 			}
 
 			// Detect unresolved dynamic expansion anywhere in the script,
-			// mirroring parseEval's (dynamic-eval). The check runs on the
-			// parsed AST of the final string, so it works whether or not the
-			// argument still carries quotes — upstream word extraction may
-			// already have removed static quotes (e.g. `bash -c "echo $x"`
-			// arriving here as `echo $x`). An unresolved $x can rewrite the
-			// script structure (x='; rm -rf /'), so the nested command
-			// cannot be known statically.
+			// mirroring parseEval's (dynamic-eval). An unresolved $x can
+			// rewrite the script structure (x='; rm -rf /'), so the nested
+			// command cannot be known statically. Escaped forms (`\$x`)
+			// parse as literals and are correctly treated as static.
 			if file, err := ParseCommand(cmdStr); err == nil && hasDynamicNode(file) {
 				return &Topology{
 					Segments: []Segment{{
@@ -243,21 +238,18 @@ func parseBashC(args []string) *Topology {
 }
 
 // parseEval handles eval "CMD" — only analyzable if the argument is a static string.
+//
+// Each arg here has already been through `wordToString` (static outer quotes
+// removed), so joining reproduces what eval would concatenate at runtime. We
+// skip `unquoteWords` because it would consume backslash escapes and
+// false-flag `eval 'echo \$x'` (literal `$x`) as dynamic.
 func parseEval(args []string) *Topology {
 	if len(args) == 0 {
 		return nil
 	}
 
-	// Join all args as the eval string (eval concatenates its arguments with
-	// spaces before re-parsing, so resolving each word's quotes first matches
-	// real eval semantics).
-	joined := strings.Join(args, " ")
-	evalStr, ok := unquoteWords(joined)
-	if !ok {
-		// Fall back to the raw string; the dynamic check and re-parse below
-		// classify it as (dynamic-eval) or (unparseable).
-		evalStr = joined
-	}
+	// eval concatenates its arguments with spaces before re-parsing.
+	evalStr := strings.Join(args, " ")
 
 	// Check if the eval string contains variable references (making it dynamic)
 	if strings.ContainsAny(evalStr, "$`") {

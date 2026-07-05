@@ -166,9 +166,15 @@ func applyScopeToToolCall(toolName, toolArg string, rule *dsl.Rule, config *dsl.
 }
 
 // applyToolArgsRules evaluates args: rules against a tool argument string.
+// Over-length arguments escalate to the strictest action in the rule's
+// ArgsRules block (see maxArgsLen and argsTooLongResult in evaluate.go).
 func applyToolArgsRules(toolArg string, rule *dsl.Rule, baseResult *Result) *Result {
 	if len(rule.ArgsRules) == 0 {
 		return baseResult
+	}
+
+	if len(toolArg) > maxArgsLen {
+		return argsTooLongResult(rule, baseResult)
 	}
 
 	// Skip if arg contains dynamic expansion

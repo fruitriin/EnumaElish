@@ -51,8 +51,8 @@ allow curl
 - [ ] B の場合: `evaluate.go` に mode 対応を実装
 
 ### Phase 3: 関連整理
-- [ ] `args:` パターンのクォート含む引数への対応（Security Low）
-- [ ] `args:` パターン最大長制限の追加（Security Info）
+- [x] `args:` パターンのクォート含む引数への対応（Security Low）
+- [x] `args:` パターン最大長制限の追加（Security Info）
 
 ## 実装状況: 完了（2026-03-28）
 
@@ -60,3 +60,12 @@ allow curl
 - パーサーで mode: 使用時に stderr 警告出力
 - ドキュメント（EN/JA）に deprecated 注記追加
 - warn は既にトップレベルアクションとして動作済み
+
+## Phase 3 実装状況: 完了（2026-07-04, speculative/args-hardening）
+
+- **クォート対応（Security Low）**: 検証の結果、`wordToString` が `syntax.Printer` でソース表記のまま出力しておりクォートは剥がれて**いなかった**（`curl -X "POST"` は `-X POST` に不マッチ。さらに `"rm"` がコマンド名ルールを回避できた）。`wordToString` にシェル同様の静的クォート除去を実装（`SglQuoted`/`DblQuoted` のみ。動的パート `$VAR` 等は表記のまま維持し動的判定を壊さない）。単体・統合テストで保証を固定
+- **最大長制限（Security Info）**: `maxArgsLen = 4096` を導入。超過時は親アクションへのフォールバックではなく **そのルールの ArgsRules ブロックに現れる最厳アクション（下限 ask）にエスカレーション**（親が ask/deny ならそちらを維持）。パディングによるエスカレーション系 args: ルールのバイパスを防ぐ。fail-open は ccchain 自身のエラーに限る方針（structural-context.md、EN 版にも同旨のパラグラフを追記）と整合。`EvaluateTool` の args: マッチにも同制限を適用
+- **C3（attacker persona 指摘）反映**: 初版は超過時に一律 ask へ格下げしていたが、`allow rm` + `args: -rf /: deny` のような親 allow + args deny 構成では **deny → ask** の格下げになりバイパスの穴になる。`argsTooLongResult` を「ArgsRules ブロックに現れる最厳アクション（下限 ask）」を採用する形に修正。回帰テスト `TestArgsMaxLenParentAllowDenyPreserved` / `TestArgsMaxLenPicksStrictestOfArgsBlock` / `TestArgsMaxLenAllowOnlyBlockAsks` / `TestToolArgsMaxLen`（deny 保存版）で固定
+- **C5（skeptic persona 指摘）反映**: DSL リファレンスに「クォート除去はコマンド名にも適用される」旨、および「ダブルクォート内の `\!` `\"` `\$` `\\` `` \` `` `foo\ bar` や ANSI-C `$'...'` は実装上 verbatim で通す」限界を EN/JA 両方に明記。実際のエスケープ処理は別 Plan（C1 と統合予定）に委ねる
+- **C6 反映**: EN 版 `docs/guide/structural-context.md` に「分からないものは拒否する（ただし ccchain 自身のエラーは Fail-Open）」のパラグラフを追記し、`maxArgsLen` コメントの参照先ドリフトを解消（EN/JA 両方を参照）
+- **Grammar 早見表更新（newcomer persona 指摘）**: `docs/reference/dsl.md` / `docs/ja/reference/dsl.md` 冒頭の Grammar ブロックに `workspace:` / `scope_violation:` を追加
