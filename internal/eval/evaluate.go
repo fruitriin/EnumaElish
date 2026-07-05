@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/ccchain/internal/semantics"
 	"github.com/fruitriin/ccchain/internal/shell"
 )
 
@@ -81,7 +82,7 @@ func EvaluateTopology(topo *shell.Topology, config *dsl.Config) (*Result, error)
 			for i := range topo.Segments {
 				seg := &topo.Segments[i]
 				for j := range seg.Commands {
-					fallbackResult = applyScopeToCommand(&seg.Commands[j], config, fallbackResult)
+					fallbackResult = applyScopeToCommand(&seg.Commands[j], nil, config, fallbackResult)
 				}
 			}
 		}
@@ -281,40 +282,81 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 
 	// Apply workspace scope to command arguments
 	if lastMatch != nil {
-		lastMatch = applyScopeToCommand(cmd, config, lastMatch)
+		lastMatch = applyScopeToCommand(cmd, lastMatchRule, config, lastMatch)
 	}
 
 	return lastMatch
 }
 
-// applyScopeToCommand checks if any path arguments are outside the workspace.
-// If so, escalates allow → ask (or allow → deny when settings has
-// scope_violation: deny).
-func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Result) *Result {
+// applyScopeToCommand checks path arguments against the workspace scope and,
+// if the rule has a `scope:` block (Plan 0011 v2), applies per-scope actions
+// with read/write awareness (semantics table). Without a `scope:` block it
+// falls back to the pre-v2 behavior: escalate any result less restrictive
+// than ask when any path is outside the workspace.
+//
+// Sources of paths (each is scope-classified independently):
+//   - cmd.Args via ExtractPathArgs, kinded by semantics.ClassifyPathArgs
+//     (flag-aware for cp/mv/ln -t DIR — Critical C2)
+//   - cmd.Redirs — always PathKindWrite (Critical C1: `> /outside/y` was
+//     invisible to the scope engine)
+//
+// Handling of dynamic args ($VAR / $(cmd)): rather than silently dropping
+// them (Critical C4), we treat them as ScopeOutside with the "safe kind"
+// — PathKindWrite if the command is unknown or a known write, PathKindRead
+// otherwise. This way, `cp /ws/x $(echo /outside)/y` still triggers
+// outside-write.
+func applyScopeToCommand(cmd *shell.Command, rule *dsl.Rule, config *dsl.Config, baseResult *Result) *Result {
 	if config.Settings == nil || len(config.Settings.WorkspacePaths) == 0 {
 		return baseResult
 	}
-	// Escalate any result that is less restrictive than ask.
-	// Rationale: warn and hint return {"decision":"allow"} at the hook layer
-	// (cmd/ccchain/hook.go outputResult), so they must not be treated as
-	// safer than allow for scope-violation purposes. This matches the
-	// step-comparison used by argsTooLongResult.
-	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
-		return baseResult // already ask/deny → nothing to escalate
-	}
 
-	paths := ExtractPathArgs(cmd.Args)
-	if len(paths) == 0 {
+	pathInfo := collectScopePathInfo(cmd, config.Settings.WorkspacePaths)
+	if len(pathInfo) == 0 {
 		return baseResult
 	}
 
-	for _, p := range paths {
-		// Skip dynamic args
-		if strings.ContainsAny(p, "$`") {
-			continue
+	// v2: rule has `scope:` — evaluate each path against ScopeRule and return
+	// the most restrictive result.
+	if rule != nil && rule.ScopeRule != nil {
+		var worst *Result
+		for _, info := range pathInfo {
+			act := selectScopeAction(rule.ScopeRule, info.scope, info.kind)
+			if act == nil {
+				continue // this rule doesn't say anything about this scope combo
+			}
+			candidate := &Result{
+				Action:  act.Action,
+				Message: firstNonEmpty(act.Message, "workspace scope: "+scopeDescription(info.scope, info.kind)),
+				Context: baseResult.Context,
+			}
+			if isMoreRestrictive(candidate, worst) {
+				worst = candidate
+			}
 		}
-		scope := ClassifyPath(p, config.Settings.WorkspacePaths)
-		if scope == ScopeOutside {
+		if worst != nil && isMoreRestrictive(worst, baseResult) {
+			return worst
+		}
+		// If the ScopeRule doesn't escalate, keep the base (rule's action or
+		// args: override). This lets `scope: outside: allow` explicitly opt
+		// out of the automatic escalation below.
+		if rule.ScopeRule.Outside != nil || rule.ScopeRule.OutsideRead != nil || rule.ScopeRule.OutsideWrite != nil {
+			return baseResult
+		}
+		// scope: block exists but says nothing about outside — fall through
+		// to legacy escalation.
+	}
+
+	// Legacy behavior (pre-v2 or scope: block without outside*): escalate any
+	// result less restrictive than ask when any path is outside.
+	// Rationale: warn/hint return {"decision":"allow"} at the hook layer, so
+	// they must not be treated as safer than allow for scope-violation
+	// purposes. This mirrors the step-comparison used by argsTooLongResult
+	// (from speculative/scope-violation-deny, now on main).
+	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
+		return baseResult
+	}
+	for _, info := range pathInfo {
+		if info.scope == ScopeOutside {
 			return &Result{
 				Action:  scopeViolationAction(config),
 				Message: "workspace scope: command accesses path outside workspace",
@@ -322,8 +364,122 @@ func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Res
 			}
 		}
 	}
-
 	return baseResult
+}
+
+// scopePathInfo is the pre-classified info used by applyScopeToCommand and
+// the tool-level scope check (see EvaluateTool → applyScopeToToolCall).
+type scopePathInfo struct {
+	path  string
+	scope ScopeResult
+	kind  semantics.PathKind
+}
+
+// collectScopePathInfo collects and classifies all path targets of a Bash
+// command: positional args (through the flag-aware semantics table) plus
+// write-side shell redirects.
+func collectScopePathInfo(cmd *shell.Command, workspacePaths []string) []scopePathInfo {
+	paths := ExtractPathArgs(cmd.Args)
+	kinds := semantics.ClassifyPathArgs(cmd.Name, cmd.Args, paths)
+
+	var out []scopePathInfo
+	// Positional path args.
+	for i, p := range paths {
+		info := scopePathInfo{path: p, kind: kinds[i]}
+		if isDynamicPath(p) {
+			// Dynamic — we cannot know where it points. Fail closed:
+			// treat as outside, and upgrade Unknown to Write so that
+			// outside-write rules match (Critical C4).
+			info.scope = ScopeOutside
+			if info.kind == semantics.PathKindUnknown || info.kind == semantics.PathKindRead {
+				// For known-read tools (cat, grep), don't lie about direction
+				// — but Unknown must be considered write for deny to fire.
+				if info.kind == semantics.PathKindUnknown {
+					info.kind = semantics.PathKindWrite
+				}
+			}
+		} else {
+			info.scope = ClassifyPath(p, workspacePaths)
+		}
+		out = append(out, info)
+	}
+	// Write-side redirects (Critical C1): all are PathKindWrite.
+	for _, r := range cmd.Redirs {
+		info := scopePathInfo{
+			path: r.Path,
+			kind: semantics.PathKindWrite,
+		}
+		if !r.Analyzable || isDynamicPath(r.Path) {
+			info.scope = ScopeOutside
+		} else {
+			info.scope = ClassifyPath(r.Path, workspacePaths)
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+// isDynamicPath reports whether a path contains shell expansions that we
+// cannot statically resolve.
+func isDynamicPath(p string) bool {
+	return strings.ContainsAny(p, "$`")
+}
+
+// selectScopeAction picks the ScopeAction that applies to a given scope+kind
+// combination.
+//
+// Precedence:
+//   - inside → sr.Inside
+//   - outside + read → outside-read > outside
+//   - outside + write → outside-write > outside
+//   - outside + unknown (Critical C3) → most restrictive of outside-write /
+//     outside-read / outside, so that unknown tools like `sed -i` cannot
+//     silently bypass `outside-write: deny`.
+func selectScopeAction(sr *dsl.ScopeRule, scope ScopeResult, kind semantics.PathKind) *dsl.ScopeAction {
+	if scope == ScopeInside {
+		return sr.Inside
+	}
+	// scope == ScopeOutside
+	switch kind {
+	case semantics.PathKindRead:
+		if sr.OutsideRead != nil {
+			return sr.OutsideRead
+		}
+	case semantics.PathKindWrite:
+		if sr.OutsideWrite != nil {
+			return sr.OutsideWrite
+		}
+	case semantics.PathKindUnknown:
+		// Consider all outside-* clauses and pick the most restrictive.
+		var chosen *dsl.ScopeAction
+		for _, cand := range []*dsl.ScopeAction{sr.OutsideWrite, sr.OutsideRead, sr.Outside} {
+			if cand == nil {
+				continue
+			}
+			if chosen == nil || restrictionLevel(cand.Action) > restrictionLevel(chosen.Action) {
+				chosen = cand
+			}
+		}
+		return chosen
+	}
+	return sr.Outside
+}
+
+func scopeDescription(scope ScopeResult, kind semantics.PathKind) string {
+	if scope == ScopeInside {
+		return "inside workspace"
+	}
+	if kind == semantics.PathKindWrite {
+		return "write outside workspace"
+	}
+	return "read outside workspace"
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // matchInPipeContext checks pipe rules from a parent rule and its templates.

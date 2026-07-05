@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/ccchain/internal/semantics"
 )
 
 // EvaluateTool evaluates a non-Bash tool call against config rules.
@@ -36,34 +37,29 @@ func EvaluateTool(toolName string, toolArg string, config *dsl.Config) *Result {
 	}
 
 	// Apply workspace scope for file-based tools.
-	// Escalate any result less restrictive than ask (allow/warn/hint), and
-	// also cover the fallback path so that `fallback: allow` doesn't
-	// bypass `scope_violation: deny`.
+	// Critical C6 (from workspace-scope-hardening): scope: block on
+	// Read/Edit/Write/MCP rules was not honored — routed through
+	// applyScopeToToolCall which handles both the `scope:` block and the
+	// legacy escalation.
+	// Critical (from scope-violation-deny): even without a matching rule,
+	// workspace scope must still apply so that `fallback: allow` (or
+	// fallback: warn/hint, which behave like allow at the hook layer) does
+	// not bypass `scope_violation: deny`. We synthesize the fallback result
+	// so scope escalation can act on it uniformly.
 	if toolArg != "" && config.Settings != nil && len(config.Settings.WorkspacePaths) > 0 {
-		scope := ClassifyPath(toolArg, config.Settings.WorkspacePaths)
-		if scope == ScopeOutside {
-			effective := lastMatch
-			if effective == nil {
-				// Synthesize the fallback result so scope escalation
-				// can act on it uniformly.
-				fallback := dsl.ActionAsk
-				if config.Settings != nil {
-					fallback = config.Settings.Fallback
-				}
-				effective = &Result{
-					Action:  fallback,
-					Message: "no matching rule (fallback)",
-					Context: []string{toolName},
-				}
+		effective := lastMatch
+		if effective == nil {
+			fallback := dsl.ActionAsk
+			if config.Settings != nil {
+				fallback = config.Settings.Fallback
 			}
-			if restrictionLevel(effective.Action) < restrictionLevel(dsl.ActionAsk) {
-				return &Result{
-					Action:  scopeViolationAction(config),
-					Message: "workspace scope: accessing path outside workspace",
-					Context: []string{toolName, toolArg},
-				}
+			effective = &Result{
+				Action:  fallback,
+				Message: "no matching rule (fallback)",
+				Context: []string{toolName},
 			}
 		}
+		lastMatch = applyScopeToToolCall(toolName, toolArg, lastMatchRule, config, effective)
 	}
 
 	if lastMatch != nil {
@@ -98,6 +94,75 @@ func matchesToolRule(toolName string, rule *dsl.Rule) bool {
 		}
 	}
 	return false
+}
+
+// toolPathKind maps a Claude Code tool name to the direction of its primary
+// path argument. Read tools are PathKindRead; Write/Edit are PathKindWrite;
+// MCP tools and anything unfamiliar are PathKindUnknown so outside-write
+// clauses still fire (Critical C3 applied to tools).
+func toolPathKind(toolName string) semantics.PathKind {
+	switch toolName {
+	case "Read", "Grep", "Glob":
+		return semantics.PathKindRead
+	case "Write", "Edit", "NotebookEdit":
+		return semantics.PathKindWrite
+	case "WebFetch", "WebSearch":
+		// URL — treat as read.
+		return semantics.PathKindRead
+	}
+	// MCP tools (mcp__*) and unknown tools: unknown direction.
+	return semantics.PathKindUnknown
+}
+
+// applyScopeToToolCall applies the workspace scope decision to a tool call.
+// When the rule has a `scope:` block, per-scope actions are used (with tool-
+// name-derived PathKind). When it doesn't, we fall back to the legacy
+// allow → ask escalation.
+func applyScopeToToolCall(toolName, toolArg string, rule *dsl.Rule, config *dsl.Config, baseResult *Result) *Result {
+	kind := toolPathKind(toolName)
+
+	var scope ScopeResult
+	if isDynamicPath(toolArg) {
+		// Dynamic tool argument (rare for Claude Code tools, but be honest):
+		// treat as outside so outside-write / outside can catch it.
+		scope = ScopeOutside
+		if kind == semantics.PathKindUnknown {
+			kind = semantics.PathKindWrite
+		}
+	} else {
+		scope = ClassifyPath(toolArg, config.Settings.WorkspacePaths)
+	}
+
+	// v2: rule has `scope:` — pick the per-scope action.
+	if rule != nil && rule.ScopeRule != nil {
+		if act := selectScopeAction(rule.ScopeRule, scope, kind); act != nil {
+			candidate := &Result{
+				Action:  act.Action,
+				Message: firstNonEmpty(act.Message, "workspace scope: "+scopeDescription(scope, kind)),
+				Context: []string{toolName, toolArg},
+			}
+			if isMoreRestrictive(candidate, baseResult) {
+				return candidate
+			}
+		}
+		// scope: block present but doesn't cover outside* → keep baseResult
+		// unless we should fall through to legacy escalation.
+		if rule.ScopeRule.Outside != nil || rule.ScopeRule.OutsideRead != nil || rule.ScopeRule.OutsideWrite != nil {
+			return baseResult
+		}
+	}
+
+	// Legacy escalation. Use step-comparison (from scope-violation-deny) so
+	// warn/hint and `fallback: allow` are treated as escalation candidates,
+	// and honor settings.scope_violation for the target action (ask/deny).
+	if scope == ScopeOutside && restrictionLevel(baseResult.Action) < restrictionLevel(dsl.ActionAsk) {
+		return &Result{
+			Action:  scopeViolationAction(config),
+			Message: "workspace scope: accessing path outside workspace",
+			Context: []string{toolName, toolArg},
+		}
+	}
+	return baseResult
 }
 
 // applyToolArgsRules evaluates args: rules against a tool argument string.

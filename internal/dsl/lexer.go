@@ -11,15 +11,15 @@ import (
 type TokenType int
 
 const (
-	TokenEOF TokenType = iota
-	TokenAction        // allow, deny, warn, ask, hint
-	TokenKeyword       // template, extends, next, preToolUse, postToolUse, settings, exec, args, mode, message
-	TokenContext       // |,>>  or |  or >>
-	TokenIdent         // command name, template name, etc.
-	TokenString        // "quoted string"
-	TokenColon         // :
-	TokenComma         // ,
-	TokenNumber        // integer
+	TokenEOF     TokenType = iota
+	TokenAction            // allow, deny, warn, ask, hint
+	TokenKeyword           // template, extends, next, preToolUse, postToolUse, settings, exec, args, mode, message
+	TokenContext           // |,>>  or |  or >>
+	TokenIdent             // command name, template name, etc.
+	TokenString            // "quoted string"
+	TokenColon             // :
+	TokenComma             // ,
+	TokenNumber            // integer
 )
 
 // Token represents a single lexer token.
@@ -74,6 +74,7 @@ var keywords = map[string]bool{
 	"args":        true,
 	"mode":        true,
 	"message":     true,
+	"scope":       true,
 }
 
 // Line represents a tokenized line with its indentation.
