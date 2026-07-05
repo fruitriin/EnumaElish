@@ -107,6 +107,28 @@ config file that loads successfully (e.g. a global `~/.claude/ccchain.conf`).
 When no config file can be read at all, export
 `CCCHAIN_STRICT_CONFIG_ERROR=1` as a fallback opt-in path.
 
+> **Warning — self-DoS recovery.** With `strict_config_error` enabled, if you
+> save a `.ccchain.conf` that fails to parse, **every** PreToolUse hook call
+> exits 2 — including Read and Edit. Claude Code can no longer open the broken
+> config to fix it. See also the deeper explanation in
+> [`strict_config_error` (dsl.md)](./dsl.md#strict_config_error).
+>
+> **Prevention (recommended):** Run `ccchain check <path>` before saving any
+> change to a config file. Wire it into CI on every commit that touches
+> `.ccchain.conf`.
+>
+> **Recovery steps if you are already locked out:**
+>
+> 1. Export `CCCHAIN_STRICT_CONFIG_ERROR=false` in your shell to disable the
+>    env-var opt-in (or `unset CCCHAIN_STRICT_CONFIG_ERROR`). This only helps
+>    if strict mode came from the env var; if it came from a loaded config
+>    file, skip to step 2.
+> 2. Open a normal terminal outside Claude Code (so ccchain's hook is not in
+>    the way) and edit `.ccchain.conf` directly to fix the parse error — or
+>    temporarily rename the broken file so it drops out of the search path.
+> 3. Restart Claude Code. The next hook call reloads the fixed config and the
+>    workspace unblocks.
+
 ## Recommended `.gitignore` Entries
 
 ```gitignore

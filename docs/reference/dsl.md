@@ -156,6 +156,14 @@ allow cat
 
 **Backward compatibility.** Rules without any `scope:` block keep the previous auto-escalation behavior: `allow` escalates to `ask` whenever any path argument is outside the workspace. Rules with `scope: outside: allow` explicitly opt out of that escalation for the whole command.
 
+**One-directional (strict-only) semantics.** `scope:` clauses can only make the base rule's action **stricter** (`allow` → `ask` → `deny`), never looser. This is enforced by the evaluator: a scope-derived candidate action is applied only when it is more restrictive than the base rule's action; otherwise the base action is kept. Concretely:
+
+- If the base rule is `deny rm`, writing `scope: outside: allow` does **not** promote outside deletions to `allow`. The scope clause is accepted syntactically but the evaluator keeps the base `deny`.
+- If the base rule is `ask cp`, writing `scope: inside: allow` does **not** demote inside copies to `allow`. It is silently ignored and the base `ask` is kept.
+- The only "loosening" effect scope: has is the backward-compatibility opt-out described above: `scope: outside: allow` on an **`allow`** rule prevents the automatic `allow → ask` escalation for outside paths — but that keeps the action at the base allow, it does not promote a stricter base to allow.
+
+**Rationale.** Workspace scope is a security feature. Making it one-directional prevents a permissive scope clause from silently widening a stricter base rule and eliminates a class of "I thought scope: could relax this" misreadings. Use `scope:` to add finer-grained restrictions; use the base action for the ceiling.
+
 **Dynamic arguments.** A path argument containing `$VAR` / `$(cmd)` / `` `cmd` `` is undecidable — the evaluator treats it as `outside` (fail-closed) and, for unknown commands, promotes its kind to write so `outside-write` clauses still fire. `cp /ws/src $(echo /elsewhere)/dst` is therefore denied when `outside-write: deny` is set. (Critical C4.)
 
 ## Templates
