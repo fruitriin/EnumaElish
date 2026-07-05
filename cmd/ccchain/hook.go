@@ -54,6 +54,11 @@ func runHookPre(configPath string, defaultAction string) {
 	cfg, err := dsl.LoadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ccchain config error: %v\n", err)
+		if isStrictConfigError(cfg, err) {
+			reason := fmt.Sprintf("config load failed: strict_config_error is enabled: %v", err)
+			fmt.Fprintln(os.Stderr, reason)
+			os.Exit(2)
+		}
 		os.Exit(0)
 	}
 
@@ -162,6 +167,38 @@ func extractMCPArg(input json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+// isStrictConfigError reports whether strict-config-error mode is active,
+// causing config load failures to deny (fail-closed) instead of allow (fail-open).
+//
+// Precedence:
+//  1. The partial Config's Settings.StrictConfigError (any file that loaded
+//     successfully before the failure — e.g. ~/.claude/ccchain.conf when the
+//     project-local file has a parse error) — always wins.
+//  2. If loadErr is nil (config loaded cleanly), env is ignored — a successful
+//     load without strict_config_error means the user has taken a stance.
+//  3. If loadErr is non-nil AND the partial cfg did not explicitly set
+//     strict_config_error, the CCCHAIN_STRICT_CONFIG_ERROR env var ("1" or
+//     "true") acts as opt-in. This is the only path when no config file could
+//     be read at all. If the partial cfg explicitly set strict_config_error=false,
+//     env is ignored (user opted out).
+func isStrictConfigError(cfg *dsl.Config, loadErr error) bool {
+	if cfg != nil && cfg.Settings != nil && cfg.Settings.StrictConfigError {
+		return true
+	}
+	if loadErr == nil {
+		return false
+	}
+	if cfg != nil && cfg.Settings != nil && cfg.Settings.Explicit["strict_config_error"] {
+		// User explicitly set strict_config_error=false; honor that.
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CCCHAIN_STRICT_CONFIG_ERROR"))) {
+	case "1", "true":
+		return true
+	}
+	return false
 }
 
 func runHookPost(configPath string) {

@@ -43,6 +43,8 @@ settings:
   max_rules_per_cmd: <int>
   fallback: <action>
   workspace: <path>[, <path> ...]   # workspace scope roots (see `scope:`)
+  scope_violation: ask | deny         # escalate outside-workspace paths (default ask)
+  strict_config_error: true | false   # deny on config load failure (default false = fail-open)
 ```
 
 ## Actions
@@ -184,11 +186,12 @@ allow find
 
 ```
 settings:
-  max_context_depth: 2    # max depth for audit expansion
-  max_rules_per_cmd: 5    # max rules per command in audit
-  fallback: ask           # action for unmatched commands
-  workspace: ~/workspace  # workspace scope (comma-separated for multiple paths)
-  scope_violation: ask    # action when a path outside the workspace is detected (ask|deny)
+  max_context_depth: 2         # max depth for audit expansion
+  max_rules_per_cmd: 5         # max rules per command in audit
+  fallback: ask                # action for unmatched commands
+  workspace: ~/workspace       # workspace scope (comma-separated for multiple paths)
+  scope_violation: ask         # action when a path outside the workspace is detected (ask|deny)
+  strict_config_error: true    # fail closed (deny) when config load fails; default: false
 ```
 
 ### `scope_violation`
@@ -204,6 +207,38 @@ Controls what happens when a command or tool call that would otherwise be
 
 Only `allow` results are escalated; explicit `ask` and `deny` rules are
 left untouched. Any value other than `ask` or `deny` is a parse error.
+
+### `strict_config_error`
+
+By default, ccchain is fail-open — any config load failure (missing file,
+parse error, unresolved template) is logged to stderr and the command is
+**allowed** (see [Error Handling](./config.md#error-handling-fail-open)).
+Setting `strict_config_error: true` in any config file that loaded
+successfully (e.g. a global `~/.claude/ccchain.conf`) opts into fail-closed:
+if a later config file fails to load, the PreToolUse hook denies the tool
+call with exit 2.
+
+When no config file could be loaded at all, the only way to opt into strict
+mode is the environment variable `CCCHAIN_STRICT_CONFIG_ERROR=1`
+(or `true`).
+
+Use strict mode when running unattended in high-security environments where
+silent fail-open is unacceptable. Pair it with the `ccchain check` command
+during CI to catch config errors before deployment.
+
+**Warning — self-DoS failure mode:** With strict mode enabled AND a broken
+config file, **every** PreToolUse hook call exits 2. That blocks Bash *and*
+Read/Edit/Write, so Claude cannot even open the config to fix it. Recovery
+requires shell-level intervention outside Claude Code:
+
+1. Prefer prevention: run `ccchain check` before enabling strict mode, and
+   again in CI on every config change.
+2. If you get locked out:
+   - If strict mode came from `CCCHAIN_STRICT_CONFIG_ERROR`, `unset` it in
+     your shell (or restart Claude Code without the variable).
+   - If strict mode came from a config file, edit the broken config directly
+     in a normal terminal (bypassing ccchain), or temporarily rename the
+     broken file so it fails the stat check in the search path.
 
 ## Multiple Commands Per Rule
 

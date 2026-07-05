@@ -43,6 +43,8 @@ settings:
   max_rules_per_cmd: <整数>
   fallback: <action>
   workspace: <path>[, <path> ...]   # ワークスペーススコープのルート（`scope:` 参照）
+  scope_violation: ask | deny         # ワークスペース外パスを検出したときの動作（デフォルト ask）
+  strict_config_error: true | false   # 設定ロード失敗時に deny (デフォルト false = fail-open)
 ```
 
 ## アクション
@@ -184,11 +186,12 @@ allow find
 
 ```
 settings:
-  max_context_depth: 2    # audit 展開の最大深度
-  max_rules_per_cmd: 5    # audit でのコマンドあたりルール数上限
-  fallback: ask           # マッチしないコマンドのデフォルト動作
-  workspace: ~/workspace  # ワークスペーススコープ（カンマ区切りで複数指定可）
-  scope_violation: ask    # ワークスペース外パス検出時のアクション（ask|deny）
+  max_context_depth: 2         # audit 展開の最大深度
+  max_rules_per_cmd: 5         # audit でのコマンドあたりルール数上限
+  fallback: ask                # マッチしないコマンドのデフォルト動作
+  workspace: ~/workspace       # ワークスペーススコープ（カンマ区切りで複数指定可）
+  scope_violation: ask         # ワークスペース外パス検出時のアクション（ask|deny）
+  strict_config_error: true    # 設定ロード失敗時に fail-closed（deny）にする。デフォルト: false
 ```
 
 ### `scope_violation`
@@ -204,6 +207,37 @@ settings:
 
 降格の対象は `allow` 結果のみで、明示的な `ask` / `deny` ルールは変更されません。
 `ask` / `deny` 以外の値はパースエラーになります。
+
+### `strict_config_error`
+
+デフォルトでは ccchain は fail-open — 設定ロードの失敗（ファイル欠損、
+パースエラー、テンプレート未解決など）は stderr にログ出力しつつコマンドを
+**許可**します（[エラー処理（Fail-Open）](./config.md#エラー処理fail-open) 参照）。
+
+`strict_config_error: true` を **すでに読み込めた設定ファイル**（例:
+グローバルの `~/.claude/ccchain.conf`）で有効にすると、後続の設定ファイルが
+ロードに失敗したときに PreToolUse フックが exit 2 で deny します。
+
+設定ファイルが1つも読めなかった場合は、環境変数
+`CCCHAIN_STRICT_CONFIG_ERROR=1`（または `true`）だけが strict モードへの
+オプトイン手段になります。
+
+fail-open が許容できない unattended 運用・高セキュリティ環境で使用してください。
+デプロイ前の CI で `ccchain check` と組み合わせると効果的です。
+
+**⚠️ 復旧手順（self-DoS への注意）:** strict モードが有効で、かつ設定ファイルが
+壊れている状態では、**すべての** PreToolUse フック呼び出しが exit 2 になります。
+Bash だけでなく Read/Edit/Write も塞がれるため、Claude 単体では壊れた設定を
+直せなくなります。復旧には Claude Code の外側からのシェル操作が必要です。
+
+1. 事前予防を最優先: strict モード有効化前に `ccchain check` を実行し、
+   設定変更時は CI でも `ccchain check` を回す。
+2. ロックアウトされた場合の復旧手段:
+   - `CCCHAIN_STRICT_CONFIG_ERROR` で有効化していた場合: シェルで `unset` するか、
+     この環境変数を外して Claude Code を再起動する。
+   - 設定ファイルで有効化していた場合: 通常のターミナル（ccchain フックを
+     経由しない）で壊れた設定ファイルを直接編集するか、壊れたファイルを
+     一時的にリネームして探索パスの stat で見つからない状態にする。
 
 ## 複数コマンドの一行記法
 
