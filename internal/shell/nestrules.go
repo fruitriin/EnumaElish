@@ -3,6 +3,7 @@ package shell
 import (
 	"strings"
 
+	"mvdan.cc/sh/v3/expand"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -27,14 +28,79 @@ func ApplyNestRules(cmd *Command, call *syntax.CallExpr) *Topology {
 	}
 }
 
-// stripQuotes removes matching outer quotes from a string.
-func stripQuotes(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
+// unquoteWords parses s as a command line consisting only of static shell
+// words and returns their literal values joined by single spaces. Quotes are
+// removed and escape sequences (\", \', "a \"b\"", 'it'\''s', $'..', etc.)
+// are resolved by the shell parser itself, replacing the previous naive
+// outer-quote stripping (Plan 0006 S-6).
+//
+// ok is false when s cannot be statically resolved: dynamic expansion at any
+// nesting depth ($var, $(cmd), `cmd`, <(cmd), $((expr))), unclosed quotes,
+// redirects, assignments, or multiple statements. Callers decide how to
+// handle unresolvable input (treat as dynamic, or fall back to raw).
+func unquoteWords(s string) (string, bool) {
+	// Fast path: no quoting or escaping characters — nothing to resolve.
+	if !strings.ContainsAny(s, `"'\`) {
+		return s, true
 	}
-	return s
+
+	file, err := ParseCommand(s)
+	if err != nil || len(file.Stmts) != 1 {
+		return "", false
+	}
+	stmt := file.Stmts[0]
+	if len(stmt.Redirs) > 0 || stmt.Negated || stmt.Background || stmt.Coprocess {
+		return "", false
+	}
+	call, ok := stmt.Cmd.(*syntax.CallExpr)
+	if !ok || len(call.Assigns) > 0 || len(call.Args) == 0 {
+		return "", false
+	}
+
+	parts := make([]string, 0, len(call.Args))
+	for _, w := range call.Args {
+		if !isStaticWord(w) {
+			return "", false
+		}
+		// expand.Fields (not expand.Literal) matches execution semantics:
+		// it also removes unquoted backslash escapes (echo \"hi\" → echo "hi",
+		// 'it'\''s' → it's), which Literal keeps verbatim.
+		// Fresh Config per call: expand mutates the config in place, so
+		// sharing one (or passing nil, which shares a package-level
+		// zeroConfig) is not concurrency-safe.
+		fields, err := expand.Fields(&expand.Config{}, w)
+		if err != nil || len(fields) != 1 {
+			// A static word never splits into multiple fields here (the
+			// parser already split words); != 1 means brace expansion or
+			// similar — bail out rather than guess.
+			return "", false
+		}
+		parts = append(parts, fields[0])
+	}
+	return strings.Join(parts, " "), true
+}
+
+// hasDynamicNode reports whether the AST subtree contains any dynamic
+// expansion node (parameter expansion, command substitution, process
+// substitution, arithmetic expansion) at any nesting depth. Unlike
+// isAnalyzable, it recurses into double-quoted parts, so `"echo $x"` is
+// correctly detected as dynamic. Escaped forms (`\$x`) parse as literals
+// and are correctly treated as static.
+func hasDynamicNode(node syntax.Node) bool {
+	dynamic := false
+	syntax.Walk(node, func(n syntax.Node) bool {
+		switch n.(type) {
+		case *syntax.ParamExp, *syntax.CmdSubst, *syntax.ProcSubst, *syntax.ArithmExp:
+			dynamic = true
+		}
+		return !dynamic
+	})
+	return dynamic
+}
+
+// isStaticWord reports whether w contains no dynamic expansion at any depth.
+func isStaticWord(w *syntax.Word) bool {
+	return !hasDynamicNode(w)
 }
 
 // parseFindExec extracts commands from find -exec CMD {} \;
@@ -119,13 +185,36 @@ func parseXargs(args []string) *Topology {
 	}
 }
 
-// parseBashC extracts and re-parses commands from bash -c "CMD" / sh -c "CMD"
+// parseBashC extracts and re-parses commands from bash -c "CMD" / sh -c "CMD".
+//
+// The `raw` string here is already post-`wordToString`: upstream quote removal
+// has run, so `raw` is exactly what the outer shell would hand bash -c. That
+// means we can re-parse it directly — no `unquoteWords` normalization step,
+// which would otherwise consume backslash escapes (e.g. turn `echo \$x` into
+// `echo $x`) and false-flag the script as dynamic when it is actually static.
 func parseBashC(args []string) *Topology {
 	for i, arg := range args {
 		if arg == "-c" && i+1 < len(args) {
-			cmdStr := stripQuotes(args[i+1])
+			cmdStr := args[i+1]
 			if cmdStr == "" {
 				return nil
+			}
+
+			// Detect unresolved dynamic expansion anywhere in the script,
+			// mirroring parseEval's (dynamic-eval). An unresolved $x can
+			// rewrite the script structure (x='; rm -rf /'), so the nested
+			// command cannot be known statically. Escaped forms (`\$x`)
+			// parse as literals and are correctly treated as static.
+			if file, err := ParseCommand(cmdStr); err == nil && hasDynamicNode(file) {
+				return &Topology{
+					Segments: []Segment{{
+						Type: SegmentTypeSingle,
+						Commands: []Command{{
+							Name:       "(dynamic-shell)",
+							Analyzable: false,
+						}},
+					}},
+				}
 			}
 
 			// Re-parse the command string
@@ -149,13 +238,18 @@ func parseBashC(args []string) *Topology {
 }
 
 // parseEval handles eval "CMD" — only analyzable if the argument is a static string.
+//
+// Each arg here has already been through `wordToString` (static outer quotes
+// removed), so joining reproduces what eval would concatenate at runtime. We
+// skip `unquoteWords` because it would consume backslash escapes and
+// false-flag `eval 'echo \$x'` (literal `$x`) as dynamic.
 func parseEval(args []string) *Topology {
 	if len(args) == 0 {
 		return nil
 	}
 
-	// Join all args as the eval string
-	evalStr := stripQuotes(strings.Join(args, " "))
+	// eval concatenates its arguments with spaces before re-parsing.
+	evalStr := strings.Join(args, " ")
 
 	// Check if the eval string contains variable references (making it dynamic)
 	if strings.ContainsAny(evalStr, "$`") {

@@ -15,27 +15,44 @@ import (
 // 5. ~/.claude/ccchain.conf (fallback)
 //
 // Files are merged in order: later files override earlier ones via last-rule-wins.
+//
+// On error, LoadConfig returns a best-effort partial Config (merged from files
+// successfully loaded before the failure) alongside the error. Callers may
+// inspect the partial Config's Settings (e.g. StrictConfigError) to decide
+// whether to fail closed. The partial Config is never nil.
 func LoadConfig(configPath string) (*Config, error) {
 	if configPath != "" {
-		return loadAndParse(configPath)
+		cfg, err := loadAndParse(configPath)
+		if err != nil {
+			return &Config{Settings: DefaultSettings()}, err
+		}
+		return cfg, nil
 	}
 
 	paths := searchPaths()
 	var configs []*Config
+	var loadErr error
 
+	// Try every path even if one fails, so callers can inspect Settings from
+	// any file that loaded successfully (e.g. discovering StrictConfigError
+	// from a global config when a project-local config has a parse error).
+	// The first error encountered is preserved.
 	for _, p := range paths {
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			continue
 		}
 		cfg, err := loadAndParse(p)
 		if err != nil {
-			return nil, fmt.Errorf("error in %s: %w", p, err)
+			if loadErr == nil {
+				loadErr = fmt.Errorf("error in %s: %w", p, err)
+			}
+			continue
 		}
 		configs = append(configs, cfg)
 	}
 
 	if len(configs) == 0 {
-		return &Config{Settings: DefaultSettings()}, nil
+		return &Config{Settings: DefaultSettings()}, loadErr
 	}
 
 	// Merge configs (later overrides earlier)
@@ -44,7 +61,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		merged = mergeConfigs(merged, configs[i])
 	}
 
-	return merged, nil
+	return merged, loadErr
 }
 
 func searchPaths() []string {
@@ -85,19 +102,66 @@ func loadAndParse(path string) (*Config, error) {
 }
 
 func mergeConfigs(base, overlay *Config) *Config {
-	merged := &Config{
+	return &Config{
 		Templates: mergeSlice(base.Templates, overlay.Templates),
 		PreRules:  mergeSlice(base.PreRules, overlay.PreRules),
 		PostRules: mergeSlice(base.PostRules, overlay.PostRules),
 		Rules:     mergeSlice(base.Rules, overlay.Rules),
-		Settings:  overlay.Settings,
+		Settings:  mergeSettings(base.Settings, overlay.Settings),
+	}
+}
+
+// mergeSettings performs field-wise merge: only fields the overlay explicitly
+// set (tracked by Settings.Explicit) override the base. This prevents an
+// overlay `settings:` block that touches one field from silently blanking all
+// the others — the previous behavior swapped the whole Settings struct, which
+// meant a two-line `.ccchain.local.conf` could wipe out `workspace`,
+// `strict_config_error`, `fallback`, etc. set in the project config
+// (Plan 0006 review C5).
+func mergeSettings(base, overlay *Settings) *Settings {
+	if overlay == nil {
+		return base
+	}
+	if base == nil {
+		return overlay
 	}
 
-	if overlay.Settings == nil {
-		merged.Settings = base.Settings
+	// Shallow copy base into out
+	out := *base
+	// Deep copy Explicit so mutating out.Explicit doesn't affect base
+	out.Explicit = map[string]bool{}
+	for k, v := range base.Explicit {
+		out.Explicit[k] = v
 	}
 
-	return merged
+	if overlay.Explicit["max_context_depth"] {
+		out.MaxContextDepth = overlay.MaxContextDepth
+		out.Explicit["max_context_depth"] = true
+	}
+	if overlay.Explicit["max_rules_per_cmd"] {
+		out.MaxRulesPerCmd = overlay.MaxRulesPerCmd
+		out.Explicit["max_rules_per_cmd"] = true
+	}
+	if overlay.Explicit["fallback"] {
+		out.Fallback = overlay.Fallback
+		out.Explicit["fallback"] = true
+	}
+	if overlay.Explicit["workspace"] {
+		out.WorkspacePaths = append([]string(nil), overlay.WorkspacePaths...)
+		out.Explicit["workspace"] = true
+	}
+	if overlay.Explicit["scope_violation"] {
+		out.ScopeViolation = overlay.ScopeViolation
+		out.Explicit["scope_violation"] = true
+	}
+	if overlay.Explicit["strict_config_error"] {
+		out.StrictConfigError = overlay.StrictConfigError
+		out.Explicit["strict_config_error"] = true
+	}
+	if len(overlay.Explicit) > 0 {
+		out.Line = overlay.Line
+	}
+	return &out
 }
 
 func mergeSlice[T any](a, b []T) []T {

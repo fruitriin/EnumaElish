@@ -32,6 +32,21 @@ type Command struct {
 	Args       []string
 	Analyzable bool      // false if the command involves dynamic expansion
 	Nested     *Topology // nested commands (find -exec, bash -c, etc.)
+
+	// Redirs holds file targets of shell redirects (> >> >| &> &>>).
+	// Only write-side redirects are captured — read redirects (< <<) are
+	// covered by the command's own args or are unanalyzable heredocs.
+	// See Critical C1: without this, `cat /ws/x > /outside/y` bypassed
+	// `outside-write: deny`.
+	Redirs []RedirTarget
+}
+
+// RedirTarget describes a single redirect target for scope evaluation.
+type RedirTarget struct {
+	// Path is the literal path (may contain shell expansions).
+	Path string
+	// Analyzable is false if the target contains $VAR / $(cmd) / etc.
+	Analyzable bool
 }
 
 // BuildTopology converts a shell command string into an execution topology.
@@ -142,7 +157,11 @@ func buildCommandFromStmt(stmt *syntax.Stmt) *Command {
 
 	switch cmd := stmt.Cmd.(type) {
 	case *syntax.CallExpr:
-		return buildCommandFromCall(cmd)
+		c := buildCommandFromCall(cmd)
+		if c != nil {
+			c.Redirs = extractWriteRedirs(stmt.Redirs)
+		}
+		return c
 	case *syntax.Subshell:
 		// (cmd1; cmd2) — treat as a single unanalyzable command
 		return &Command{Name: "(subshell)", Analyzable: false}
@@ -246,20 +265,63 @@ func writeWordPart(buf *strings.Builder, part syntax.WordPart) {
 	}
 }
 
+// extractWriteRedirs extracts write-side redirect targets (> >> >| &> &>>).
+// Read redirects (< << <<<) are skipped: reads are usually covered by the
+// command's own args, and heredocs have no file target.
+func extractWriteRedirs(redirs []*syntax.Redirect) []RedirTarget {
+	if len(redirs) == 0 {
+		return nil
+	}
+	var out []RedirTarget
+	for _, r := range redirs {
+		if r == nil || r.Word == nil {
+			continue
+		}
+		switch r.Op {
+		case syntax.RdrOut, syntax.AppOut, syntax.RdrClob,
+			syntax.RdrAll, syntax.AppAll, syntax.DplOut:
+			// write-side redirect — capture target
+		default:
+			continue
+		}
+		path := wordToString(r.Word)
+		if path == "" {
+			continue
+		}
+		out = append(out, RedirTarget{
+			Path:       path,
+			Analyzable: isAnalyzable(r.Word),
+		})
+	}
+	return out
+}
+
 // isAnalyzable checks if a word can be statically analyzed.
 // Returns false for variable expansions, command substitutions, etc.
+//
+// The check traverses the word at all depths using syntax.Walk so that
+// dynamic parts nested inside *syntax.DblQuoted (e.g. `"$(cmd)"`, `"$VAR"`)
+// are detected. Only inspecting w.Parts at the top level would incorrectly
+// treat `"$(rm)" -rf /` as fully static and bypass the deny-first safety
+// net for dynamic command names.
 func isAnalyzable(w *syntax.Word) bool {
-	for _, part := range w.Parts {
-		switch part.(type) {
-		case *syntax.ParamExp:
-			return false // $var, ${var}
-		case *syntax.CmdSubst:
-			return false // $(cmd)
-		case *syntax.ProcSubst:
-			return false // <(cmd)
-		case *syntax.ArithmExp:
-			return false // $((expr))
-		}
+	if w == nil {
+		return true
 	}
-	return true
+	analyzable := true
+	syntax.Walk(w, func(node syntax.Node) bool {
+		if node == nil {
+			return false
+		}
+		switch node.(type) {
+		case *syntax.ParamExp, // $var, ${var}
+			*syntax.CmdSubst,  // $(cmd), `cmd`
+			*syntax.ProcSubst, // <(cmd), >(cmd)
+			*syntax.ArithmExp: // $((expr))
+			analyzable = false
+			return false
+		}
+		return true
+	})
+	return analyzable
 }

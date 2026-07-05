@@ -166,6 +166,76 @@ func TestBuildTopologyQuoteRemoval(t *testing.T) {
 	}
 }
 
+// TestBuildTopologyDblQuotedCmdSubst verifies that a command substitution
+// nested inside double quotes (`"$(cmd)"`) is detected as non-analyzable.
+// Prior to the isAnalyzable full-depth Walk, the top-level Parts inspection
+// only saw *syntax.DblQuoted and returned Analyzable=true, letting an attacker
+// bypass the deny-first safety net by simply quoting a command substitution.
+func TestBuildTopologyDblQuotedCmdSubst(t *testing.T) {
+	topo, err := BuildTopology(`"$(cmd_that_resolves_to_rm)" -rf /`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyDblQuotedParamExp verifies that a plain parameter
+// expansion nested inside double quotes (`"$VAR"`) is detected as
+// non-analyzable.
+func TestBuildTopologyDblQuotedParamExp(t *testing.T) {
+	topo, err := BuildTopology(`"$CMD" -rf /`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyDblQuotedBracedParamExp verifies that a braced parameter
+// expansion inside double quotes (`"${VAR}"`) is detected as non-analyzable.
+func TestBuildTopologyDblQuotedBracedParamExp(t *testing.T) {
+	topo, err := BuildTopology(`"${VAR}" -rf /`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyDblQuotedStatic ensures that fully static content inside
+// double quotes (`"echo static"`) remains analyzable — the full-depth Walk
+// must not false-positive on quoted literals.
+func TestBuildTopologyDblQuotedStatic(t *testing.T) {
+	topo, err := BuildTopology(`"echo static" -rf /`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, true)
+}
+
+// TestBuildTopologyDblQuotedArithmExp verifies that an arithmetic expansion
+// nested inside double quotes (`"$((1+1))"`) is detected as non-analyzable.
+func TestBuildTopologyDblQuotedArithmExp(t *testing.T) {
+	topo, err := BuildTopology(`"$((1+1))" foo`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
 func assertEqual[T comparable](t *testing.T, name string, got, expected T) {
 	t.Helper()
 	if got != expected {

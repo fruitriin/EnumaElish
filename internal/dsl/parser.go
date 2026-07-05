@@ -270,12 +270,86 @@ func (p *parser) parseRule(parentIndent int) (*Rule, error) {
 			rule.Message = val
 			p.advance()
 
+		case tok.Type == TokenKeyword && tok.Value == "scope":
+			p.advance()
+			sr, err := p.parseScopeBlock(childLine.Indent)
+			if err != nil {
+				return nil, err
+			}
+			rule.ScopeRule = sr
+
 		default:
 			return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("unexpected token in rule: %q", tok.Value)}
 		}
 	}
 
 	return rule, nil
+}
+
+// parseScopeBlock parses a `scope:` block on a rule (Plan 0011 v2).
+// Supported keys: inside, outside, outside-read, outside-write.
+// Values: <action> ["message"].
+func (p *parser) parseScopeBlock(parentIndent int) (*ScopeRule, error) {
+	sr := &ScopeRule{}
+	if p.current() != nil {
+		sr.Line = p.current().LineNo
+	}
+
+	for p.current() != nil && p.current().Indent > parentIndent {
+		line := p.current()
+		if len(line.Tokens) == 0 {
+			p.advance()
+			continue
+		}
+
+		// The key is an Ident token (e.g. "inside", "outside-read"). We use
+		// Ident because "-" is a legal word character; keywords doesn't list
+		// them and that's intentional (they are only meaningful inside scope:).
+		keyTok := line.Tokens[0]
+		if keyTok.Type != TokenIdent {
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("expected scope key (inside/outside/outside-read/outside-write), got %q", keyTok.Value)}
+		}
+
+		colonIdx := -1
+		for i, tok := range line.Tokens {
+			if tok.Type == TokenColon {
+				colonIdx = i
+				break
+			}
+		}
+		if colonIdx < 0 {
+			return nil, &ParseError{Line: line.LineNo, Message: "expected ':' after scope key"}
+		}
+
+		act := &ScopeAction{Line: line.LineNo}
+		for i := colonIdx + 1; i < len(line.Tokens); i++ {
+			tok := line.Tokens[i]
+			if tok.Type == TokenAction || (tok.Type == TokenIdent && actions[tok.Value]) {
+				act.Action = Action(tok.Value)
+			} else if tok.Type == TokenString {
+				act.Message = tok.Value
+			}
+		}
+		if act.Action == "" {
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("scope %q: missing or invalid action", keyTok.Value)}
+		}
+
+		switch keyTok.Value {
+		case "inside":
+			sr.Inside = act
+		case "outside":
+			sr.Outside = act
+		case "outside-read":
+			sr.OutsideRead = act
+		case "outside-write":
+			sr.OutsideWrite = act
+		default:
+			return nil, &ParseError{Line: line.LineNo, Message: fmt.Sprintf("unknown scope key: %q (expected inside/outside/outside-read/outside-write)", keyTok.Value)}
+		}
+		p.advance()
+	}
+
+	return sr, nil
 }
 
 func (p *parser) parseRulesBlock(parentIndent int) ([]*Rule, error) {
@@ -359,6 +433,10 @@ func (p *parser) parseSettings() (*Settings, error) {
 			return nil, err
 		}
 
+		if settings.Explicit == nil {
+			settings.Explicit = map[string]bool{}
+		}
+
 		switch key {
 		case "max_context_depth":
 			n, err := strconv.Atoi(val)
@@ -366,17 +444,36 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid number for max_context_depth: %q", val)}
 			}
 			settings.MaxContextDepth = n
+			settings.Explicit["max_context_depth"] = true
 		case "max_rules_per_cmd":
 			n, err := strconv.Atoi(val)
 			if err != nil {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid number for max_rules_per_cmd: %q", val)}
 			}
 			settings.MaxRulesPerCmd = n
+			settings.Explicit["max_rules_per_cmd"] = true
 		case "fallback":
 			if !IsValidAction(val) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid fallback action: %q", val)}
 			}
 			settings.Fallback = Action(val)
+			settings.Explicit["fallback"] = true
+		case "scope_violation":
+			if val != string(ActionAsk) && val != string(ActionDeny) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid scope_violation action: %q (must be \"ask\" or \"deny\")", val)}
+			}
+			settings.ScopeViolation = Action(val)
+			settings.Explicit["scope_violation"] = true
+		case "strict_config_error":
+			switch val {
+			case "true":
+				settings.StrictConfigError = true
+			case "false":
+				settings.StrictConfigError = false
+			default:
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid bool for strict_config_error: %q (expected true|false)", val)}
+			}
+			settings.Explicit["strict_config_error"] = true
 		case "workspace":
 			// Collect all tokens after colon (parseKeyValue only returns first)
 			var allParts []string
@@ -396,6 +493,7 @@ func (p *parser) parseSettings() (*Settings, error) {
 					settings.WorkspacePaths = append(settings.WorkspacePaths, p)
 				}
 			}
+			settings.Explicit["workspace"] = true
 		default:
 			return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("unknown setting: %q", key)}
 		}
