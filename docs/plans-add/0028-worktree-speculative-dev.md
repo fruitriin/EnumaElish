@@ -1,6 +1,30 @@
 # Plan 0028: addf-dev の worktree ベース投機開発
 
-## 実装状況: 一部完了（2026-07-03 フェーズ1・フェーズ2 完了。復帰・掃除・昇格運用はフェーズ3）
+## 実装状況: 完了（2026-07-05 フェーズ3-4 完了で全フェーズ完了）
+
+### フェーズ3-4 実装記録（2026-07-05）
+
+- docs/guides/speculative-development.md 新設（2層モデル・オプトイン・ライフサイクル・
+  昇格の定義・clean 原則の概観。詳細はスキル本文参照の単一ソース構成）
+- /addf-overview full 再生成（概念システム 6→7 個。「投機開発」を独立システムとして新設。
+  Plan 0029 残課題 L1 = GUI 常設前提も同時解消 — 常設前提表現の残存ゼロを grep 確認）
+- 副次: README 和英に addf-speculate と投機ガイドを追記（v0.4.0 時点の掲載漏れを
+  リリース準備のドキュメント整合チェックで発見・修正）
+- レビュー（単体）: Critical/Warning ゼロ・Suggestion 2件（ガイドの TOML コメント明確化・
+  max_worktrees の「採否判断待ちは数えない」注記）をフェーズ内反映
+
+### フェーズ3（1〜3）実装記録（2026-07-03）
+
+- `speculate-reconcile.py` 新設: check（`worktree prune`＋speculative/integration 走査・`merged_hint`
+  ヒント出力・detached worktree 報告）/ clean（`--delete` 明示指定制・Worktrees.md の
+  「昇格済み/放棄」記載との突合を削除前に一括強制・過去日付 integration の自動掃除
+  ＋`--keep-integrations`・dirty worktree 既定拒否）
+- addf-speculate.md: 手順1.7（再構築と掃除。キー→アクション対応表つき）・clean サブコマンド節・
+  昇格手順節（squash マージ・オーナーの明示応答必須・無応答を承認とみなすこと禁止の明文）
+- ペルソナ並列レビュー3体が削除系の Critical 3件（origin 削除の独立実行・日付判定の脆さ・
+  --promote の意味論）を全て実測再現付きで検出 → フェーズ内修正。「警告は出すが止めない」
+  パターンの全廃（詳細: `docs/knowhow/ADDF/speculative-integration-design.md`）。
+  テスト 17本・72アサーション全パス
 
 ### フェーズ2 実装記録（2026-07-03）
 
@@ -306,3 +330,8 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
 - `docs/knowhow/ADDF/claude-code-hooks.md` — WorktreeCreate フック（採否は実装時確認）
 - `docs/knowhow/ADDF/upstream-downstream-separation.md` — 配布スキルの記述ルール
 - Plan 0029 — Behavior.toml スキーマ拡張・オプトイン機構の並走 Plan（lint-toml スキーマ検証の判断を共有）
+
+## 関連 Plan
+
+- [Plan 0035: PR 運用の標準化](0035-pr-standard-format.md) — 投機の昇格 PR 経路・部分昇格・
+  Pending・深化ブランチは 0035 項目2 で拡張設計（本 Plan フェーズ3 の昇格運用が土台）
