@@ -156,10 +156,12 @@ allow cat
 
 **Backward compatibility.** Rules without any `scope:` block keep the previous auto-escalation behavior: `allow` escalates to `ask` whenever any path argument is outside the workspace. Rules with `scope: outside: allow` explicitly opt out of that escalation for the whole command.
 
-**One-directional (strict-only) semantics.** `scope:` clauses can only make the base rule's action **stricter** (`allow` → `ask` → `deny`), never looser. This is enforced by the evaluator: a scope-derived candidate action is applied only when it is more restrictive than the base rule's action; otherwise the base action is kept. Concretely:
+**One-directional (strict-only) semantics.** `scope:` clauses can only make the base rule's action **stricter**, never looser. The five actions are ordered `allow < hint < warn < ask < deny` (see [`restrictionLevel` in evaluate.go](../../internal/eval/evaluate.go)); a scope-derived candidate action is applied only when it is more restrictive than the base rule's action, otherwise the base action is kept. Concretely:
 
 - If the base rule is `deny rm`, writing `scope: outside: allow` does **not** promote outside deletions to `allow`. The scope clause is accepted syntactically but the evaluator keeps the base `deny`.
 - If the base rule is `ask cp`, writing `scope: inside: allow` does **not** demote inside copies to `allow`. It is silently ignored and the base `ask` is kept.
+- If the base rule is `warn cp`, writing `scope: outside: deny` **does** escalate outside copies to `deny` (deny > warn). Writing `scope: outside: allow` on the same `warn cp`, however, does **not** demote outside copies to `allow` — the base `warn` is preserved because `allow < warn`.
+- Similarly, `hint cp` + `scope: outside: warn` promotes outside copies to `warn` (warn > hint), while `hint cp` + `scope: outside: allow` keeps the base `hint`.
 - The only "loosening" effect scope: has is the backward-compatibility opt-out described above: `scope: outside: allow` on an **`allow`** rule prevents the automatic `allow → ask` escalation for outside paths — but that keeps the action at the base allow, it does not promote a stricter base to allow.
 
 **Rationale.** Workspace scope is a security feature. Making it one-directional prevents a permissive scope clause from silently widening a stricter base rule and eliminates a class of "I thought scope: could relax this" misreadings. Use `scope:` to add finer-grained restrictions; use the base action for the ceiling.
