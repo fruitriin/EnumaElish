@@ -2,6 +2,10 @@
 title: 投機サイクル運用の教訓 — 意図の衝突・ペルソナが掘り当てる既存バグ・兄弟課題の分割禁止
 created: 2026-07-05
 last_verified: 2026-07-05
+
+# 更新履歴
+# 2026-07-05: 初版（サイクル1 の教訓を記録）
+# 2026-07-05: サイクル2 の実践結果と新パターンを追記（統合手動介入・Settings フィールド単位マージ・attacker の実証コード）
 depends_on:
   - .claude/commands/addf-speculate.md
   - .claude/agents/addf-code-review-agent.md
@@ -73,6 +77,52 @@ skeptic/attacker/newcomer の視点ずらしレビューは、本 PR の変更�
 - 3ペルソナ並列（skeptic/attacker/newcomer）は unattended モードで発動条件を満たす（Progress.md 5 のペルソナ並列規定）。通常タスクでは単体レビューでよい — このノウハウはペルソナ並列時の**指摘のさばき方**であり、常時 3 体並列を推奨するものではない
 - 「既存バグを Dashboard に流す」は投機だからこそ許される運用。本流の実装フェーズでは「同じコードパスに触った」時点で既存バグの修正責任も引き受けるのが基本
 - 兄弟課題の同一ブランチ化は「投機の粒度＝1概念」原則と衝突しない — 兄弟は**同じ概念の複数の入力パターン**であって、複数概念ではない
+
+## サイクル2 での実践成果と新パターン（2026-07-05 追記）
+
+### 教訓1（同一 AST 層への干渉）を選定時にチェックした結果
+
+サイクル2 では 3本すべて **触る AST 層をあらかじめ分離**（scope.go / topology.go / hook.go）して投機を組んだ。結果、**integration の相互作用テストが一発 PASS**（サイクル1 は stripquotes-escape と args-hardening の同層干渉で1本外す羽目になった）。教訓の実効性が確認できた。選定時に一問確認するだけで統合コストが数分〜十数分節約できる。
+
+### 教訓3（兄弟課題の同一ブランチ化）の効果 — レビュー時に対称性の穴が浮上した
+
+サイクル2 では `workspace-scope-hardening` に **read/write 分離 + シンボリックリンク解決** の兄弟課題を意図的に束ねた。attacker ペルソナが `cp -t DIR` バイパス（read/write 位置ベース判定の穴）と、シンボリックリンク未解決の**組み合わせ**で symlink 経由の write を allow できることを実証コード付きで検出。片方だけ実装していたら **`outside-write: deny` を設定していても symlink 経由でバイパスできる非対称な穴** が残っていた。束ねたおかげで対称的な防御になった。
+
+### 新パターン: 統合コンフリクトへの手動介入（integration スクリプトの限界）
+
+`speculate-integrate.py` は `git merge --squash` で feature を統合するが、feature 間で自明でない衝突が起きるとその feature を「conflicted」として外す（reset --hard で戻す）設計。ただし**自明な衝突**（例: 独立セクションへの追記同士）なら手動介入で解消できる:
+
+1. スクリプトを衝突しない subset だけで走らせて integration ブランチを作る（例: 3本のうち 2本）
+2. integration worktree の中で `git merge --squash speculative/<残り>` を手動で実行
+3. コンフリクトファイルを Edit で解消（両方の追記を並べる）
+4. `git add -A && git commit --no-verify -m "[統合] speculative/<残り> を squash 統合（<衝突箇所> の手動解消）"`
+
+サイクル2 で `workspace-scope-hardening` と `strict-config-error` が Grammar 早見表（Settings ブロック）に独立に追記していて衝突したが、両行を並べるだけで解消できた。**「悩まず解決できる衝突」の定義そのもの**なので、諦めて外すのではなく手動解消が正解。手順書に上位フローとして追記されるべき運用。
+
+### 新パターン: `Settings` フィールド単位マージ（Explicit 集合の追跡）
+
+サイクル2 で `mergeConfigs` の `Settings = overlay.Settings`（丸ごと swap）が既存バグとして浮上した際、**overlay 側で明示的に設定されたフィールドだけを上書きする**設計を採用:
+
+```go
+type Settings struct {
+    // ... 通常のフィールド ...
+    Explicit map[string]bool  // parser で明示指定された DSL キー名
+}
+
+func mergeSettings(base, overlay Settings) Settings {
+    merged := base
+    for key := range overlay.Explicit {
+        // key に対応するフィールドだけを overlay で上書き
+    }
+    return merged
+}
+```
+
+`DefaultSettings()` は `Explicit: map[string]bool{}`（空）で初期化するので、デフォルト値経由では絶対に上書きされない。パーサーで DSL キーを読むたびに `Explicit[key] = true` を登録する1行を追加するだけ。ポインタ化案（`*bool`, `*int`）と比べて既存コードへの影響が最小。設定マージ機構を持つ他のスキル（downstream の Behavior.toml マージ等）にも応用可能。
+
+### 実証コード付きレビューの威力
+
+サイクル2 の attacker ペルソナは **Critical 7件すべてで再現テストコードを添えて指摘**（worktree 内で試して削除、報告に手順を明記）。指摘の説得力が段違いに高く、担当エージェントが「本当に修正必要か」を悩む余地がない。修正の完了確認も同じテストコードを回すだけで済む。ペルソナへの依頼プロンプトに「worktree 内でテストコードを書いて実際に試してよい（コミットはしないこと）」の一文を含めるかどうかで、レビュー成果の質が大きく変わる。
 
 ## 参照
 

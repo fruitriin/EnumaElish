@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -157,6 +158,54 @@ func TestParseSettings(t *testing.T) {
 	assertEqual(t, "max_context_depth", cfg.Settings.MaxContextDepth, 3)
 	assertEqual(t, "max_rules_per_cmd", cfg.Settings.MaxRulesPerCmd, 10)
 	assertEqual(t, "fallback", string(cfg.Settings.Fallback), "deny")
+}
+
+func TestParseScopeViolationDeny(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+settings:
+  workspace: ~/workspace
+  scope_violation: deny
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "scope_violation", string(cfg.Settings.ScopeViolation), "deny")
+}
+
+func TestParseScopeViolationAsk(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+settings:
+  workspace: ~/workspace
+  scope_violation: ask
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "scope_violation", string(cfg.Settings.ScopeViolation), "ask")
+}
+
+func TestParseScopeViolationDefault(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+settings:
+  workspace: ~/workspace
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	// Unset → defaults to ask (backward compatible)
+	assertEqual(t, "scope_violation default", string(cfg.Settings.ScopeViolation), "ask")
+}
+
+func TestParseScopeViolationInvalid(t *testing.T) {
+	for _, val := range []string{"warn", "allow", "hint", "block"} {
+		_, err := Parse(strings.NewReader("settings:\n  scope_violation: " + val + "\n"))
+		if err == nil {
+			t.Fatalf("expected parse error for scope_violation: %s", val)
+		}
+		if !strings.Contains(err.Error(), "scope_violation") {
+			t.Fatalf("error should mention scope_violation, got: %v", err)
+		}
+	}
 }
 
 func TestParseArgsRules(t *testing.T) {

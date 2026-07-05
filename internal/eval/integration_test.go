@@ -584,6 +584,19 @@ func TestIntegrationDangerousRealWorld(t *testing.T) {
 			dsl.ActionAllow, "destroys shell config via symlink"},
 		{"crontab clear", "crontab -r",
 			dsl.ActionAllow, "removes all cron jobs"},
+
+		// === Dynamic command name hidden inside double quotes ===
+		// Before the isAnalyzable full-depth Walk fix, wrapping a dynamic
+		// expansion in double quotes let attackers bypass the deny-first
+		// safety net (Analyzable=true → matchCommand sees literal "$CMD" /
+		// "$(rm)" as the command name → no rule matches → falls through to
+		// Settings.Fallback (ask)). These must not be allow.
+		{"dblquoted cmdsubst rm", `"$(cmd_that_resolves_to_rm)" -rf /`,
+			dsl.ActionAllow, "quoted command substitution as command name"},
+		{"dblquoted param rm", `"$CMD" -rf /`,
+			dsl.ActionAllow, "quoted parameter expansion as command name"},
+		{"dblquoted braced param rm", `"${VAR}" -rf /`,
+			dsl.ActionAllow, "quoted braced parameter expansion as command name"},
 	}
 
 	for _, tt := range tests {

@@ -451,6 +451,11 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid fallback action: %q", val)}
 			}
 			settings.Fallback = Action(val)
+		case "scope_violation":
+			if val != string(ActionAsk) && val != string(ActionDeny) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid scope_violation action: %q (must be \"ask\" or \"deny\")", val)}
+			}
+			settings.ScopeViolation = Action(val)
 		case "workspace":
 			// Collect all tokens after colon (parseKeyValue only returns first)
 			var allParts []string

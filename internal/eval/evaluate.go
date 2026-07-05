@@ -70,10 +70,23 @@ func EvaluateTopology(topo *shell.Topology, config *dsl.Config) (*Result, error)
 		if config.Settings != nil {
 			fallback = config.Settings.Fallback
 		}
-		return &Result{
+		fallbackResult := &Result{
 			Action:  fallback,
 			Message: "no matching rule (fallback)",
-		}, nil
+		}
+		// Even without a matching rule, workspace scope must still apply.
+		// Otherwise `fallback: allow` (or fallback: warn/hint, which behave
+		// like allow at the hook layer) would let paths outside workspace
+		// through, bypassing `scope_violation: deny`.
+		if restrictionLevel(fallbackResult.Action) < restrictionLevel(dsl.ActionAsk) {
+			for i := range topo.Segments {
+				seg := &topo.Segments[i]
+				for j := range seg.Commands {
+					fallbackResult = applyScopeToCommand(&seg.Commands[j], nil, config, fallbackResult)
+				}
+			}
+		}
+		return fallbackResult, nil
 	}
 
 	return worstResult, nil
@@ -278,8 +291,8 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 // applyScopeToCommand checks path arguments against the workspace scope and,
 // if the rule has a `scope:` block (Plan 0011 v2), applies per-scope actions
 // with read/write awareness (semantics table). Without a `scope:` block it
-// falls back to the pre-v2 behavior: escalate allow → ask when any path is
-// outside the workspace.
+// falls back to the pre-v2 behavior: escalate any result less restrictive
+// than ask when any path is outside the workspace.
 //
 // Sources of paths (each is scope-classified independently):
 //   - cmd.Args via ExtractPathArgs, kinded by semantics.ClassifyPathArgs
@@ -333,15 +346,19 @@ func applyScopeToCommand(cmd *shell.Command, rule *dsl.Rule, config *dsl.Config,
 		// to legacy escalation.
 	}
 
-	// Legacy behavior (pre-v2 or scope: block without outside*): escalate
-	// allow → ask when any path is outside.
-	if baseResult.Action != dsl.ActionAllow {
+	// Legacy behavior (pre-v2 or scope: block without outside*): escalate any
+	// result less restrictive than ask when any path is outside.
+	// Rationale: warn/hint return {"decision":"allow"} at the hook layer, so
+	// they must not be treated as safer than allow for scope-violation
+	// purposes. This mirrors the step-comparison used by argsTooLongResult
+	// (from speculative/scope-violation-deny, now on main).
+	if restrictionLevel(baseResult.Action) >= restrictionLevel(dsl.ActionAsk) {
 		return baseResult
 	}
 	for _, info := range pathInfo {
 		if info.scope == ScopeOutside {
 			return &Result{
-				Action:  dsl.ActionAsk,
+				Action:  scopeViolationAction(config),
 				Message: "workspace scope: command accesses path outside workspace",
 				Context: baseResult.Context,
 			}
@@ -477,7 +494,7 @@ func matchInPipeContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 		if parentRule.Next != "" {
 			tmpl := dsl.LookupTemplate(config, parentRule.Next)
 			if tmpl != nil {
-				pipeRules = append(pipeRules, collectTemplatePipeRules(tmpl, config)...)
+				pipeRules = append(pipeRules, dsl.CollectTemplatePipeRules(tmpl, config)...)
 			}
 		}
 	}
@@ -519,7 +536,7 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 		if parentRule.Next != "" {
 			tmpl := dsl.LookupTemplate(config, parentRule.Next)
 			if tmpl != nil {
-				execRules = append(execRules, collectTemplateExecRules(tmpl, config)...)
+				execRules = append(execRules, dsl.CollectTemplateExecRules(tmpl, config)...)
 			}
 		}
 	}
@@ -548,57 +565,6 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 	}
 
 	return lastMatch
-}
-
-// collectTemplatePipeRules collects all pipe rules from a template chain.
-// visited prevents infinite loops from circular next: references.
-func collectTemplatePipeRules(tmpl *dsl.Template, config *dsl.Config) []*dsl.Rule {
-	visited := make(map[string]bool)
-	return collectTemplatePipeRulesWithVisited(tmpl, config, visited)
-}
-
-func collectTemplatePipeRulesWithVisited(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.PipeRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplatePipeRulesWithVisited(nextTmpl, config, visited)...)
-		}
-	}
-
-	return rules
-}
-
-// collectTemplateExecRules collects all exec rules from a template chain.
-func collectTemplateExecRules(tmpl *dsl.Template, config *dsl.Config) []*dsl.Rule {
-	visited := make(map[string]bool)
-	return collectTemplateExecRulesWithVisited(tmpl, config, visited)
-}
-
-func collectTemplateExecRulesWithVisited(tmpl *dsl.Template, config *dsl.Config, visited map[string]bool) []*dsl.Rule {
-	if visited[tmpl.Name] {
-		return nil
-	}
-	visited[tmpl.Name] = true
-
-	var rules []*dsl.Rule
-	rules = append(rules, tmpl.ExecRules...)
-
-	if tmpl.Next != "" {
-		nextTmpl := dsl.LookupTemplate(config, tmpl.Next)
-		if nextTmpl != nil {
-			rules = append(rules, collectTemplateExecRulesWithVisited(nextTmpl, config, visited)...)
-		}
-	}
-
-	return rules
 }
 
 // findMatchingRule finds the last matching top-level rule for a command name.
