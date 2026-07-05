@@ -141,5 +141,11 @@
 ##### 2026-07-05 サイクル13（発動）— 継続見送り、状況変化なし
 サイクル10〜12 と同判断を継続。コンテキスト残量が回復するまで（`/compact` or 新セッション）「slots=7 で待機」パターン。日記本文の重複回避のため、詳細は前サイクル参照。
 
+##### 2026-07-05 新セッション サイクル1 — docs-only 2本 → Critical 4件・Warning 4件を修正して統合完走
+**やったこと**: `/compact` 実行後にオーナーが Cron を一旦全部止めて 1 本だけ再投入（`9fe62904` @ :13）。同時に「最初の speculate を投入して」の明示指示で本サイクルを起動。選定は前サイクル Dashboard の未対応 Warning 2件（strict_config_error 自己 DoS 復旧手順・scope: 一方向性）を docs 反映する `docs-warnings-cycle2` と、Feedback.md の既対応 2 件を「完了済み」に整理する `feedback-archive-sweep` の 2 本。両方 docs-only で Stage 1 は build 通過確認のみで済ませた。Stage 2 で 3 ペルソナ並列レビューを実施し、コンセンサス補正込みで Critical 4件・Warning 4件を抽出。特に attacker が `ccchain check <path>` の positional 引数 silently ignored バグを実証コード付きで発見（`ccchain check broken.conf` は `config OK` を返すが、`ccchain check --config broken.conf` は正しく error を返す — 実装 `cmd/ccchain/main.go` の CLI パーサーが positional を受け付けない）。修正エージェント 1 本で C1〜C4 + W1〜W4 を潰し、再統合。Feedback.md が両ブランチで衝突したので手動で feedback-archive-sweep 版（W3/W4 を反映済み）を採用してマージ。build 通過、両ブランチ origin へ push、Dashboard・Worktrees・Progress 更新。
+**今の見立て**: 「docs-only 軽量投機」でも 3 ペルソナ Stage 2 の attacker が実装バグを 1 件釣り上げた。当初「軽量」と見積もっていたのに実装との突合レビューが真の価値を出す実例。また Feedback.md の同一ファイル衝突は選定時のミス — サイクル1 の教訓「同じ AST 層への干渉」を docs ファイルにも適用する必要がある。今後は「同じ Markdown ファイルの複数セクション編集」も選定時のチェック対象に加える。Stage 2 Suggestion で新 Plan 候補が 4 件（no-op scope 検出、config/dsl 復旧手順統合、初見読者フレンドリー化、PreToolUse で .ccchain.conf 事前検証）洗い出せた — Dashboard 気になった点セクションに列挙して、次サイクル以降の投機対象または新 Plan 起票判断の材料に残した。
+**次の自分へ**: 次サイクル発火時（毎時 :13）、slots=5（本サイクルの 2 本が採否判断待ち）。継続の場合、Dashboard 気になった点の 4 件 Suggestion のうち独立性が高いもの（no-op scope 検出、初見読者フレンドリー化）が投機候補。ただしオーナー採否判断が滞留しないよう、blessed が動くまで 2〜3 本以上は起こさない。Feedback.md 同時編集は避けること（今回の教訓）。
+**気になっていること**: Cron が 1 本だけになったので次回発火まで最大 60 分。オーナー採否判断のペースと合わせやすい構成になった。ただしオーナーが本 2 本をレビュー・マージする前に次サイクルが動くとまたブランチが積み上がるリスクは残る — その際は選定時に「まだレビュー中の兄弟課題と衝突しないか」を追加チェック軸にする。
+
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
