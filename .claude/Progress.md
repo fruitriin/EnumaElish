@@ -165,5 +165,11 @@
 **次の自分へ**: 次サイクル発火時 slots=6（本サイクルの 1 本が採否判断待ち）。origin に残る 9 本の既マージ済み残骸（args-hardening / bash-c-analyzable-fix / docs-warnings-cycle2 / feedback-archive-sweep / scope-violation-deny / strict-config-error / stripquotes-escape / template-dedup / workspace-scope-hardening）はいずれ v0.5.0 の `speculate-reconcile.py clean --delete` で掃除できる — Worktrees.md に「昇格済み」記録を作ってから clean するのが正規手順。次サイクル冒頭で試すとよい（新機能の実運用テスト）。
 **気になっていること**: Progress.md への外部書き込み（別セッションが動いていた形跡）。私のいる session の Cron とは別に、web 側または別 CLI から /addf-speculate が動いた可能性。次サイクルで衝突しないよう、選定時は origin/speculative/* を必ず確認して重複を避ける。コンテキストが目安超過中なので、次サイクルは新機能テスト（reconcile clean）に絞って軽量に回すべき。
 
+##### 2026-07-05 サイクル発火（コンパクト直後）— コンテキスト 411k で見送り、状態確認のみ
+**やったこと**: `/compact` 実行直後の Cron 発火。guard は `active=2, slots=5` を返した（`docs-recovery-consolidation` と、別セッションが起こしたと思われる `eval-diff-subcommand` の 2 本が採否判断待ちで生存）。コンテキスト使用量が 411k で目安 200k を大幅超過しているため、サイクル10〜13 と同じ判断で新規投機を見送り。git status は clean、両 worktree とも生きて origin に push 済み。
+**今の見立て**: 2 本目の `eval-diff-subcommand`（Plan 0019 の `ccchain diff` サブコマンド）が別セッションから push されており、私が予想したとおり並列セッションが動いている。両ブランチとも独立で衝突なし。オーナー採否判断待ちが 2 本溜まっている状態。
+**次の自分へ**: 次サイクル発火時、コンテキストが回復していれば選定を検討可能。ただし active=2 が判断待ちのままなら、無理に 3 本目を積み上げるより現状を維持して採否判断を待つ方が投機フローの目的に沿う。新機能 `speculate-reconcile.py clean --delete` の実運用テストは、オーナーが 2 本のいずれかを昇格させて Worktrees.md に「昇格済み」記録が入ってから試すのが順序。
+**気になっていること**: コンパクション直後にコンテキスト 411k は異常に高い（通常はコンパクション後に大幅に減るはず）。SessionStart:compact hook 通過後の再注入か、CLAUDE.md ブートシーケンスの読み込みで膨らんだ可能性。次サイクルまで新規作業を控えれば徐々に落ち着く見込み。
+
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
