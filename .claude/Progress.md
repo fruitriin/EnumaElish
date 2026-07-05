@@ -159,5 +159,11 @@
 **次の自分へ**: Cron `9fe62904`（毎時 :13）は継続稼働中。次サイクルは v0.5.0 の新機能を使って動く。特に (a) `speculate-reconcile.py` を回して worktree 状態を再確認、(b) 次の投機対象は Dashboard 気になった点の 4 件 Suggestion から独立性の高いものを選ぶ、の 2 点。addf-lock.json は `commit` → `ref` 形式に正規化済み。
 **気になっていること**: ADDF テスト側の Test 1/8/12 downstream 失敗は毎回 exp に記録するが、根本解決は upstream 側でテストを downstream-aware にするしかない（Plan 0034 downstream-feedback-fixes の対象になるかも）。今回はマイグレーションブロッカーではないのでスルー。
 
+##### 2026-07-05 v0.5.0 サイクル1 — 単独投機 docs-recovery-consolidation を統合まで完走
+**やったこと**: v0.5.0 マイグレーション後、オーナーが 2 本目 Cron `24ad6a58`（毎時 :37）を追加投入、直後 `/addf-speculate` 手動起動。手順 1.7 (reconcile) は v0.5.0 新機能を実際に走らせて動作確認。`local_speculative=`（空）と `remote_speculative=` 9本（既マージ済み残骸）を検出。9本は squash 由来の恒常的残骸なので今サイクルでは触らず、選定は前サイクル skeptic Suggestion「config.md/dsl.md の strict_config_error 復旧手順二重記載を統合」の 1 本のみ。v0.5.0 の新複製手順（`find ... -prune -exec rm -rf` で venv/node_modules 除外 + `git checkout -- .claude` で追跡ファイル復元）を使って worktree 作成、サブエージェントに委譲。dsl.md を正本化し config.md は 48 行の Warning ブロックを 6 行の要約+リンクに縮退。build 通過、origin push 済み。
+**今の見立て**: 単独投機なので integration ステップ（手順6）は不要。Stage 2 は skip 判断（コンテキスト使用量約210k で目安超過、単独 docs 変更で Stage 1 build 通過している以上、ペルソナ並列は費用対効果が悪い）。前サイクル Progress.md の外部編集で別の投機（Plan 0019 `ccchain diff`）が並列走行していた形跡を検出したが、当サイクルの成果物（speculative/docs-recovery-consolidation）は独立していて衝突なし。
+**次の自分へ**: 次サイクル発火時 slots=6（本サイクルの 1 本が採否判断待ち）。origin に残る 9 本の既マージ済み残骸（args-hardening / bash-c-analyzable-fix / docs-warnings-cycle2 / feedback-archive-sweep / scope-violation-deny / strict-config-error / stripquotes-escape / template-dedup / workspace-scope-hardening）はいずれ v0.5.0 の `speculate-reconcile.py clean --delete` で掃除できる — Worktrees.md に「昇格済み」記録を作ってから clean するのが正規手順。次サイクル冒頭で試すとよい（新機能の実運用テスト）。
+**気になっていること**: Progress.md への外部書き込み（別セッションが動いていた形跡）。私のいる session の Cron とは別に、web 側または別 CLI から /addf-speculate が動いた可能性。次サイクルで衝突しないよう、選定時は origin/speculative/* を必ず確認して重複を避ける。コンテキストが目安超過中なので、次サイクルは新機能テスト（reconcile clean）に絞って軽量に回すべき。
+
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
