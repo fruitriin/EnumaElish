@@ -150,6 +150,10 @@ func mergeSettings(base, overlay *Settings) *Settings {
 		out.WorkspacePaths = append([]string(nil), overlay.WorkspacePaths...)
 		out.Explicit["workspace"] = true
 	}
+	if overlay.Explicit["scope_violation"] {
+		out.ScopeViolation = overlay.ScopeViolation
+		out.Explicit["scope_violation"] = true
+	}
 	if overlay.Explicit["strict_config_error"] {
 		out.StrictConfigError = overlay.StrictConfigError
 		out.Explicit["strict_config_error"] = true

@@ -111,6 +111,7 @@ type Settings struct {
 	MaxRulesPerCmd    int
 	Fallback          Action
 	WorkspacePaths    []string // scope: workspace paths
+	ScopeViolation    Action   // scope_violation: action when a path outside workspace is detected (ask|deny)
 	StrictConfigError bool     // if true, hook denies when config load fails
 	Line              int
 
@@ -124,6 +125,7 @@ func DefaultSettings() *Settings {
 		MaxContextDepth: 2,
 		MaxRulesPerCmd:  5,
 		Fallback:        ActionAsk,
+		ScopeViolation:  ActionAsk,
 		Explicit:        map[string]bool{},
 	}
 }

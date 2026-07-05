@@ -458,6 +458,12 @@ func (p *parser) parseSettings() (*Settings, error) {
 			}
 			settings.Fallback = Action(val)
 			settings.Explicit["fallback"] = true
+		case "scope_violation":
+			if val != string(ActionAsk) && val != string(ActionDeny) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid scope_violation action: %q (must be \"ask\" or \"deny\")", val)}
+			}
+			settings.ScopeViolation = Action(val)
+			settings.Explicit["scope_violation"] = true
 		case "strict_config_error":
 			switch val {
 			case "true":

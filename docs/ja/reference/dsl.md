@@ -43,6 +43,7 @@ settings:
   max_rules_per_cmd: <整数>
   fallback: <action>
   workspace: <path>[, <path> ...]   # ワークスペーススコープのルート（`scope:` 参照）
+  scope_violation: ask | deny         # ワークスペース外パスを検出したときの動作（デフォルト ask）
   strict_config_error: true | false   # 設定ロード失敗時に deny (デフォルト false = fail-open)
 ```
 
@@ -189,8 +190,23 @@ settings:
   max_rules_per_cmd: 5         # audit でのコマンドあたりルール数上限
   fallback: ask                # マッチしないコマンドのデフォルト動作
   workspace: ~/workspace       # ワークスペーススコープ（カンマ区切りで複数指定可）
+  scope_violation: ask         # ワークスペース外パス検出時のアクション（ask|deny）
   strict_config_error: true    # 設定ロード失敗時に fail-closed（deny）にする。デフォルト: false
 ```
+
+### `scope_violation`
+
+本来 `allow` になるコマンド・ツール呼び出しが `workspace` スコープ外のパスを
+参照していた場合の挙動を制御します:
+
+- `ask`（デフォルト）: `allow` → `ask` に降格。パーミッションダイアログで
+  承認すればワークスペース外へのアクセスも可能
+- `deny`: `allow` → `deny` に降格。ワークスペース外へのアクセスを完全に
+  ブロックする。パーミッションダイアログが人間に届かない構成
+  （headless / 自動承認モード等）での厳格運用向け
+
+降格の対象は `allow` 結果のみで、明示的な `ask` / `deny` ルールは変更されません。
+`ask` / `deny` 以外の値はパースエラーになります。
 
 ### `strict_config_error`
 

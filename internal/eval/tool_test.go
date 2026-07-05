@@ -98,3 +98,63 @@ preToolUse
 	r2 := EvaluateTool("Write", "/workspace/.claude/settings.json", cfg)
 	assertEqual(t, "write settings", r2.Action, dsl.ActionDeny)
 }
+
+func TestEvaluateToolScopeViolationDeny(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: /workspace
+  scope_violation: deny
+
+preToolUse
+  allow Read
+`)
+	// Outside workspace → denied (not just ask)
+	r1 := EvaluateTool("Read", "/etc/passwd", cfg)
+	assertEqual(t, "read outside denied", r1.Action, dsl.ActionDeny)
+
+	// Inside workspace → still allowed
+	r2 := EvaluateTool("Read", "/workspace/README.md", cfg)
+	assertEqual(t, "read inside allowed", r2.Action, dsl.ActionAllow)
+}
+
+func TestEvaluateToolScopeViolationDenyEscalatesWarn(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: /workspace
+  scope_violation: deny
+
+preToolUse
+  warn Read
+`)
+	// warn returns {"decision":"allow"} at the hook layer, so scope must
+	// still escalate warn → deny for outside paths.
+	r := EvaluateTool("Read", "/etc/passwd", cfg)
+	assertEqual(t, "tool warn escalated to deny", r.Action, dsl.ActionDeny)
+}
+
+func TestEvaluateToolScopeViolationDenyEscalatesHint(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: /workspace
+  scope_violation: deny
+
+preToolUse
+  hint Read
+`)
+	// hint short-circuits to allow at the hook layer.
+	r := EvaluateTool("Read", "/etc/passwd", cfg)
+	assertEqual(t, "tool hint escalated to deny", r.Action, dsl.ActionDeny)
+}
+
+func TestEvaluateToolScopeViolationDenyFallbackAllow(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  workspace: /workspace
+  scope_violation: deny
+  fallback: allow
+`)
+	// No rule matches → fallback: allow. Without the fallback-path
+	// scope check this would bypass scope_violation: deny.
+	r := EvaluateTool("Read", "/etc/passwd", cfg)
+	assertEqual(t, "tool fallback allow escalated to deny", r.Action, dsl.ActionDeny)
+}

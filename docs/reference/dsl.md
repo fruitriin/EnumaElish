@@ -43,6 +43,7 @@ settings:
   max_rules_per_cmd: <int>
   fallback: <action>
   workspace: <path>[, <path> ...]   # workspace scope roots (see `scope:`)
+  scope_violation: ask | deny         # escalate outside-workspace paths (default ask)
   strict_config_error: true | false   # deny on config load failure (default false = fail-open)
 ```
 
@@ -189,8 +190,23 @@ settings:
   max_rules_per_cmd: 5         # max rules per command in audit
   fallback: ask                # action for unmatched commands
   workspace: ~/workspace       # workspace scope (comma-separated for multiple paths)
+  scope_violation: ask         # action when a path outside the workspace is detected (ask|deny)
   strict_config_error: true    # fail closed (deny) when config load fails; default: false
 ```
+
+### `scope_violation`
+
+Controls what happens when a command or tool call that would otherwise be
+`allow`ed references a path outside the `workspace` scope:
+
+- `ask` (default): escalate `allow` → `ask`. The user can still approve
+  access outside the workspace via the permission dialog.
+- `deny`: escalate `allow` → `deny`. Access outside the workspace is
+  blocked outright — useful for strict setups where the permission dialog
+  may not reach a human (e.g. headless / auto-approve modes).
+
+Only `allow` results are escalated; explicit `ask` and `deny` rules are
+left untouched. Any value other than `ask` or `deny` is a parse error.
 
 ### `strict_config_error`
 

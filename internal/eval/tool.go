@@ -37,9 +37,29 @@ func EvaluateTool(toolName string, toolArg string, config *dsl.Config) *Result {
 	}
 
 	// Apply workspace scope for file-based tools.
-	// Critical C6: scope: block on Read/Edit/Write/MCP rules was not honored.
-	if toolArg != "" && config.Settings != nil && len(config.Settings.WorkspacePaths) > 0 && lastMatch != nil {
-		lastMatch = applyScopeToToolCall(toolName, toolArg, lastMatchRule, config, lastMatch)
+	// Critical C6 (from workspace-scope-hardening): scope: block on
+	// Read/Edit/Write/MCP rules was not honored — routed through
+	// applyScopeToToolCall which handles both the `scope:` block and the
+	// legacy escalation.
+	// Critical (from scope-violation-deny): even without a matching rule,
+	// workspace scope must still apply so that `fallback: allow` (or
+	// fallback: warn/hint, which behave like allow at the hook layer) does
+	// not bypass `scope_violation: deny`. We synthesize the fallback result
+	// so scope escalation can act on it uniformly.
+	if toolArg != "" && config.Settings != nil && len(config.Settings.WorkspacePaths) > 0 {
+		effective := lastMatch
+		if effective == nil {
+			fallback := dsl.ActionAsk
+			if config.Settings != nil {
+				fallback = config.Settings.Fallback
+			}
+			effective = &Result{
+				Action:  fallback,
+				Message: "no matching rule (fallback)",
+				Context: []string{toolName},
+			}
+		}
+		lastMatch = applyScopeToToolCall(toolName, toolArg, lastMatchRule, config, effective)
 	}
 
 	if lastMatch != nil {
@@ -132,10 +152,12 @@ func applyScopeToToolCall(toolName, toolArg string, rule *dsl.Rule, config *dsl.
 		}
 	}
 
-	// Legacy escalation.
-	if scope == ScopeOutside && baseResult.Action == dsl.ActionAllow {
+	// Legacy escalation. Use step-comparison (from scope-violation-deny) so
+	// warn/hint and `fallback: allow` are treated as escalation candidates,
+	// and honor settings.scope_violation for the target action (ask/deny).
+	if scope == ScopeOutside && restrictionLevel(baseResult.Action) < restrictionLevel(dsl.ActionAsk) {
 		return &Result{
-			Action:  dsl.ActionAsk,
+			Action:  scopeViolationAction(config),
 			Message: "workspace scope: accessing path outside workspace",
 			Context: []string{toolName, toolArg},
 		}

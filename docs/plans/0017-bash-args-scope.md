@@ -75,6 +75,7 @@ func applyScopeToCommand(cmd *shell.Command, config *dsl.Config, baseResult *Res
 - 複数パス引数は全評価して最も制限的な結果を返す
 - 動的引数（`$VAR`）はパス抽出時にスキップ（`looksLikePath` で `$` 含むものを除外）
 - outside の扱い: 現在は ask エスカレーション。将来的に `scope_violation: deny` オプション対応可能
+  - **完了**: `scope_violation: ask|deny` として `speculative/scope-violation-deny` ブランチで実装済み（2026-07-05）。allow のみでなく allow/warn/hint および `fallback: allow` 経路も含めて段階比較（`restrictionLevel`）で降格する
 
 ### 例
 
