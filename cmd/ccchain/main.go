@@ -56,8 +56,15 @@ func main() {
 			os.Exit(0)
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				fmt.Fprintf(os.Stderr, "error: unknown flag: %s\n", args[i])
-				os.Exit(1)
+				// Unknown global flag before command → error.
+				// Once a command is set, unrecognized flags are subcommand-specific
+				// and pass through to the subcommand for its own parsing.
+				if command == "" {
+					fmt.Fprintf(os.Stderr, "error: unknown flag: %s\n", args[i])
+					os.Exit(1)
+				}
+				cmdArgs = append(cmdArgs, args[i])
+				continue
 			}
 			if command == "" {
 				command = args[i]
@@ -98,6 +105,8 @@ func main() {
 		runDetect()
 	case "test":
 		runTest(configPath, defaultAction, cmdArgs)
+	case "diff":
+		runDiff(defaultAction, cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
@@ -156,6 +165,7 @@ Commands:
   hook post        PostToolUse hook (reads tool JSON from stdin)
   eval "cmd"       Evaluate a command and output result as JSON
   test [file]      Evaluate a list of commands (file or stdin)
+  diff a b [file]  Compare two configs on a list of commands (CHANGED/same)
   suggest          Suggest rules for unmatched commands
   detect           Auto-detect project type and suggest rules
   generate-rules   Generate rules from built-in semantics table
