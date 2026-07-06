@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
-	"github.com/fruitriin/ccchain/internal/eval"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/eval"
 )
 
 func runEval(configPath string, defaultAction string, cmdArgs []string) {

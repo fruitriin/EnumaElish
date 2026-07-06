@@ -34,9 +34,9 @@ DSL パーサーの `parseKeyValue` はコロン直後の**1トークンしか**
 
 `{id}` は `crypto/rand` で生成される12文字の hex。毎回異なるため一時ファイル名の衝突を防ぐ。deny メッセージに `"find -print > /tmp/targets_{id}.txt"` と書くと、Claude が実際にそのファイル名を使って書き直す。
 
-### Go モジュールパスとリポジトリ名の不一致
+### Go モジュールパスとリポジトリ名の不一致 — 解消済み（2026-07-06）
 
-`go.mod` のモジュールパスは `github.com/fruitriin/ccchain` だがリポジトリ名は `EnumaElish`。`go install` が混乱する。将来的にリポジトリ名の変更 or リダイレクト設定が必要。
+module パスを `github.com/fruitriin/EnumaElish` に改名して解消した。ポイントは **`go install` が作るバイナリ名は module パスではなく main パッケージのディレクトリ名（`cmd/ccchain` の末尾）から決まる**こと。そのため「リポジトリ = EnumaElish / コマンド = ccchain / `go install github.com/fruitriin/EnumaElish/cmd/ccchain@vX.Y.Z` が動く」の三立が可能で、バイナリ名の改名（enuma-elish 等）は不要だった。バイナリ名からリポジトリを辿れるように `ccchain version` / `--help` に repoURL を表示する。
 
 ### Makefile タスクランナー
 

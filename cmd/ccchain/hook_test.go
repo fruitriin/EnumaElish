@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 var errLoadFailure = errors.New("simulated load failure")

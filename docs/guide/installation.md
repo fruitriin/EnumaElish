@@ -3,7 +3,7 @@
 ## go install
 
 ```bash
-go install github.com/fruitriin/ccchain/cmd/ccchain@latest
+go install github.com/fruitriin/EnumaElish/cmd/ccchain@latest
 ```
 
 ## Build from source

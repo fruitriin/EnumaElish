@@ -3,7 +3,7 @@ package eval
 import (
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 // VULN-02: Absolute path must not bypass deny rules

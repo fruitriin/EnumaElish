@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
-	"github.com/fruitriin/ccchain/internal/eval"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/eval"
 )
 
 // runTest evaluates a list of commands against a config and reports results.

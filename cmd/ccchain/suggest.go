@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
-	"github.com/fruitriin/ccchain/internal/eval"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/eval"
 )
 
 // safeCommands are commands that are generally safe to allow at top level.

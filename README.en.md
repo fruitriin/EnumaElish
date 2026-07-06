@@ -35,7 +35,7 @@ ccchain uses [`mvdan.cc/sh`](https://github.com/mvdan/sh) (the same parser behin
 ### 1. Install
 
 ```bash
-go install github.com/fruitriin/ccchain/cmd/ccchain@latest
+go install github.com/fruitriin/EnumaElish/cmd/ccchain@latest
 ```
 
 ### 2. Generate config

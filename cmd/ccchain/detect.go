@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fruitriin/ccchain/internal/semantics"
+	"github.com/fruitriin/EnumaElish/internal/semantics"
 )
 
 type projectType struct {

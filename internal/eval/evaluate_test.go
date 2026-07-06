@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 // helper to parse DSL config from string
