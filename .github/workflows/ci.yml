@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Go テスト
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: Go ビルド
+        run: go build ./cmd/ccchain
+      - name: 統合テスト
+        run: go test ./internal/eval/ -run TestIntegration -v
+      - name: フィクスチャテスト
+        run: go test ./internal/eval/ -run TestFixture -v
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ドキュメントビルド
+        run: npm run docs:build
