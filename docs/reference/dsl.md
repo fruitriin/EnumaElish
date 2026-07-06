@@ -240,52 +240,94 @@ Use strict mode when running unattended in high-security environments where
 silent fail-open is unacceptable. Pair it with the `ccchain check` command
 during CI to catch config errors before deployment.
 
-**Warning — self-DoS failure mode.** This section assumes the `PreToolUse`
-hook is registered to match every tool (or Read/Edit/Write **in addition to**
-Bash). If your registration only matches `"Bash"`, Read/Edit are not routed
-through ccchain and remain usable during a broken-config state — you can fix
-the file directly from Claude Code and only step 2 below applies. The steps
-below cover the harder case where the hook is wired to all tools.
+**Warning — self-DoS failure mode.** With `strict_config_error` enabled
+**and the hook wired to all tools** (or to Read/Edit/Write **in addition
+to** Bash), if you save a `.ccchain.conf` that fails to parse, **every**
+PreToolUse hook call exits 2 — including Read and Edit. Claude Code can no
+longer open the broken config to fix it.
 
-With `strict_config_error` enabled **and the hook wired to all tools**, if
-you save a `.ccchain.conf` that fails to parse, **every** PreToolUse hook
-call exits 2 — including Read and Edit. Claude Code can no longer open the
-broken config to fix it.
+**Bash-only escape hatch.** If your hook registration only matches
+`"Bash"`, Read/Edit are not routed through ccchain and remain usable during
+a broken-config state. In that case no external terminal is needed: fix the
+config file directly from Claude Code with the Edit tool, then verify with
+`ccchain check --config <path>` once Bash unblocks. The numbered recovery
+steps below are only needed for the harder all-tools case.
 
 **Prevention (recommended):** Run `ccchain check --config <path>` before
 saving any change to a config file. Wire it into CI on every commit that
 touches `.ccchain.conf`.
 
-Note: `check` requires `--config` to validate a specific file. A bare
-positional path (e.g. `ccchain check broken.conf`) is silently ignored and
-`check` falls back to the default search path (see the table at the top of
-[config.md](./config.md)), so it may report "config OK" while the file you
-meant to test is still broken.
+**Warning — `ccchain check` requires `--config`.** A bare positional path
+is **silently ignored**: `check` then validates the default search path
+(see the table at the top of [config.md](./config.md)) instead of your
+file, and may report `config OK` while the file you meant to test is still
+broken.
+
+```sh
+ccchain check broken.conf            # WRONG: positional path is ignored;
+                                     # validates the default search path and may print "config OK"
+ccchain check --config broken.conf   # CORRECT: validates broken.conf
+```
 
 **Recovery steps if you are already locked out:**
 
-1. In a shell outside Claude Code, `unset CCCHAIN_STRICT_CONFIG_ERROR` (or
-   set it to `false`) if strict mode came from the env var. Note that
-   unsetting the variable in a fresh shell does **not** propagate to an
+0. Diagnose where strict mode comes from — the env var, a config file, or
+   both. In a shell outside Claude Code:
+
+   ```sh
+   env | grep CCCHAIN_STRICT_CONFIG_ERROR
+   grep -l strict_config_error .ccchain.conf .ccchain.local.conf \
+     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/ccchain.conf" 2>/dev/null
+   ```
+
+   The first command tells you whether step 1 applies; the second lists the
+   config file(s) that set it (handled in step 2).
+1. If strict mode came from the env var: in a shell outside Claude Code,
+   `unset CCCHAIN_STRICT_CONFIG_ERROR` (or set it to `false`). Unsetting
+   the variable in a fresh shell does **not** propagate to an
    already-running Claude Code process — Unix environment variables are
    copied at `fork(2)` time and are not shared live between sibling
    processes. You must restart Claude Code (step 3) for the change to take
-   effect. If strict mode came from a loaded config file, skip to step 2.
+   effect — and the restart must happen from an environment where the
+   variable is actually unset: if your shell profile (`~/.zshrc`,
+   `~/.config/fish/config.fish`, ...) exports it, a restarted Claude Code
+   inherits it again. Remove the export from the profile first. If strict
+   mode came from a loaded config file only, skip to step 2.
 2. Open a normal terminal outside Claude Code (so ccchain's hook is not in
-   the way) and edit `.ccchain.conf` directly to fix the parse error — or
-   temporarily rename the broken file so it drops out of the search path.
+   the way) and edit the broken config file directly to fix the parse
+   error. (Under a Bash-only registration, editing from Claude Code works
+   too — see the escape hatch above.)
 
-   Warning: renaming the file away does not merely disable strict-mode — it
-   silently drops **all** your project-specific rules (deny/ask/scope:) and
-   falls back to ccchain's generic built-in semantics table, with no error
-   logged. Restore the original filename (and re-validate with
-   `ccchain check --config <path>`) immediately after fixing it — do not
-   leave it renamed.
+   As a **last resort**, you can temporarily rename the broken file so it
+   drops out of the search path. Two caveats:
+
+   - Renaming does **not** fall back to any generic built-in ruleset. The
+     search simply continues down the search-path table (see
+     [config.md](./config.md)): if a global config
+     (`$CLAUDE_CONFIG_DIR/ccchain.conf` or `~/.claude/ccchain.conf`)
+     exists, its rules **silently take over** — a global `fallback: deny`
+     will then deny even `echo hi`, while a permissive global config
+     silently drops all your project-specific deny/ask/scope: rules with no
+     error logged. If no config file remains anywhere, evaluation runs with
+     no rules at all and every command falls back to the built-in default
+     `fallback: ask`. Renaming is therefore only reasonable when the hook
+     uses the default search path **and** you either have no global config
+     or know exactly what it contains. Restore the original filename (and
+     re-validate with `ccchain check --config <path>`) immediately after
+     fixing it — do not leave it renamed.
+   - If the hook is registered with an explicit `--config <path>` (e.g.
+     `ccchain hook pre --config /path/to/rules.conf`), renaming recovers
+     nothing: the load keeps failing, now with "file not found", and with
+     strict mode still active via the env var the hook keeps denying. (If
+     strict mode came from that config file itself, renaming instead drops
+     you into fail-open with **no rules at all**.) In the `--config` case,
+     fixing the file's content in place is the only recovery.
 3. Restart Claude Code if you changed the env var in step 1 (a restart is
-   the only way to pick up the new environment). If you only fixed the
-   config file in step 2, no restart is needed — `dsl.LoadConfig` runs on
-   every hook invocation, so the next tool call reloads the corrected
-   config automatically and the workspace unblocks.
+   the only way to pick up the new environment — see the shell-profile
+   caveat there). If you only fixed the config file in step 2, no restart
+   is needed — `dsl.LoadConfig` runs on every hook invocation, so the next
+   tool call reloads the corrected config automatically and the workspace
+   unblocks.
 
 ## Multiple Commands Per Rule
 
