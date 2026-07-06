@@ -229,19 +229,88 @@ settings:
 fail-open が許容できない unattended 運用・高セキュリティ環境で使用してください。
 デプロイ前の CI で `ccchain check` と組み合わせると効果的です。
 
-**⚠️ 復旧手順（self-DoS への注意）:** strict モードが有効で、かつ設定ファイルが
-壊れている状態では、**すべての** PreToolUse フック呼び出しが exit 2 になります。
-Bash だけでなく Read/Edit/Write も塞がれるため、Claude 単体では壊れた設定を
-直せなくなります。復旧には Claude Code の外側からのシェル操作が必要です。
+**警告 — self-DoS 障害モード。** `strict_config_error` が有効で、**かつ hook が
+全ツール（または Bash に加えて Read/Edit/Write）にマッチする登録**になっている
+場合、パースに失敗する `.ccchain.conf` を保存すると **すべての** PreToolUse
+フック呼び出しが exit 2 になります。Read や Edit も塞がれるため、Claude Code
+から壊れた設定ファイルを開いて直すことができなくなります。
 
-1. 事前予防を最優先: strict モード有効化前に `ccchain check` を実行し、
-   設定変更時は CI でも `ccchain check` を回す。
-2. ロックアウトされた場合の復旧手段:
-   - `CCCHAIN_STRICT_CONFIG_ERROR` で有効化していた場合: シェルで `unset` するか、
-     この環境変数を外して Claude Code を再起動する。
-   - 設定ファイルで有効化していた場合: 通常のターミナル（ccchain フックを
-     経由しない）で壊れた設定ファイルを直接編集するか、壊れたファイルを
-     一時的にリネームして探索パスの stat で見つからない状態にする。
+**Bash-only の脱出ハッチ。** hook の登録（matcher）が `"Bash"` のみの場合、
+Read/Edit は ccchain を経由しないため、設定が壊れた状態でもそのまま使えます。
+この場合、外部ターミナルは**不要**です — Claude Code の Edit ツールで設定
+ファイルを直接修正し、Bash が通るようになったら `ccchain check --config <path>`
+で検証してください。下の番号付き復旧手順が必要になるのは、hook が全ツールに
+配線されている難しいケースだけです。
+
+**予防（推奨）:** 設定ファイルを変更して保存する前に必ず
+`ccchain check --config <path>` を実行してください。`.ccchain.conf` に触れる
+コミットには CI でも同コマンドを回すこと。
+
+**警告 — `ccchain check` には `--config` が必須。** 位置引数で渡したパスは
+**黙って無視**されます。その場合 `check` はデフォルト探索パス
+（[config.md](./config.md) 冒頭の表を参照）の方を検証してしまい、テストしたい
+ファイルが壊れたままでも `config OK` と報告することがあります。
+
+```sh
+ccchain check broken.conf            # 誤り: 位置引数は無視される。
+                                     # デフォルト探索パスを検証し「config OK」が出うる
+ccchain check --config broken.conf   # 正しい: broken.conf を検証する
+```
+
+**すでにロックアウトされた場合の復旧手順:**
+
+0. strict モードの由来（環境変数か、設定ファイルか、その両方か）を診断する。
+   Claude Code の外のシェルで:
+
+   ```sh
+   env | grep CCCHAIN_STRICT_CONFIG_ERROR
+   grep -l strict_config_error .ccchain.conf .ccchain.local.conf \
+     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/ccchain.conf" 2>/dev/null
+   ```
+
+   1つ目のコマンドで手順 1 が必要かどうかが分かり、2つ目で
+   `strict_config_error` を設定しているファイル（手順 2 の対象）が分かります。
+1. 環境変数由来の場合: Claude Code の外のシェルで
+   `unset CCCHAIN_STRICT_CONFIG_ERROR`（または `false` を設定）する。新しい
+   シェルで unset しても、起動済みの Claude Code プロセスには伝播しません —
+   Unix の環境変数は `fork(2)` 時にコピーされ、兄弟プロセス間でライブ共有され
+   ないためです。変更を反映するには Claude Code の再起動（手順 3）が必要です。
+   さらに、再起動は**変数が実際に unset された環境から**行うこと: シェル
+   プロファイル（`~/.zshrc` や `~/.config/fish/config.fish` 等）で export
+   している場合、再起動後の Claude Code も変数を引き継ぎます。先に
+   プロファイルから export を外してください。strict モードが設定ファイル
+   由来のみの場合は手順 2 へ。
+2. Claude Code の外の通常のターミナル（ccchain フックを経由しない）を開き、
+   壊れた設定ファイルを直接編集してパースエラーを修正する（Bash-only 登録の
+   場合は Claude Code から編集してもよい — 上記の脱出ハッチ参照）。
+
+   **最終手段として**、壊れたファイルを一時的にリネームして探索パスから外す
+   こともできますが、以下の 2 点に注意:
+
+   - リネームしても汎用の組み込みルールセットにフォールバックする訳では
+     **ありません**。探索は探索パスの表（[config.md](./config.md) 参照）の
+     続きに進むだけで、グローバル設定（`$CLAUDE_CONFIG_DIR/ccchain.conf`
+     または `~/.claude/ccchain.conf`）が存在すれば、そのルールに**黙って
+     切り替わり**ます — グローバル側に `fallback: deny` があれば `echo hi`
+     すら deny になり、逆に緩いグローバル設定ならプロジェクト固有の
+     deny/ask/scope: ルールがエラーログもなしに全て消えます。どこにも設定
+     ファイルが残っていなければ、ルールゼロで評価され、全コマンドが組み込み
+     デフォルトの `fallback: ask` に落ちます。したがってリネームが妥当なのは、
+     hook がデフォルト探索パスで起動されていて、**かつ**グローバル設定が
+     無いか内容を正確に把握している場合だけです。修正が終わったら直ちに元の
+     ファイル名に戻し、`ccchain check --config <path>` で再検証してください —
+     リネームしたまま放置しないこと。
+   - hook が明示的な `--config <path>`（例: `ccchain hook pre --config
+     /path/to/rules.conf`）で登録されている場合、リネームは復旧になりません:
+     ロードは "file not found" という別のエラーで失敗し続け、strict モードが
+     環境変数由来なら deny も継続します（strict がそのファイル自身由来なら、
+     今度はルールゼロの fail-open に黙って落ちます）。`--config` 起動時は、
+     その場でファイル内容を直すことが唯一の復旧手段です。
+3. 手順 1 で環境変数を変更した場合は Claude Code を再起動する（新しい環境を
+   反映する唯一の方法。手順 1 のプロファイルの注意も参照）。手順 2 でファイル
+   を直しただけなら再起動は不要 — `dsl.LoadConfig` はフック呼び出しごとに
+   実行されるため、次のツール呼び出しで修正済み設定が自動的に再ロードされ、
+   ワークスペースのブロックが解除されます。
 
 ## 複数コマンドの一行記法
 
