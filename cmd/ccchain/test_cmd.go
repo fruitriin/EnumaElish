@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/fruitriin/ccchain/internal/dsl"
 	"github.com/fruitriin/ccchain/internal/eval"
@@ -13,10 +15,11 @@ import (
 // runTest evaluates a list of commands against a config and reports results.
 //
 // Usage:
-//   ccchain test                                  # stdin commands, default config search
-//   ccchain test commands.txt                     # file commands, default config search
-//   ccchain test --config rules.conf commands.txt # file commands, explicit config
-//   cat commands.txt | ccchain test --config rules.conf  # stdin + explicit config
+//
+//	ccchain test                                  # stdin commands, default config search
+//	ccchain test commands.txt                     # file commands, default config search
+//	ccchain test --config rules.conf commands.txt # file commands, explicit config
+//	cat commands.txt | ccchain test --config rules.conf  # stdin + explicit config
 func runTest(configPath string, defaultAction string, cmdArgs []string) {
 	cfg, err := dsl.LoadConfig(configPath)
 	if err != nil {
@@ -105,9 +108,15 @@ func loadCommandsFromFile(path string) ([]string, error) {
 	return loadCommandsFromReader(f)
 }
 
-func loadCommandsFromReader(r *os.File) ([]string, error) {
+// maxCommandLineBytes bounds a single line in a commands file. bufio.Scanner's
+// default cap is 64KB and a longer line aborts the whole scan; 1MB is generous
+// for a single shell command while still bounding memory.
+const maxCommandLineBytes = 1024 * 1024
+
+func loadCommandsFromReader(r io.Reader) ([]string, error) {
 	var cmds []string
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxCommandLineBytes)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -118,9 +127,18 @@ func loadCommandsFromReader(r *os.File) ([]string, error) {
 	return cmds, scanner.Err()
 }
 
+// truncateStr shortens s to roughly n bytes (plus "..."), never splitting a
+// UTF-8 rune in the middle so truncated output stays valid UTF-8.
 func truncateStr(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n-3] + "..."
+	cut := n - 3
+	if cut < 0 {
+		cut = 0
+	}
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "..."
 }
