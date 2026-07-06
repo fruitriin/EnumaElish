@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fruitriin/ccchain/internal/audit"
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/audit"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 func runAudit(configPath string) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 func TestClassifyPathInside(t *testing.T) {

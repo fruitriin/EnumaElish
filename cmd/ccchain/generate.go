@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/fruitriin/ccchain/internal/semantics"
+	"github.com/fruitriin/EnumaElish/internal/semantics"
 )
 
 func runGenerateRules() {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 // loadCommandFixture loads commands from a fixture file (one per line, # comments).

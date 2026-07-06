@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 // Integration test: evaluates a large set of real-world commands against the default ruleset.
@@ -323,7 +323,7 @@ func TestIntegrationRealWorldLogs(t *testing.T) {
 		{"go test", "go test ./...", dsl.ActionDeny},
 		{"go vet", "go vet ./...", dsl.ActionDeny},
 		{"go build", "go build -o ccchain ./cmd/ccchain", dsl.ActionDeny},
-		{"go mod init", "go mod init github.com/fruitriin/ccchain", dsl.ActionDeny},
+		{"go mod init", "go mod init github.com/fruitriin/EnumaElish", dsl.ActionDeny},
 		{"go get", "go get mvdan.cc/sh/v3@latest", dsl.ActionDeny},
 		{"go version", "go version", dsl.ActionDeny},
 		{"npm init", "npm init -y", dsl.ActionDeny},

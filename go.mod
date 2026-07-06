@@ -1,4 +1,4 @@
-module github.com/fruitriin/ccchain
+module github.com/fruitriin/EnumaElish
 
 go 1.25.0
 

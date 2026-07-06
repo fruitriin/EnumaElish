@@ -7,7 +7,7 @@ import (
 
 const defaultConfig = `# === ccchain Default Rules ===
 # Claude Code Chain: structural permission control
-# https://github.com/fruitriin/ccchain
+# https://github.com/fruitriin/EnumaElish
 
 settings:
   max_context_depth: 2

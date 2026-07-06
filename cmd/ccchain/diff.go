@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
-	"github.com/fruitriin/ccchain/internal/eval"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/eval"
 )
 
 // runDiff compares two config files by evaluating a list of commands against both

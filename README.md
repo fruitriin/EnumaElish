@@ -35,7 +35,7 @@ ccchain は [`mvdan.cc/sh`](https://github.com/mvdan/sh)（shfmt と同じパー
 ### 1. インストール
 
 ```bash
-go install github.com/fruitriin/ccchain/cmd/ccchain@latest
+go install github.com/fruitriin/EnumaElish/cmd/ccchain@latest
 ```
 
 ### 2. 設定ファイルを生成

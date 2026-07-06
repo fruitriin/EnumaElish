@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
-	"github.com/fruitriin/ccchain/internal/semantics"
-	"github.com/fruitriin/ccchain/internal/shell"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/semantics"
+	"github.com/fruitriin/EnumaElish/internal/shell"
 )
 
 // Result represents the evaluation result for a command.

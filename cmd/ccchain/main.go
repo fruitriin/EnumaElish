@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fruitriin/ccchain/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/dsl"
 )
 
 var version = "dev"
+
+// repoURL はバイナリ名（ccchain）からリポジトリ（EnumaElish）を辿れるようにする出自表記。
+const repoURL = "https://github.com/fruitriin/EnumaElish"
 
 // flagPassthroughCommands lists subcommands that run their own flag parser.
 // Only these receive unknown flags via cmdArgs. For every other command an
@@ -101,7 +104,7 @@ func main() {
 	}
 
 	if c.showVersion {
-		fmt.Printf("ccchain %s\n", version)
+		fmt.Printf("ccchain %s — Claude Code Chain (%s)\n", version, repoURL)
 		os.Exit(0)
 	}
 	if c.showHelp {
@@ -149,7 +152,7 @@ func main() {
 	case "diff":
 		runDiff(c.defaultAction, c.cmdArgs)
 	case "version":
-		fmt.Printf("ccchain %s\n", version)
+		fmt.Printf("ccchain %s — Claude Code Chain (%s)\n", version, repoURL)
 	case "":
 		printUsage()
 	default:
@@ -196,6 +199,7 @@ func runCheck(configPath string, verbose, quiet bool) {
 
 func printUsage() {
 	fmt.Println(`ccchain - Claude Code Chain: structural permission control
+https://github.com/fruitriin/EnumaElish
 
 Usage:
   ccchain <command> [flags]
