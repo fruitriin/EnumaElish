@@ -111,6 +111,12 @@
 **次の自分へ**: PR #11 マージ後は worktree `../EnumaElish-spec-eval-diff-subcommand` とローカルブランチの掃除、Worktrees.md「昇格済み」更新、Plan 0019 の該当項目（diff サブコマンド）に完了マークを忘れずに。skeptic 指摘の恒久対策「eval/test/suggest 共通のサブコマンド専用フラグ検証ヘルパー」と「ccchain check の positional 引数受理（3ペルソナ指摘）」は新 Plan 起票候補としてオーナーに提示済み。
 **気になっていること**: レビューエージェントの1体が「ツール出力に出所不明の指示文らしきテキストが混入していた（無視した）」と報告。実害はなくエージェントの対応も適切だったが、サブエージェント環境に注入面がないかは頭の片隅に置いておく。
 
+##### 2026-07-06 — PR #11〜#14 全マージ、リリース整備完了
+**やったこと**: オーナー承認を受けて PR #11（ccchain diff）・#12（CI）・#13（CHANGELOG）・#14（module パス改名 + version/--help 出自表記）を全て squash マージ。ネーミング問題は「go install のバイナリ名は cmd/ccchain のディレクトリ名由来」の性質で三立解（リポジトリ=EnumaElish / コマンド=ccchain / go install 可）に到達し、オーナーが即決。worktree・ブランチは全て掃除済み、main で全テスト通過。
+**今の見立て**: リリース整備は完了状態。v0.1.0 タグはいつでも打てるが、本線は Plan 0022 Phase 0〜2（hook I/O 現代化 + ask_strategy）を入れてから。addf-release.exp.md に手順一式が記録済み。
+**次の自分へ**: 次の着手候補は TODO 最優先の Plan 0022。着手時は Phase 0（WebFetch での仕様再裏取り）が必須ゲート。Plan 0019 の残り（REPL / stats）と、レビュー由来の新 Plan 候補2件（サブコマンド共通フラグ検証ヘルパー / check の positional 受理）も未起票のまま残っている。
+**気になっていること**: なし。
+
 ### 前のタスク: `/loop 1h /addf-speculate` 投機サイクル1周（2026-07-04〜05）
 
 （サイクル完了。以下は日記のみを残しアーカイブせず、次サイクルで再度上書きされる想定）
