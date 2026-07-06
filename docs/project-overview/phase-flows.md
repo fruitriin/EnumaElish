@@ -55,7 +55,7 @@
 - 1.5: モード確認（responsiveness = interactive なら開始前にオーナーへ一言確認）
 - 1.7: 再構築と掃除（speculate-reconcile.py で Worktrees.md と git 実体を突合。復元・掃除候補検出）
 - 2: 投機対象の選定（計画済み残課題 > Questions.md 最有力解釈 > 常設リクエスト。オーナー指示待ちは選定禁止）
-- 3: worktree の起動（speculative/<concept> + `.claude/.` 複製 + venv/node_modules 除去）
+- 3: worktree の起動（`speculative/<concept>` + `.claude/.` 複製 + venv/node_modules 除去）
 - 4: 実装と Stage 1（worktree 内。失敗は深追いせず打ち切り）
 - 5: Worktrees.md への記録（状態: 開発中/テスト通過/テスト失敗/衝突/統合済み/放棄/昇格済み/上限で待機/要再検証）
 - 6: integration 統合（speculate-integrate.py で integration/loop-<日付> に squash 統合。conflicted は feature 側で解消 or 外す）
@@ -90,12 +90,12 @@
 
 > ADDF フレームワークを最新版にアップグレードする。
 
-- Phase 1: 状態確認（lock の ref 読込。旧形式 commit は v<version> タグに読み替え。git clean・URL 検証。lock 不在＋ADDF ファイル検出 → 部分導入正規化を提案）
+- Phase 1: 状態確認（lock の ref 読込。旧形式 commit は `v<version>` タグに読み替え。git clean・URL 検証。lock 不在＋ADDF ファイル検出 → 部分導入正規化を提案）
 - Phase 2: 最新版フェッチ（ADDF リポジトリクローン）
 - Phase 3: 差分算出（対象: addf- 系・.claude 配下・guides・knowhow/ADDF / 対象外: Progress・Feedback・.exp.md・CLAUDE.repo.md 等。旧配布 *.addf.md 残留の検出）
 - Phase 4: 変更プレビュー（カテゴリ別 + CHANGELOG 表示 → 確認）
 - Phase 5: 適用（settings.json ユニオンマージ、addf- ファイル上書き、CLAUDE.md はテンプレート部分のみ、.exp.md リネーム案内、optional/ 変更時は sync-optional-skills.py apply）
-- Phase 6: 完了（lock 更新（ref = v<new-version>）、tmp 削除、サマリ報告）
+- Phase 6: 完了（lock 更新（ref = `v<new-version>`）、tmp 削除、サマリ報告）
 
 ---
 

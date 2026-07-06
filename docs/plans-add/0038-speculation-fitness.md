@@ -54,7 +54,7 @@
 - **検出**: addf-speculate の発動ガード（アイドル検出）に「reconcile check の在庫ゼロ ∧
   TODO に one-shot マーカー付き未着手 Plan が存在」の判定を追加する
 - **選択を迫る**: 検出したら次の投機を始める前にオーナーへ提示する:
-  - interactive: AskUserQuestion「今が窓です。<Plan 名> を実施しますか / 投機を続けますか」
+  - interactive: AskUserQuestion「今が窓です。`<Plan 名>` を実施しますか / 投機を続けますか」
   - relaxed / unattended: Questions.md に質問を置く。**このとき窓を保つため、応答待ちの間は
     新規投機を開始しない**（投機を再開すると窓が閉じ、次の窓がいつ来るか分からなくなる）
   - 応答待ちのまま N サイクル（既定: 3）経過したら、窓の保持を諦めて投機を再開してよい

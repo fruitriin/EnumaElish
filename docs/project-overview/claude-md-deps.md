@@ -72,7 +72,7 @@ Plan の曖昧さに遭遇したら「この方向で進めて Plan の意図と
 | C: 完成イメージ確度 image_clarity | specific(-1段) / balanced(±0・デフォルト) / vague(+1段) | 閾値を補正 |
 
 - モードは Plan フロントマターまたは `/addf-mode` で宣言（保存先は CLAUDE.local.md）
-- worktree 隔離下は閾値を1段下げてよい。checkpoint/<phase>-<N> ブランチ・alt/ 分岐を許可
+- worktree 隔離下は閾値を1段下げてよい。`checkpoint/<phase>-<N>` ブランチ・alt/ 分岐を許可
 - unattended の情報伝達は `dashboard_report`（Dashboard.md 提示）/ `uncertainty_notify`（外部通知）の2フラグで制御
 
 ## CLAUDE.md が参照する外部ファイル依存グラフ
