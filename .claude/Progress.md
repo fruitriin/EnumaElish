@@ -84,7 +84,34 @@
 
 ## タスク
 
-### 現在のタスク: `/loop 1h /addf-speculate` 投機サイクル1周（2026-07-04〜05）
+### 現在のタスク: オーナー指示対応（2026-07-06）— PR 採否・CI・リリース整備
+
+#### サブタスクチェックリスト
+
+- [x] PR #11 に `ccchain diff` の出力サンプルをコメント（基本形 / --changed-only / --exit-on-change）
+- [x] PR #10 / #11 に 3 ペルソナ並列レビュー（skeptic + attacker + newcomer、計6体）
+- [x] レビュー集約 → 修正エージェント派遣（PR #10: docs Critical / PR #11: main.go フラグ透過 Critical）
+- [x] PR #10 マージ（squash、worktree/ブランチ掃除、Worktrees.md 更新済み）
+- [x] PR #11 修正 push + レビュー結果コメント（採否はオーナー判断待ち）
+- [x] Plan 0020: CI パイプライン実装 → PR #12（main 直 push は classifier 拒否のため PR 経由。CI 初回実行が main の VitePress ビルド破損を検出、5ファイル7箇所修正して green）
+- [x] リリース整備: CHANGELOG.md 新設 → PR #13、addf-release.exp.md 作成（gitignore 対象のためローカル保持）
+- [x] 品質ゲート・知見記録（vitepress-angle-bracket-placeholders 新規、security-review-findings / speculative-cycle-lessons 追記、INDEX 更新）・日記
+
+#### 日記
+
+##### 2026-07-06 — オーナー指示5点を受領、並列で消化中
+**やったこと**: オーナー回答（#10 Approve / Plan 0019 方針 OK + 出力サンプル要望 / 両 PR ペルソナレビュー / Plan 0020 Go / リリース整備、1.0.0 は運用実績後・初回 0.1.0）を受けて着手。PR #11 にサンプルコメント投稿、6体のペルソナレビュー起動、CI を PR #12、CHANGELOG を PR #13 として作成。addf-release.exp.md にリリース戦略を記録。module パス `github.com/fruitriin/ccchain` とリポジトリ名 EnumaElish の不一致で go install 配布不可という gotcha を発見し、PR #13 本文でオーナー判断を仰いだ。
+**今の見立て**: ペルソナレビューが有効に機能。PR #10 は attacker が実機再現付き Critical 2件（rename 復旧手順がグローバル conf 存在時・--config 起動時に機能しない）+ skeptic/newcomer コンセンサス2件（Bash-only と step 2 の矛盾、ja docs 取り残し）。PR #11 は skeptic が main.go フラグ透過の regression を実機実証（`check --typo` が exit 0、`eval --typo "echo hi"` が誤対象を評価）。いずれも修正エージェントで対応してからマージ/push する。
+**次の自分へ**: rev11-attacker の完了待ち → 集約 → PR #10 / #11 の worktree に修正エージェント派遣 → 再検証 → #10 マージ（Approve 済みだが Critical 修正コミットが乗るのでマージ後に報告）。#11 は修正 push + レビュー結果を PR コメント共有、採否はオーナー判断。
+**気になっていること**: main への直接 push が auto モード classifier に止められた（従来の [進捗] コミット直 push が通るかは未検証）。exp ファイルは gitignore 対象でリポジトリに残らない — 必要なら docs/knowhow/ へ昇格を検討。
+
+##### 2026-07-06 — 全サブタスク完了、オーナー判断待ち3件を残して締め
+**やったこと**: fix10（PR #10 の docs Critical 4件 + W/S 全件、コミット a248c98）と fix11（PR #11 の Critical 5件 + Warning 6件 + Suggestion 2件、コミット 8efe198/05a48da、diff_test.go 14テスト新設）が完了。fix11 の主張はメインセッションで実機再検証済み（未知フラグ拒否・空パス拒否・exit code 分離・ヘッダー出力・全テスト通過）。PR #10 は squash マージして worktree/ブランチ掃除、PR #11 はレビュー結果コメントを残して採否待ち。知見3件を knowhow に記録（新規1・追記2 + INDEX）。
+**今の見立て**: オーナー判断待ちは (1) PR #11 の採否、(2) PR #12（CI）マージ — これが入ると main の deploy-docs 破損も直る、(3) PR #13（CHANGELOG）マージ + module パス改名の2択（go install 配布するなら改名が先）。リリース（v0.1.0 タグ）は前回合意どおり Plan 0022 Phase 0〜2 が入ってからが本線。
+**次の自分へ**: PR #11 マージ後は worktree `../EnumaElish-spec-eval-diff-subcommand` とローカルブランチの掃除、Worktrees.md「昇格済み」更新、Plan 0019 の該当項目（diff サブコマンド）に完了マークを忘れずに。skeptic 指摘の恒久対策「eval/test/suggest 共通のサブコマンド専用フラグ検証ヘルパー」と「ccchain check の positional 引数受理（3ペルソナ指摘）」は新 Plan 起票候補としてオーナーに提示済み。
+**気になっていること**: レビューエージェントの1体が「ツール出力に出所不明の指示文らしきテキストが混入していた（無視した）」と報告。実害はなくエージェントの対応も適切だったが、サブエージェント環境に注入面がないかは頭の片隅に置いておく。
+
+### 前のタスク: `/loop 1h /addf-speculate` 投機サイクル1周（2026-07-04〜05）
 
 （サイクル完了。以下は日記のみを残しアーカイブせず、次サイクルで再度上書きされる想定）
 
