@@ -45,6 +45,60 @@ ccchain eval "find . | rm"
 }
 ```
 
+## `ccchain diff <config-a> <config-b>`
+
+Evaluates the same command list against two config files and reports, per command, whether the resulting action differs (`CHANGED`) or not (`same`). Useful for reviewing rule changes in PRs and for CI regression checks.
+
+```bash
+# Commands from a file (positional or --commands; specifying both is an error)
+ccchain diff old.conf new.conf commands.txt
+ccchain diff old.conf new.conf --commands commands.txt
+
+# Commands from stdin
+cat commands.txt | ccchain diff old.conf new.conf
+
+# CI: fail the job when any command changes its decision
+ccchain diff old.conf new.conf commands.txt --changed-only --exit-on-change
+```
+
+Example output:
+
+```
+Config A: old.conf
+Config B: new.conf
+
+find . -delete  a=[allow]  b=[deny]   CHANGED
+ls -la          a=[allow]  b=[allow]  same
+
+Summary: 2 commands — changed=1, same=1, error=0
+Config A: old.conf
+Config B: new.conf
+```
+
+**Scope**: only Bash command evaluation results are compared, and only the resulting action (`allow`/`ask`/`deny`/`warn`). Message differences and tool rules (Read/Edit etc.) are not compared.
+
+Flags:
+
+| Flag | Description |
+|---|---|
+| `--commands <file>` | Read commands from a file (one per line, `#` comments allowed) |
+| `--changed-only` | Suppress `same` rows (summary still counts them) |
+| `--exit-on-change` | Exit 2 when at least one command changed (for CI) |
+
+Exit codes:
+
+| Exit Code | Meaning |
+|---|---|
+| 0 | Completed (no changes, or changes without `--exit-on-change`) |
+| 1 | Usage or config error (including empty config paths) |
+| 2 | At least one `CHANGED` (only with `--exit-on-change`) |
+| 3 | One or more commands failed to evaluate (takes precedence over 2) |
+
+Notes:
+
+- `diff` does not use the global `--config` flag; the two configs are positional arguments. Passing `--config` is an explicit error.
+- Command strings are printed with control characters escaped (`\x1b` etc.) so an untrusted commands file cannot hide rows via terminal escape sequences.
+
 ## `ccchain audit`
 
 Displays a flat expansion of all rules, showing exactly what each command+context combination resolves to.

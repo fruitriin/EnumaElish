@@ -9,101 +9,151 @@ import (
 
 var version = "dev"
 
-func main() {
-	args := os.Args[1:]
+// flagPassthroughCommands lists subcommands that run their own flag parser.
+// Only these receive unknown flags via cmdArgs. For every other command an
+// unknown flag is a hard error, so typos like `hook pre --defualt-action deny`
+// fail loudly instead of being silently ignored (a mistyped security flag
+// must never degrade into a false safety signal).
+var flagPassthroughCommands = map[string]bool{
+	"diff": true,
+}
 
-	var verbose, quiet bool
-	var configPath string
-	var defaultAction string
-	var command string
-	var cmdArgs []string
+// cliArgs holds the parsed global CLI state.
+type cliArgs struct {
+	verbose       bool
+	quiet         bool
+	configPath    string
+	defaultAction string
+	command       string
+	cmdArgs       []string
+	showVersion   bool
+	showHelp      bool
+}
 
-	// Parse all flags (before and after command)
+// parseCLIArgs parses global flags and the subcommand from args.
+// --help / --version short-circuit parsing immediately (preserving the
+// historical "help wins" behavior even if later args are malformed).
+func parseCLIArgs(args []string) (*cliArgs, error) {
+	c := &cliArgs{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--verbose", "-v":
-			verbose = true
+			c.verbose = true
 		case "--quiet", "-q":
-			quiet = true
+			c.quiet = true
 		case "--config":
-			if i+1 < len(args) {
-				i++
-				configPath = args[i]
-			} else {
-				fmt.Fprintln(os.Stderr, "error: --config requires a path argument")
-				os.Exit(1)
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("--config requires a path argument")
 			}
+			i++
+			c.configPath = args[i]
 		case "--default-action":
-			if i+1 < len(args) {
-				i++
-				defaultAction = args[i]
-				switch dsl.Action(defaultAction) {
-				case dsl.ActionAllow, dsl.ActionDeny, dsl.ActionAsk:
-					// valid
-				default:
-					fmt.Fprintf(os.Stderr, "error: invalid default action: %q (must be allow, deny, or ask)\n", defaultAction)
-					os.Exit(1)
-				}
-			} else {
-				fmt.Fprintln(os.Stderr, "error: --default-action requires an action (allow, deny, ask)")
-				os.Exit(1)
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("--default-action requires an action (allow, deny, ask)")
+			}
+			i++
+			c.defaultAction = args[i]
+			switch dsl.Action(c.defaultAction) {
+			case dsl.ActionAllow, dsl.ActionDeny, dsl.ActionAsk:
+				// valid
+			default:
+				return nil, fmt.Errorf("invalid default action: %q (must be allow, deny, or ask)", c.defaultAction)
 			}
 		case "--version":
-			fmt.Printf("ccchain %s\n", version)
-			os.Exit(0)
+			c.showVersion = true
+			return c, nil
 		case "--help", "-h":
-			printUsage()
-			os.Exit(0)
+			c.showHelp = true
+			return c, nil
 		default:
 			if len(args[i]) > 0 && args[i][0] == '-' {
-				fmt.Fprintf(os.Stderr, "error: unknown flag: %s\n", args[i])
-				os.Exit(1)
+				// Unknown flags pass through only to whitelisted subcommands
+				// that parse their own flags; everything else errors.
+				if c.command != "" && flagPassthroughCommands[c.command] {
+					c.cmdArgs = append(c.cmdArgs, args[i])
+					continue
+				}
+				return nil, fmt.Errorf("unknown flag: %s", args[i])
 			}
-			if command == "" {
-				command = args[i]
+			if c.command == "" {
+				c.command = args[i]
 			} else {
-				cmdArgs = append(cmdArgs, args[i])
+				c.cmdArgs = append(c.cmdArgs, args[i])
 			}
 		}
 	}
 
-	switch command {
+	// diff takes its two configs as positional arguments; a global --config
+	// would be silently swallowed and lead to confusing "missing positional"
+	// behavior, so reject it explicitly.
+	if c.command == "diff" && c.configPath != "" {
+		return nil, fmt.Errorf("diff does not use --config; pass the two config files as positional arguments: ccchain diff <config-a> <config-b>")
+	}
+
+	return c, nil
+}
+
+func main() {
+	c, err := parseCLIArgs(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if c.showVersion {
+		fmt.Printf("ccchain %s\n", version)
+		os.Exit(0)
+	}
+	if c.showHelp {
+		// After a subcommand, --help shows the subcommand-specific usage
+		// (currently only diff has one).
+		if c.command == "diff" {
+			printDiffUsage()
+		} else {
+			printUsage()
+		}
+		os.Exit(0)
+	}
+
+	switch c.command {
 	case "check":
-		runCheck(configPath, verbose, quiet)
+		runCheck(c.configPath, c.verbose, c.quiet)
 	case "hook":
-		if len(cmdArgs) == 0 {
+		if len(c.cmdArgs) == 0 {
 			fmt.Fprintln(os.Stderr, "error: ccchain hook requires 'pre' or 'post'")
 			os.Exit(1)
 		}
-		switch cmdArgs[0] {
+		switch c.cmdArgs[0] {
 		case "pre":
-			runHookPre(configPath, defaultAction)
+			runHookPre(c.configPath, c.defaultAction)
 		case "post":
-			runHookPost(configPath)
+			runHookPost(c.configPath)
 		default:
-			fmt.Fprintf(os.Stderr, "error: unknown hook type: %s\n", cmdArgs[0])
+			fmt.Fprintf(os.Stderr, "error: unknown hook type: %s\n", c.cmdArgs[0])
 			os.Exit(1)
 		}
 	case "eval":
-		runEval(configPath, defaultAction, cmdArgs)
+		runEval(c.configPath, c.defaultAction, c.cmdArgs)
 	case "audit":
-		runAudit(configPath)
+		runAudit(c.configPath)
 	case "init":
 		runInit()
 	case "suggest":
-		runSuggest(configPath, cmdArgs)
+		runSuggest(c.configPath, c.cmdArgs)
 	case "generate-rules":
 		runGenerateRules()
 	case "detect":
 		runDetect()
 	case "test":
-		runTest(configPath, defaultAction, cmdArgs)
+		runTest(c.configPath, c.defaultAction, c.cmdArgs)
+	case "diff":
+		runDiff(c.defaultAction, c.cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s\n", version)
 	case "":
 		printUsage()
 	default:
-		fmt.Fprintf(os.Stderr, "error: unknown command: %s\n", command)
+		fmt.Fprintf(os.Stderr, "error: unknown command: %s\n", c.command)
 		fmt.Fprintln(os.Stderr, "run 'ccchain --help' for usage")
 		os.Exit(1)
 	}
@@ -156,6 +206,7 @@ Commands:
   hook post        PostToolUse hook (reads tool JSON from stdin)
   eval "cmd"       Evaluate a command and output result as JSON
   test [file]      Evaluate a list of commands (file or stdin)
+  diff a b [file]  Compare two configs on a list of commands (CHANGED/same)
   suggest          Suggest rules for unmatched commands
   detect           Auto-detect project type and suggest rules
   generate-rules   Generate rules from built-in semantics table

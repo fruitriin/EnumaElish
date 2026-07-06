@@ -56,6 +56,60 @@ ccchain eval "ls -la | head"
 }
 ```
 
+## `ccchain diff <config-a> <config-b>`
+
+2つの設定ファイルに対して同一のコマンドリストを評価し、コマンドごとに判定が変わるか（`CHANGED`）変わらないか（`same`）を報告します。ルール変更 PR のレビューや CI での回帰チェックに便利です。
+
+```bash
+# ファイルからコマンドを読む（positional または --commands。両方指定はエラー）
+ccchain diff old.conf new.conf commands.txt
+ccchain diff old.conf new.conf --commands commands.txt
+
+# stdin からコマンドを読む
+cat commands.txt | ccchain diff old.conf new.conf
+
+# CI: 判定が1つでも変わったらジョブを失敗させる
+ccchain diff old.conf new.conf commands.txt --changed-only --exit-on-change
+```
+
+出力例:
+
+```
+Config A: old.conf
+Config B: new.conf
+
+find . -delete  a=[allow]  b=[deny]   CHANGED
+ls -la          a=[allow]  b=[allow]  same
+
+Summary: 2 commands — changed=1, same=1, error=0
+Config A: old.conf
+Config B: new.conf
+```
+
+**比較対象**: Bash コマンドの評価結果のみを比較し、判定アクション（`allow`/`ask`/`deny`/`warn`）だけを見ます。メッセージの差分や、Read/Edit 等のツールルールの差分は比較対象外です。
+
+フラグ:
+
+| フラグ | 説明 |
+|---|---|
+| `--commands <file>` | コマンドをファイルから読む（1行1コマンド、`#` コメント可） |
+| `--changed-only` | `same` の行を出力しない（Summary にはカウントされる） |
+| `--exit-on-change` | 判定が1つでも変わったら exit 2 で終了（CI 用） |
+
+終了コード:
+
+| Exit Code | 意味 |
+|---|---|
+| 0 | 完走（変更なし、または `--exit-on-change` なしでの変更あり） |
+| 1 | 使い方・設定エラー（空の config パスを含む） |
+| 2 | 1つ以上の `CHANGED`（`--exit-on-change` 指定時のみ） |
+| 3 | 1つ以上のコマンドが評価エラー（2 より優先） |
+
+補足:
+
+- `diff` はグローバルの `--config` フラグを使いません。2つの設定は positional 引数で渡します。`--config` を渡すと明示的にエラーになります。
+- コマンド文字列は制御文字をエスケープして表示します（`\x1b` 等）。信頼できない commands ファイルがターミナルエスケープで行を隠蔽することを防ぎます。
+
 ## `ccchain audit`
 
 全ルールのフラット展開を表示します。「何が通って何が止まるか」を一覧で確認できます。
