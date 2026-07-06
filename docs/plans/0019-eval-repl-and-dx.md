@@ -1,5 +1,7 @@
 # Plan 0019: 開発体験の改善
 
+## 実装状況: 一部完了（ccchain diff は 2026-07-06 PR #11 で実装済み。REPL / stats が残り）
+
 ## 機能
 
 ### ccchain eval REPL モード
@@ -13,8 +15,8 @@ ccchain> ls -la | head
 ccchain> exit
 ```
 
-### ccchain diff
-2つの .conf ファイルの判定差分を表示:
+### ccchain diff — 実装済み（PR #11、2026-07-06）
+2つの .conf ファイルの判定差分を表示。実装ではラベルが `a=`/`b=` になり、`--changed-only` / `--exit-on-change`（exit 2=CHANGED, 3=評価エラー）フラグ付き。詳細は docs/guide/cli.md 参照:
 ```
 $ ccchain diff rules-v1.conf rules-v2.conf --commands commands.txt
 find . -delete    v1=[allow]  v2=[deny]   CHANGED

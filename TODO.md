@@ -30,8 +30,8 @@
 | 17 | 18 | `docs/plans/0018-doc-sync-and-security-fixes.md` | 完了 | ドキュメント同期 Critical 4件 + セキュリティ Medium 4件 |
 | 18 | 17 | `docs/plans/0017-bash-args-scope.md` | 完了 | Bash コマンド引数にもワークスペーススコープ適用 |
 | 19 | 22 | `docs/plans/0022-ask-strategy-and-deny-first-sentinel.md` | 未着手 | **最優先**。auto/dontAsk/headless で ask が人間に届かない穴を deny+hint で塞ぐ。hook I/O 現代化を含む |
-| 20 | 20 | `docs/plans/0020-ci-pipeline.md` | 未着手 | CI パイプライン（Go テスト + ドキュメントビルド） |
-| 21 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 未着手 | eval REPL + diff + stats（開発体験改善） |
+| 20 | 20 | `docs/plans/0020-ci-pipeline.md` | 完了 | CI パイプライン（Go テスト + ドキュメントビルド）。PR #12（2026-07-06） |
+| 21 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 一部完了 | diff は PR #11 で実装済み（2026-07-06）。REPL / stats が残り |
 | 22 | 23 | `docs/plans/0023-addf-hook-integration.md` | 未着手（スタブ） | 0022 依存。/addf-init での hook 自動設営 |
 | 23 | 24 | `docs/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
 
