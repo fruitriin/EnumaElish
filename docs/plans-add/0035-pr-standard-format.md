@@ -50,7 +50,7 @@
 ### 要件（オーナー指定）
 
 - PR 本文に「対象 Plan ファイル」を必ず記載する
-- リンクテキストは **「Plan <番号>: <計画タイトル（日本語）>」** とする（ファイル名やパスではなく）
+- リンクテキストは **「Plan &lt;番号&gt;: &lt;計画タイトル（日本語）&gt;」** とする（ファイル名やパスではなく）
 - **バッククォートで囲まない**こと（コードスパン内の markdown リンクは plain text になりリンク化されない）
 - リンク先は PR の **head ブランチの blob URL**（マージ前でも 404 にならない）:
   `https://github.com/<owner>/<repo>/blob/<headブランチ>/docs/plans-add/<file>.md`
@@ -189,7 +189,7 @@ N 本の投機のうち通った分だけ先に本流へ入れ、残りは次サ
 
 - [x] PR 本文フォーマット規約を単一ソースに記述し、addf-dev / addf-speculate から参照
 - [ ] addf-speculate 昇格手順に PR 経路を追記（自動昇格禁止の文言は維持）
-- [ ] 昇格の定義（speculative/<concept> → main。integration は経路外）とライフサイクル図を
+- [ ] 昇格の定義（`speculative/<concept>` → main。integration は経路外）とライフサイクル図を
       guides に明記（Plan 0028 フェーズ3-4 の投機運用ガイドと統合。実装順の依存:
       0028 3-4 を先に実施するか、本 Plan で guides 追記ごと引き取るかを着手時に決める）
 - [ ] 部分昇格＋持ち越し運用を addf-speculate に追記（要再検証→rebase＋force-with-lease、
