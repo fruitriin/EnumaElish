@@ -6,7 +6,7 @@
 
 ## 目的
 
-`docs/knowhow/INDEX.addf.md` で 🟡（last_verified が古い）となっている記事を
+`.claude/addf/knowhow/INDEX.addf.md` で 🟡（last_verified が古い）となっている記事を
 `/addf-knowhow-revise` で一括再検証し、知見ベースの信頼性を回復する。
 
 ## 背景
@@ -40,8 +40,8 @@
 
 ## 影響範囲
 
-- `docs/knowhow/ADDF/*.md`（🟡 7件の本文・frontmatter）
-- `docs/knowhow/INDEX.addf.md`（再生成）
+- `.claude/addf/knowhow/ADDF/*.md`（🟡 7件の本文・frontmatter）
+- `.claude/addf/knowhow/INDEX.addf.md`（再生成）
 
 ## 未決事項（粗々ゆえ）
 

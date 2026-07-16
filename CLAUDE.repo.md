@@ -57,7 +57,7 @@ go build ./cmd/ccchain
 ADD フレームワークテスト:
 
 ```bash
-bash .claude/tests/run-all.sh
+bash .claude/addf/tests/run-all.sh
 ```
 
 品質ゲートの Stage 1 で上記の全コマンドを実行してください。
@@ -72,4 +72,4 @@ bash .claude/tests/run-all.sh
 - **品質ゲート**: コードレビュー・セキュリティレビューエージェントから得た指摘パターン、統合テスト戦略
 - **タスク総括**: 計画と実装の乖離、セキュリティレビューの優先度変更（例: Plan 0014 を 0011 より先に実装した判断）
 
-既存ノウハウは `docs/knowhow/INDEX.md` で一覧確認できる。
+既存ノウハウは `.claude/addf/knowhow/INDEX.md` で一覧確認できる。

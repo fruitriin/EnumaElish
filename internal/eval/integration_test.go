@@ -221,8 +221,8 @@ func TestIntegrationAskCommands(t *testing.T) {
 		{"make", "make build"},
 		{"make test", "make test"},
 		{"python3", "python3 script.py"},
-		{"bash script", "bash .claude/tests/run-all.sh"},
-		{"uv run", "uv run --python 3.11 .claude/addfTools/lint"},
+		{"bash script", "bash .claude/addf/tests/run-all.sh"},
+		{"uv run", "uv run --python 3.11 .claude/addf/addfTools/lint"},
 		{"chmod +x", "chmod +x script.sh"},
 		{"diff", "diff file1 file2"},
 		{"which", "which go"},
@@ -330,9 +330,9 @@ func TestIntegrationRealWorldLogs(t *testing.T) {
 		{"npm install", "npm install -D vitepress", dsl.ActionDeny},
 		{"npm run build", "npm run docs:build", dsl.ActionDeny},
 		{"make build", "make build", dsl.ActionDeny},
-		{"bash tests", "bash .claude/tests/run-all.sh", dsl.ActionDeny},
-		{"uv run lint", "uv run --python 3.11 .claude/addfTools/lint", dsl.ActionDeny},
-		{"python3 lint", "python3 .claude/addfTools/lint-json.py", dsl.ActionDeny},
+		{"bash tests", "bash .claude/addf/tests/run-all.sh", dsl.ActionDeny},
+		{"uv run lint", "uv run --python 3.11 .claude/addf/addfTools/lint", dsl.ActionDeny},
+		{"python3 lint", "python3 .claude/addf/addfTools/lint-json.py", dsl.ActionDeny},
 
 		// gh commands — should not be denied
 		{"gh issue list", "gh issue list --repo fruitriin/AutomatonDevDriveFramework --state open", dsl.ActionDeny},
@@ -407,7 +407,7 @@ func TestIntegrationRealWorldAdvanced(t *testing.T) {
 		{"bash hook script", "bash /Users/riin/workspace/riin-service/hooks/heartbeat-daemon.sh", dsl.ActionDeny},
 		{"bash slice script", "bash ~/.config/claude/scripts/slice.sh -s file.py", dsl.ActionDeny},
 		{"shell script direct", "/Users/riin/workspace/riin-service/autonomous-action.sh --dry-run", dsl.ActionDeny},
-		{"bash tests", "bash .claude/tests/run-all.sh", dsl.ActionDeny},
+		{"bash tests", "bash .claude/addf/tests/run-all.sh", dsl.ActionDeny},
 
 		// Network tools — should not be denied
 		{"tailscale funnel", "/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel --bg 13000", dsl.ActionDeny},

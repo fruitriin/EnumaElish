@@ -4,17 +4,17 @@
 
 ### フェーズA 実装記録（2026-07-05）
 
-- `.claude/templates/PlanTemplate.md` 新設 — Plan 0033 項目4 を本 Plan で引き取り実施。
+- `.claude/addf/templates/PlanTemplate.md` 新設 — Plan 0033 項目4 を本 Plan で引き取り実施。
   標準テンプレート（実装状況ヘッダ・関連 Plan（双方向原則コメント付き）・目的・現状の挙動・
   変更内容（項目/フェーズ）・影響範囲・テスト方針・破壊的変更の許容範囲・要オーナー確認・
   完了条件チェックボックス・AI 見積もり任意）＋検討スタブ variant（分かっていること /
   未解決の問い / 着手のトリガー）
-- `docs/guides/pr-format.md` 新設 — 項目1（対象 Plan リンク・blob URL・バッククォート禁止）と
+- `.claude/addf/guides/pr-format.md` 新設 — 項目1（対象 Plan リンク・blob URL・バッククォート禁止）と
   項目3-1（計画の進捗位置欄）・項目3-2（Plan 相互リンク規約）の単一ソース。記載例（PR #21）込み
 - addf-dev（完了処理）・addf-speculate（手順9 push）に pr-format.md への参照を1行追加
   （規約本文はコピーしない — 単一ソース維持）
 - CLAUDE.md 骨格プランニング手順（手順4-4）に PlanTemplate 参照を追加。同期対象の
-  AGENTS.md・development-process.md・addf-init コピーリスト（`.claude/templates/` エントリの
+  AGENTS.md・development-process.md・addf-init コピーリスト（`.claude/addf/templates/` エントリの
   例示に PlanTemplate.md を明記）も同時更新
 - **残り**: フェーズB=項目2（投機 feature 昇格の PR 経路・深化ブランチ・部分昇格と持ち越し・
   Pending・昇格定義の guides 明文化）、フェーズC=項目3-3（誤完了 lint 新設＋ドリフト注入 TDD）
@@ -53,21 +53,21 @@
 - リンクテキストは **「Plan &lt;番号&gt;: &lt;計画タイトル（日本語）&gt;」** とする（ファイル名やパスではなく）
 - **バッククォートで囲まない**こと（コードスパン内の markdown リンクは plain text になりリンク化されない）
 - リンク先は PR の **head ブランチの blob URL**（マージ前でも 404 にならない）:
-  `https://github.com/<owner>/<repo>/blob/<headブランチ>/docs/plans-add/<file>.md`
+  `https://github.com/<owner>/<repo>/blob/<headブランチ>/.claude/addf/plans-add/<file>.md`
 
 ### 記載例
 
 ```markdown
 ## 対象 Plan
 
-- [Plan 0033: ダウンストリーム実測バグの修正](https://github.com/fruitriin/ADDF/blob/plan-0033-0028-0034-batch/docs/plans-add/0033-downstream-reported-fixes.md)
+- [Plan 0033: ダウンストリーム実測バグの修正](https://github.com/fruitriin/ADDF/blob/plan-0033-0028-0034-batch/.claude/addf/plans-add/0033-downstream-reported-fixes.md)
 ```
 
 ### 設計方針
 
 - 規約本文は**単一ソース**に置き、addf-dev / addf-speculate の両スキルからは参照のみとする
   （2ファイルに同文を書くと同期ペアが増え、lint ペア追加が必要になる — Feedback.md の教訓に従い増殖を避ける）
-- 置き場所の候補: `docs/guides/`（ダウンストリーム配布対象）または `.claude/templates/`。
+- 置き場所の候補: `.claude/addf/guides/`（ダウンストリーム配布対象）または `.claude/addf/templates/`。
   ダウンストリームでも PR を作る場面はあるため guides を第一候補とする
 - 初出の実例: PR #21（https://github.com/fruitriin/ADDF/pull/21）
 

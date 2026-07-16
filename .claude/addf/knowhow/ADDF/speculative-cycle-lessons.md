@@ -158,12 +158,12 @@ func mergeSettings(base, overlay Settings) Settings {
 
 サイクル1 (2026-07-04) の教訓「同じ AST 層への干渉」（`stripquotes-escape` vs `args-hardening` の topology 衝突）は、Go/コード層だけでなく **Markdown ファイルの複数セクション編集にも同型で発生する** ことが 2026-07-05 新セッションのサイクル1 で確認された。
 
-具体的には `docs-warnings-cycle2`（Feedback.md の savanna-smell-detector セクションを「完了済み」に移動 + upstream リンク追記）と `feedback-archive-sweep`（Feedback.md の CLAUDE.repo.md エントリと savanna-smell-detector エントリを両方「完了済み」に移動）を並列で立ち上げたところ、統合時に `.claude/Feedback.md` で衝突。両ブランチとも「同じセクションを再構成する」意図で編集していたが、粒度と文言が異なった。
+具体的には `docs-warnings-cycle2`（Feedback.md の savanna-smell-detector セクションを「完了済み」に移動 + upstream リンク追記）と `feedback-archive-sweep`（Feedback.md の CLAUDE.repo.md エントリと savanna-smell-detector エントリを両方「完了済み」に移動）を並列で立ち上げたところ、統合時に `.claude/addf/Feedback.md` で衝突。両ブランチとも「同じセクションを再構成する」意図で編集していたが、粒度と文言が異なった。
 
 **教訓**:
 - 選定時のチェック軸に「同じ Markdown ファイルの同じセクションを編集していないか」を追加する
 - 同一ファイル同士でも「独立追記」（末尾追加同士 / 別セクションへの追記同士）なら悩まず解決可能。「同一セクションの再構成」の場合のみ回避する
-- 特に `.claude/Feedback.md` のような「エージェント間の共有チャンネル」は複数投機が同時に触りやすい — 選定時に意識するとよい
+- 特に `.claude/addf/Feedback.md` のような「エージェント間の共有チャンネル」は複数投機が同時に触りやすい — 選定時に意識するとよい
 - 衝突した場合の手動解消は「より完全な再構成版を採用し、他方の意味的追加（今回の場合 upstream #15 リンクと時制修正）を反映」で処理可能
 
 ### docs-only 投機でも実装バグを釣り上げる可能性がある
@@ -181,6 +181,6 @@ func mergeSettings(base, overlay Settings) Settings {
 
 - `.claude/commands/addf-speculate.md` — 投機サイクル手順書
 - `.claude/agents/addf-code-review-agent.md` — ペルソナ定義と集約ルール
-- `docs/knowhow/ADDF/speculative-integration-design.md` — 統合スクリプトの設計判断（本ノウハウの前提）
-- `docs/knowhow/security-review-findings.md` — セキュリティレビューで検出されるパターン
-- `docs/knowhow/doc-drift-pattern.md` — ドキュメントドリフトの対策（知見2の「ドキュメント側は本サイクルで修正」の根拠）
+- `.claude/addf/knowhow/ADDF/speculative-integration-design.md` — 統合スクリプトの設計判断（本ノウハウの前提）
+- `.claude/addf/knowhow/security-review-findings.md` — セキュリティレビューで検出されるパターン
+- `.claude/addf/knowhow/doc-drift-pattern.md` — ドキュメントドリフトの対策（知見2の「ドキュメント側は本サイクルで修正」の根拠）

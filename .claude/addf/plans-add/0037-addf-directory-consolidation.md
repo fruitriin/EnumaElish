@@ -31,10 +31,10 @@
 
 | 旧パス | 参照ファイル数 |
 |---|---|
-| `docs/plans` | 44 |
-| `docs/knowhow` | 57 |
-| `docs/guides` | 36 |
-| `docs/project-overview` | 8 |
+| `.claude/addf/plans` | 44 |
+| `.claude/addf/knowhow` | 57 |
+| `.claude/addf/guides` | 36 |
+| `.claude/addf/project-overview` | 8 |
 
 本体の docs/ は全サブディレクトリが ADDF 由来（guides/knowhow/plans/plans-add/project-overview）。
 参照元は CLAUDE.md・スキル本文・agents・addfTools スクリプト・lint TARGETS・テスト・
@@ -89,7 +89,7 @@ lint の検査対象・テストの全てが同じマップを参照する**。
 migrate は移動前に check モードで以下を提示し、オーナー承認後に実行する:
 
 - 移動対象の実在確認と、移動先の衝突確認
-- **「存在≠所有」判定**（Plan 0034 の教訓）: ダウンストリームの docs/knowhow 内の独自記事は
+- **「存在≠所有」判定**（Plan 0034 の教訓）: ダウンストリームの .claude/addf/knowhow 内の独自記事は
   knowhow の仕組みの一部として一緒に移動する。一方 docs/ 直下の ADDF 管理外ファイル
   （Pages コンテンツ等）はリストに載せず**絶対に触らない**。
   ADDF 管理サブディレクトリ（plans/knowhow/guides/project-overview）単位でのみ移動する
@@ -105,7 +105,7 @@ migrate は移動前に check モードで以下を提示し、オーナー承�
 ### 4. 参照書き換えはマップ駆動＋境界考慮
 
 - paths.toml を読んで全 md/py/sh/toml/json を書き換える専用スクリプト（migrate から呼ぶ）
-- 単純な部分文字列置換は禁止 — `docs/plans` が `docs/plans-add` に誤マッチする類の事故を
+- 単純な部分文字列置換は禁止 — `.claude/addf/plans` が `.claude/addf/plans-add` に誤マッチする類の事故を
   境界チェックで防ぐ（Plan 0034 F2-3 で実測した誤配線判定と同型の罠）
 
 ### 5. 残存参照 lint = migration の完了ゲート

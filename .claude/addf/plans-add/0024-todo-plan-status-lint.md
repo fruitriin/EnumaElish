@@ -20,8 +20,8 @@ knowhow `plan-status-drift-check.md` が「Plan 着手前に毎回 git log で�
 ### 1. lint ペア6: TODO 状態 ⇔ Plan `## 実装状況:` ヘッダ（WARNING）
 
 `lint-template-sync.py` に追加。対象は2系統:
-- `docs/plans-add/TODO.addf.md` ⇔ `docs/plans-add/*.md`（ADDF 本体）
-- `TODO.md` ⇔ `docs/plans/*.md`（ダウンストリーム）
+- `.claude/addf/plans-add/TODO.addf.md` ⇔ `.claude/addf/plans-add/*.md`（ADDF 本体）
+- `TODO.md` ⇔ `.claude/addf/plans/*.md`（ダウンストリーム）
 
 検出するドリフト:
 - **状態の矛盾**: TODO が「完了」なのに Plan ヘッダが「未着手」、またはその逆。
@@ -36,7 +36,7 @@ knowhow `plan-status-drift-check.md` が「Plan 着手前に毎回 git log で�
 ### 2. 「完了時についで」の頻度は run-all.sh 組み込みで自動実現
 
 `test-template-sync.sh` の Test 1（実リポジトリで OK）が品質ゲートの
-`bash .claude/tests/run-all.sh` で毎タスク完了時に走るため、
+`bash .claude/addf/tests/run-all.sh` で毎タスク完了時に走るため、
 オーナーの希望する頻度（自分のタスク完了時についで）がそのまま実現される。
 着手時に確かめたいときは `/addf-lint` を任意実行すればよい。
 
@@ -58,15 +58,15 @@ TODO の転記ではなく、アーカイブ済み Progress・完了コミット
 
 | ファイル | 変更 |
 |---|---|
-| `.claude/addfTools/lint-template-sync.py` | ペア6追加 |
-| `.claude/tests/tools/test-template-sync.sh` | ペア6のテスト追加 |
+| `.claude/addf/addfTools/lint-template-sync.py` | ペア6追加 |
+| `.claude/addf/tests/tools/test-template-sync.sh` | ペア6のテスト追加 |
 | `.claude/commands/addf-lint.md` | セクション6の表を更新（ペア5欠落の既存ドリフト修正含む） |
-| `docs/knowhow/ADDF/plan-status-drift-check.md` | 信用ベースへ改訂 |
-| `.claude/Feedback.md` | ペア言及を1〜6に更新 |
+| `.claude/addf/knowhow/ADDF/plan-status-drift-check.md` | 信用ベースへ改訂 |
+| `.claude/addf/Feedback.md` | ペア言及を1〜6に更新 |
 
 ## 検証
 
-1. `bash .claude/tests/run-all.sh` 通過
+1. `bash .claude/addf/tests/run-all.sh` 通過
 2. ペア6テスト: 矛盾検出 / 登録漏れ検出 / ヘッダ無し Plan のスキップ / TODO 不在系統の SKIP
 
 ## 備考

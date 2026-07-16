@@ -6,7 +6,7 @@
 
 ## 目的
 
-`.claude/addfTools/` にコミットされている Mach-O バイナリ4種（window-info / capture-window /
+`.claude/addf/addfTools/` にコミットされている Mach-O バイナリ4種（window-info / capture-window /
 annotate-grid / clip-image）に対して、「リポジトリのバイナリが想定されたものであること」を
 機械的に検証できる手段を導入する。
 
@@ -27,7 +27,7 @@ annotate-grid / clip-image）に対して、「リポジトリのバイナリが
 - `build.sh` がビルド完了時に `checksums.sha256`（4バイナリの SHA-256）を生成する
 - `checksums.sha256` はコミット対象。「このバイナリはビルダーが意図してコミットしたもの」という
   署名代わりになる（改竄・取り違え・ビルド漏れの検出）
-- 照合テストを `.claude/tests/tools/` に追加する:
+- 照合テストを `.claude/addf/tests/tools/` に追加する:
   - **全 OS で実行可能**（`sha256sum` / `shasum -a 256` のフォールバック。ハッシュ計算に
     バイナリの実行は不要なので、非 macOS でも SKIP せず照合できる）
   - バイナリと checksums の不一致 → FAIL。checksums 不在 → ダウンストリーム配布を考慮して
@@ -50,9 +50,9 @@ annotate-grid / clip-image）に対して、「リポジトリのバイナリが
 
 ## 影響範囲
 
-- `.claude/addfTools/build.sh`（checksums 生成の追加）
-- `.claude/addfTools/checksums.sha256`（新規・コミット対象）
-- `.claude/tests/tools/`（照合テスト追加。run-all.sh は既存のグロブで自動的に拾う）
+- `.claude/addf/addfTools/build.sh`（checksums 生成の追加）
+- `.claude/addf/addfTools/checksums.sha256`（新規・コミット対象）
+- `.claude/addf/tests/tools/`（照合テスト追加。run-all.sh は既存のグロブで自動的に拾う）
 - `/addf-init` コピーリスト（checksums を配布物に含める）と lint ペア5 への影響確認
 - Plan 0030（CI）が先行 or 並行する場合、照合テストは CI にもそのまま乗る
 
@@ -65,7 +65,7 @@ annotate-grid / clip-image）に対して、「リポジトリのバイナリが
 
 ## 完了条件（暫定）
 
-- `bash .claude/tests/run-all.sh` にバイナリ照合テストが含まれ、全 OS で通過する
+- `bash .claude/addf/tests/run-all.sh` にバイナリ照合テストが含まれ、全 OS で通過する
 - `build.sh` 実行で checksums が更新され、バイナリだけ・checksums だけの片側コミットを
   テストが検出できる
 - addf-init 配布物で照合が成立する（またはダウンストリームでの挙動が SKIP として定義されている）
@@ -75,4 +75,4 @@ annotate-grid / clip-image）に対して、「リポジトリのバイナリが
 - Plan 0026（レビュー残課題バックログ）— 本 Plan の出典（Medium 指摘）
 - Plan 0029 フェーズ1 — GUI ツールの optional 化。バイナリの利用対象が明確化済み
 - Plan 0030（CI 品質ゲート）— 照合テストの搭載先
-- `docs/knowhow/ADDF/sync-lint-design.md` — 「欠如 = SKIP」のダウンストリーム配布設計
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` — 「欠如 = SKIP」のダウンストリーム配布設計

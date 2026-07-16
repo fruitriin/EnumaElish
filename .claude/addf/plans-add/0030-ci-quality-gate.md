@@ -6,7 +6,7 @@
 
 ## 目的
 
-PR・push ごとに `bash .claude/tests/run-all.sh` と lint スクリプト一式を GitHub Actions で自動実行し、
+PR・push ごとに `bash .claude/addf/tests/run-all.sh` と lint スクリプト一式を GitHub Actions で自動実行し、
 品質ゲートを「エージェントの意思」から「機械」へ移す。
 
 ## 背景
@@ -14,7 +14,7 @@ PR・push ごとに `bash .claude/tests/run-all.sh` と lint スクリプト一�
 - 現在このリポジトリに CI は存在しない（`.github/workflows/` なし）。テスト・lint は
   Progress.md の品質検証ステップでエージェントが手動実行しており、実行忘れ・環境差異・
   「今回は大丈夫と判断する」失敗モードが残っている
-- `docs/knowhow/ADDF/sync-lint-design.md` の教訓「意思で覚えるが3度敗北したら機械化する」の
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` の教訓「意思で覚えるが3度敗北したら機械化する」の
   到達点は CI である。同 knowhow は当初から「検出 = 決定的スクリプト: 忘れない・揺らがない・**CI に乗る**」
   を設計目標に掲げており、lint 群は CI 搭載を前提に exit code 3値（0 OK / 1 ERROR / 2 WARNING）で
   設計済み。乗せる先が無いのが現状のギャップ
@@ -27,7 +27,7 @@ PR・push ごとに `bash .claude/tests/run-all.sh` と lint スクリプト一�
 
 `.github/workflows/test.yml`（ubuntu-latest）:
 
-1. `bash .claude/tests/run-all.sh` — フック・ツールテスト（非 macOS の Mach-O テストは SKIP）
+1. `bash .claude/addf/tests/run-all.sh` — フック・ツールテスト（非 macOS の Mach-O テストは SKIP）
 2. lint スクリプト一式を個別ステップで実行（どれが落ちたか Actions 上で判別できるように）:
    - `lint-json.py` / `lint-toml.py` / `lint-frontmatter.py`
    - `lint-template-sync.py`（ペア1〜6）
@@ -48,14 +48,14 @@ PR・push ごとに `bash .claude/tests/run-all.sh` と lint スクリプト一�
 - `.github/workflows/` は **ADDF 本体固有**とし、addf-init のコピーリスト対象外とする
   （ダウンストリームの CI 事情はプロジェクトごとに異なるため押し付けない）
 - ダウンストリームが同じゲートを欲しい場合に向けて、ワークフローの雛形を
-  `docs/guides/` に例示するか、`.claude/optional/` 機構（Plan 0029 フェーズ1）に乗せるかは未決
+  `.claude/addf/guides/` に例示するか、`.claude/addf/optional/` 機構（Plan 0029 フェーズ1）に乗せるかは未決
 - CLAUDE.md からワークフローを参照しない限り lint ペア5（参照⇔コピーリスト被覆）への影響はない
 
 ## 影響範囲
 
 - `.github/workflows/test.yml`（新規）
 - `README.md`（CI バッジ・「テスト」セクションへの追記。あれば）
-- `docs/guides/`（ダウンストリーム向け雛形を置く場合）
+- `.claude/addf/guides/`（ダウンストリーム向け雛形を置く場合）
 
 ## 未決事項（粗々ゆえ）
 
@@ -75,7 +75,7 @@ PR・push ごとに `bash .claude/tests/run-all.sh` と lint スクリプト一�
 
 ## 関連
 
-- `docs/knowhow/ADDF/sync-lint-design.md` — exit code 3値・SKIP 設計・「意思で覚えない」思想
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` — exit code 3値・SKIP 設計・「意思で覚えない」思想
 - Plan 0021 / 0022 / 0024 / 0027 / 0029（sync-optional-skills check）— CI に乗せる lint 群を整備した一連の計画
 - PR #15 — 非 macOS でのバイナリテスト SKIP（ubuntu ランナーの前提）
 - Plan 0031 — バイナリのチェックサム照合を CI に載せる場合、本 Plan のワークフローに相乗りする

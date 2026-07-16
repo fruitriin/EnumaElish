@@ -72,7 +72,7 @@
 `CLAUDE.md` のブートシーケンスに以下を組み込む:
 
 ```diff
- 3. @.claude/Progress.md を読む — 現在進行中のタスクがあれば継続する
+ 3. @.claude/addf/Progress.md を読む — 現在進行中のタスクがあれば継続する
 +   - Progress.md の「日記」セクション末尾3エントリーを読み、前任者の状況・判断・気にしていたことを把握してから着手する
 +   - 必要なら「引き継ぎ確認」の短い日記エントリーを冒頭に書く
 ```
@@ -101,15 +101,15 @@ Plan 0016 で導入する「ブランチ Checkpoint」は **コードの巻き�
 
 | ファイル | 変更 |
 |---|---|
-| `.claude/templates/ProgressTemplate.addf.md` | 「日記」セクション・フォーマット・書くタイミング規約を追加。「遺書」「Checkpoint(Done/Next/Open)」の語彙は使わない |
+| `.claude/addf/templates/ProgressTemplate.addf.md` | 「日記」セクション・フォーマット・書くタイミング規約を追加。「遺書」「Checkpoint(Done/Next/Open)」の語彙は使わない |
 | `CLAUDE.md` | ブートシーケンス手順 3 に「日記末尾3エントリーを読む」追加 |
 | `AGENTS.md` | 同期 |
 | `.claude/commands/addf-dev.md` | サブタスク完了時の日記書き込みを明示 |
-| `docs/guides/development-process.md` | 代替わり前提の引き継ぎ設計を説明 |
+| `.claude/addf/guides/development-process.md` | 代替わり前提の引き継ぎ設計を説明 |
 
 ## 検証
 
-1. `bash .claude/tests/run-all.sh` 通過
+1. `bash .claude/addf/tests/run-all.sh` 通過
 2. 意図的に長めの作業を `/addf-dev` で回し、compaction 後にエージェントが日記から状況を引き継げることを確認
 3. `/loop` 複数イテレーションで、後続イテレーションが前イテレーションの日記を参照していることを確認
 

@@ -122,7 +122,7 @@ git clone https://repo.git
 python3 script.py
 python3 -c 'print(1)'
 node -e 'console.log(1)'
-bash .claude/tests/run-all.sh
+bash .claude/addf/tests/run-all.sh
 bash -c 'echo hello'
 chmod +x script.sh
 mv old.txt new.txt

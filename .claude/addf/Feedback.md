@@ -18,8 +18,8 @@
 
 ### 2026-07-05 — CLAUDE.repo.md のテストセクションに Go テスト明記
 
-- **元の改善アクション**: ADDF テストランナー (`bash .claude/tests/run-all.sh`) と Go テスト (`go test ./...`) が共存する構成。CLAUDE.repo.md のテストセクションに Go テストも明記すべき
-- **対応済み**: CLAUDE.repo.md の「テスト」セクションに Go テスト（`go test ./...` / `go vet ./...` / `go build ./cmd/ccchain`）と ADDF テスト（`bash .claude/tests/run-all.sh`）の両方を明記済み
+- **元の改善アクション**: ADDF テストランナー (`bash .claude/addf/tests/run-all.sh`) と Go テスト (`go test ./...`) が共存する構成。CLAUDE.repo.md のテストセクションに Go テストも明記すべき
+- **対応済み**: CLAUDE.repo.md の「テスト」セクションに Go テスト（`go test ./...` / `go vet ./...` / `go build ./cmd/ccchain`）と ADDF テスト（`bash .claude/addf/tests/run-all.sh`）の両方を明記済み
 
 ### 2026-07-05 — savanna-smell-detector Go 相性評価（v0.3.0）— 分析完了・upstream で対応進行中
 

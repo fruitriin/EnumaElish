@@ -4,11 +4,11 @@
 
 ### 項目4 実装記録（2026-07-05・Plan 0035 フェーズA で実施）
 
-- `.claude/templates/PlanTemplate.md` 新設: 収束8構造（実装状況 / 目的 / 現状の挙動 / 変更内容 /
+- `.claude/addf/templates/PlanTemplate.md` 新設: 収束8構造（実装状況 / 目的 / 現状の挙動 / 変更内容 /
   影響範囲 / テスト方針 / 破壊的変更の許容範囲 / 要オーナー確認）＋関連 Plan・完了条件を加えた
   標準テンプレートと、検討スタブ用の簡略 variant（分かっていること / 未解決の問い / 着手のトリガー）。
   「AI 実装時間見積もり」は提案どおり任意セクション
-- CLAUDE.md 骨格プランニング手順・addf-init コピーリスト（`.claude/templates/` エントリの例示）から参照
+- CLAUDE.md 骨格プランニング手順・addf-init コピーリスト（`.claude/addf/templates/` エントリの例示）から参照
 
 ### 項目1〜3 実装記録（2026-07-03）
 
@@ -37,12 +37,12 @@ ADDF 配布を受けたダウンストリームで**構造的に誤検知・誤�
 
 ### 項目1: lint-template-sync の upstream/downstream 判定を addf-lock.json ベースに統一（バグ・最優先）
 
-- **対象**: `.claude/addfTools/lint-template-sync.py`（ペア1 / ペア3）、`.claude/commands/addf-init.md`
+- **対象**: `.claude/addf/addfTools/lint-template-sync.py`（ペア1 / ペア3）、`.claude/commands/addf-init.md`
 - **問題**: ペア1 が `ProgressTemplate.addf.md` の存在で「ADDF 本体」と判定するが、addf-init は
-  `.claude/templates/` を丸ごと（`.addf.md` 含む）コピーするため、**全ダウンストリームで誤検知**する。
+  `.claude/addf/templates/` を丸ごと（`.addf.md` 含む）コピーするため、**全ダウンストリームで誤検知**する。
   ペア3 も、ダウンストリームが独自の `AGENTS.md` を持つケース（実例: Misskey 由来）で
   「ブートシーケンス見出しなし」ERROR を誤報する
-- **修正**: `.claude/addf-lock.json` の存在を一次シグナルにする（addf-init / addf-migrate と同じ判定に統一）。
+- **修正**: `.claude/addf/lock.json` の存在を一次シグナルにする（addf-init / addf-migrate と同じ判定に統一）。
   lock あり → ダウンストリーム確定 → ペア1 は `ProgressTemplate.md` を正、ペア3 は SKIP
 - **根治策（併せて実施）**: addf-init のカテゴリ1コピーから `*.addf.md` を除外し、
   ダウンストリームに `.addf.md` を物理的に置かない（分離規約に合わせる）
@@ -59,14 +59,14 @@ ADDF 配布を受けたダウンストリームで**構造的に誤検知・誤�
 
 ### 項目3: sync-lint-design.md へ「存在≠所有」の教訓を追記（知見）
 
-- **対象**: `docs/knowhow/ADDF/sync-lint-design.md`
+- **対象**: `.claude/addf/knowhow/ADDF/sync-lint-design.md`
 - **内容**: 「欠如 = SKIP」原則の逆ケースを明文化 — ① `.addf.md` はダウンストリームに物理存在しうる
   （存在≠所有）② ADDF 配布ファイル名はダウンストリームの同名無関係ファイルと衝突しうる。
   所有判定は明示シグナル（addf-lock.json 等）で行う
 
 ### 項目4: PlanTemplate.md の新規追加（機能提案・優先度低）
 
-- **対象**: `.claude/templates/PlanTemplate.md`（新規）、CLAUDE.md 骨格プランニング手順・addf-init からの参照
+- **対象**: `.claude/addf/templates/PlanTemplate.md`（新規）、CLAUDE.md 骨格プランニング手順・addf-init からの参照
 - **背景**: ダウンストリームで独立起草された計画8本が同一構造に収束した実績
   （実装状況 / 目的 / 現状の挙動 / 変更内容 / 影響範囲 / テスト方針 / 破壊的変更の許容範囲 / 要オーナー確認）。
   ProgressTemplate はあるのに Plan のテンプレートが無い
@@ -84,9 +84,9 @@ ADDF 配布を受けたダウンストリームで**構造的に誤検知・誤�
 
 ## 影響範囲
 
-- `.claude/addfTools/lint-template-sync.py` / `.claude/commands/addf-init.md` /
-  `.claude/commands/addf-knowhow-index.md` / `docs/knowhow/ADDF/sync-lint-design.md` /
-  `.claude/templates/`（項目4）
+- `.claude/addf/addfTools/lint-template-sync.py` / `.claude/commands/addf-init.md` /
+  `.claude/commands/addf-knowhow-index.md` / `.claude/addf/knowhow/ADDF/sync-lint-design.md` /
+  `.claude/addf/templates/`（項目4）
 - addf-init コピーリスト変更（項目1 根治策）は lint ペア5 への影響を確認する
 - ダウンストリームは次回 `/addf-migrate` で追従する
 

@@ -64,7 +64,7 @@
 - [ ] **旧形式との共存**: exit 2 + stderr（現行の deny）と新 JSON 形式のどちらが優先されるか。旧 Claude Code バージョンに新 JSON を渡した場合の挙動（後方互換戦略の決定材料）
 - [ ] `permissionDecisionReason` の文字数制限・表示のされ方（deny+hint の承認手順埋め込みが読める形で届くか）
 
-検証結果の記録先: 本セクション末尾に「### 検証結果（YYYY-MM-DD）」を追記。docs/knowhow/ADDF/claude-code-hooks.md との乖離があれば `/addf-knowhow-revise` で更新する。
+検証結果の記録先: 本セクション末尾に「### 検証結果（YYYY-MM-DD）」を追記。.claude/addf/knowhow/ADDF/claude-code-hooks.md との乖離があれば `/addf-knowhow-revise` で更新する。
 
 ## Phase 1: hook I/O 現代化
 
@@ -280,12 +280,12 @@ Phase 5（ドキュメント）… Phase 2〜4 の確定後
 
 ## 参照ノウハウ
 
-- docs/knowhow/dsl-rule-design.md — args: regex の罠、last-rule-wins、conf の役割分担
-- docs/knowhow/security-review-findings.md — 過去の脆弱性5パターン
-- docs/knowhow/ADDF/pretooluse-block-with-rationale.md — deny 時の根拠伝達
-- docs/knowhow/ADDF/claude-code-hooks.md — hook 入出力仕様（Phase 0 で鮮度再検証）
-- docs/knowhow/doc-drift-pattern.md — ドキュメント同期の4パターン
-- docs/knowhow/fixture-based-testing.md — プリセット検証方式
+- .claude/addf/knowhow/dsl-rule-design.md — args: regex の罠、last-rule-wins、conf の役割分担
+- .claude/addf/knowhow/security-review-findings.md — 過去の脆弱性5パターン
+- .claude/addf/knowhow/ADDF/pretooluse-block-with-rationale.md — deny 時の根拠伝達
+- .claude/addf/knowhow/ADDF/claude-code-hooks.md — hook 入出力仕様（Phase 0 で鮮度再検証）
+- .claude/addf/knowhow/doc-drift-pattern.md — ドキュメント同期の4パターン
+- .claude/addf/knowhow/fixture-based-testing.md — プリセット検証方式
 
 ## AI 実装時間の見積もり
 

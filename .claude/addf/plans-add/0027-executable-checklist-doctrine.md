@@ -62,10 +62,10 @@ A 型のステップは、真偽を示す**実行可能なアサーション**�
 ## スコープの当たり（着手時に確定）
 
 まず点検する手順書:
-- `.claude/ADDF-Release.addf.md`（プレリリースチェック・リリース後確認）
+- `.claude/addf/Release.addf.md`（プレリリースチェック・リリース後確認）
 - `.claude/commands/addf-init.md`（Phase 4 構造検証）
 - `.claude/commands/addf-migrate.md`（各 Phase の確認ステップ）
-- `.claude/templates/ProgressTemplate.addf.md`（タスク完了時 品質検証）
+- `.claude/addf/templates/ProgressTemplate.addf.md`（タスク完了時 品質検証）
 
 ## 未決事項（粗々ゆえ）
 
@@ -93,19 +93,19 @@ A 型のステップは、真偽を示す**実行可能なアサーション**�
 - **方向1（実行アサーション）**: プレリリース3を「機械抽出（grep）＋人間判断マーカー」の2段に分解。
   リリース後確認を lock ref 照合のアサーション（コードブロック）に置換。addf-init / addf-migrate の
   A型項目に実行コマンドを添付、B型項目に `<!-- human-judgment -->` を付与
-- **方向2（メタ lint）**: `.claude/addfTools/lint-checklist.py` 新設（/addf-lint セクション9、WARNING のみ・
+- **方向2（メタ lint）**: `.claude/addf/addfTools/lint-checklist.py` 新設（/addf-lint セクション9、WARNING のみ・
   exit 0/2・ダウンストリーム SKIP・理由付き WHITELIST・`<!-- checklist-lint: skip-section -->`）。
   テスト19件（`test-checklist-lint.sh`、run-all.sh に自動組み込み）
 - **品質ゲート**: コードレビューで High 2件を検出・修正（「〜こと」の行末アンカーによる候補漏れ /
   リスト直後の引用・平文がブロックに飲み込まれ裏付けに誤計上される境界バグ。いずれも回帰テスト追加済み）
-- 知見は `docs/knowhow/ADDF/checklist-backing-lint.md` に記録
+- 知見は `.claude/addf/knowhow/ADDF/checklist-backing-lint.md` に記録
 
 残課題（Low/Info、対応不要と判断）: INLINE_CMD_RE のコマンド接頭辞リストは経験的（偽陽性時にリストへ追加する運用）。
-`docs/project-overview/system-quality.md` の「addf-lint（8項目）」記述はスナップショット生成物のため次回 `/addf-overview` 実行時に解消される。
+`.claude/addf/project-overview/system-quality.md` の「addf-lint（8項目）」記述はスナップショット生成物のため次回 `/addf-overview` 実行時に解消される。
 
 ## 関連
 
 - Plan 0026（レビュー残課題バックログ）— 本 Plan は 0026 の「安全網が静かに機能しない」観察から派生
-- `docs/knowhow/ADDF/plan-status-drift-check.md` — 信用ベース運用の思想。本 Plan はその穴を手順書全般へ拡張
-- `docs/knowhow/ADDF/sync-lint-design.md` — 機械化で見落としを塞ぐ設計思想の先例
-- `docs/knowhow/ADDF/checklist-backing-lint.md` — 本 Plan の実装知見
+- `.claude/addf/knowhow/ADDF/plan-status-drift-check.md` — 信用ベース運用の思想。本 Plan はその穴を手順書全般へ拡張
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` — 機械化で見落としを塞ぐ設計思想の先例
+- `.claude/addf/knowhow/ADDF/checklist-backing-lint.md` — 本 Plan の実装知見

@@ -4,7 +4,7 @@
 
 ### フェーズ3-4 実装記録（2026-07-05）
 
-- docs/guides/speculative-development.md 新設（2層モデル・オプトイン・ライフサイクル・
+- .claude/addf/guides/speculative-development.md 新設（2層モデル・オプトイン・ライフサイクル・
   昇格の定義・clean 原則の概観。詳細はスキル本文参照の単一ソース構成）
 - /addf-overview full 再生成（概念システム 6→7 個。「投機開発」を独立システムとして新設。
   Plan 0029 残課題 L1 = GUI 常設前提も同時解消 — 常設前提表現の残存ゼロを grep 確認）
@@ -23,7 +23,7 @@
   昇格手順節（squash マージ・オーナーの明示応答必須・無応答を承認とみなすこと禁止の明文）
 - ペルソナ並列レビュー3体が削除系の Critical 3件（origin 削除の独立実行・日付判定の脆さ・
   --promote の意味論）を全て実測再現付きで検出 → フェーズ内修正。「警告は出すが止めない」
-  パターンの全廃（詳細: `docs/knowhow/ADDF/speculative-integration-design.md`）。
+  パターンの全廃（詳細: `.claude/addf/knowhow/ADDF/speculative-integration-design.md`）。
   テスト 17本・72アサーション全パス
 
 ### フェーズ2 実装記録（2026-07-03）
@@ -50,7 +50,7 @@
 - `addf-speculate.md` 新設（配布対象スキル）: ガード→選定→worktree 起動（`.claude` 複製必須）→
   Stage 1→Worktrees.md 記録→origin へ push（remote なしは SKIP）。`.claude` 複製は手順内の明示コピーで
   実装（WorktreeCreate フック方式は未検証のため確実側。フック化はフェーズ2以降の検討）
-- addf-dev.md にアイドル分岐を追加、.gitignore ADDF ブロックに `.claude/Worktrees.md` を追加
+- addf-dev.md にアイドル分岐を追加、.gitignore ADDF ブロックに `.claude/addf/Worktrees.md` を追加
 - テスト `test-speculate-guard.sh` 10ケース（サンドボックス: 欠如=無効・型不正 ERROR・上限 WARNING・
   非 speculative worktree の除外）
 
@@ -121,13 +121,13 @@ main（保護。オーナーがレビューしたものだけマージ）
   （「本流に自動マージしない」の継承。Feedback.md オーナーフィードバックの「責めない・強制しない」と同根の、
   オーナーの主導権を守る設計）
 
-### 決定3: 管理ドキュメント `.claude/Worktrees.md` は gitignore（git が真実源、ファイルは再構築可能なビュー）
+### 決定3: 管理ドキュメント `.claude/addf/Worktrees.md` は gitignore（git が真実源、ファイルは再構築可能なビュー）
 
 - 実行時状態ファイルとして **.gitignore ADDF ブロックに追加**する（Dashboard.md と同じ扱い。
-  `docs/knowhow/ADDF/ignore-file-strategy.md` の役割分けに従う）
+  `.claude/addf/knowhow/ADDF/ignore-file-strategy.md` の役割分けに従う）
 - クラッシュ復帰の懸念（gitignore だと worktree を辿れない）は、**コミットで守るのではなく
   再構築手順で守る**: `git worktree list` + `git branch --list 'speculative/*'` が常に真実源であり、
-  Worktrees.md はそこから再構築できるビューと位置づける（`docs/knowhow/ADDF/sync-lint-design.md` の
+  Worktrees.md はそこから再構築できるビューと位置づける（`.claude/addf/knowhow/ADDF/sync-lint-design.md` の
   「列挙を持たない単一ソース化」の応用。状態の二重管理によるドリフトを構造的に排除する）
 - **git から機械的に再構築できるのは「存在」と「昇格済み（main マージ済み）」まで**。テスト通過/失敗/衝突・
   対象概念・最終更新は git に残らないため、復元エントリは状態を「要再検証」で初期化し（次の Stage 1 実行で
@@ -145,7 +145,7 @@ main（保護。オーナーがレビューしたものだけマージ）
 - 記録内容: worktree パス / `speculative/` ブランチ名 / 対象概念（出典: Plan・Questions 番号等）/
   状態（開発中・テスト通過・テスト失敗・衝突・統合済み・放棄・昇格済み）/ 最終更新。書式は addf-speculate.md 内に定義する
   （example ファイルは増やさない。書式定義を実行主体が必ず読むスキル本文に置く —
-  `docs/knowhow/ADDF/rule-placement-execution-guarantee.md`「参照では実行されない」）
+  `.claude/addf/knowhow/ADDF/rule-placement-execution-guarantee.md`「参照では実行されない」）
 
 ### 決定4: スキルは `addf-speculate` に分離し、addf-dev にはアイドル分岐1行だけ足す
 
@@ -193,7 +193,7 @@ max_worktrees = 3
 ```
 
 - **enable の型検証**: 文字列 `"false"` が truthy 判定される事故を防ぐため、bool 型でなければ ERROR にする
-  （`sync-optional-skills.py` の enable 型検証と同じパターン — `docs/knowhow/ADDF/optional-skill-optin.md`）。
+  （`sync-optional-skills.py` の enable 型検証と同じパターン — `.claude/addf/knowhow/ADDF/optional-skill-optin.md`）。
   検証の置き場所は addf-speculate 実行時のガード（読み取り時に検証）とし、lint-toml.py は構文チェックのみの
   現状を維持する（スキーマ検証を lint-toml に足すかは Plan 0029 フェーズ2の environments スキーマ導入と
   合わせて判断する — 単独で先行させない）
@@ -221,7 +221,7 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
 
 - **選定元の優先順位**（2026-07-03 の現状に合わせて更新）:
   1. 既存 Plan に記録済みの Low/Info 残課題（例: Plan 0029 フェーズ1の L1/L3。分解済み・独立性高・低リスク）
-  2. `.claude/Questions.md` の未回答質問の最有力解釈による投機（unattended ドクトリンそのもの）
+  2. `.claude/addf/Questions.md` の未回答質問の最有力解釈による投機（unattended ドクトリンそのもの）
   3. オーナー常設リクエスト（TODO 末尾）から導出できる独立作業
 - **選定禁止**: オーナー指示待ちと明示された項目（現時点では Plan 0026 のセキュリティ残課題等）は
   投機対象にしない。**新規概念の発明は最終手段**（望まれない投機を避ける）
@@ -239,13 +239,13 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
    Worktrees.md 記録→サイクル末に `speculative/` ブランチを origin へ push（remote なければ SKIP）、
    まで（integration は後続フェーズ）。enable 型検証ガード・上限チェックを含む
 3. `addf-dev.md` にアイドル分岐を追加（決定4の1行）
-4. `.gitignore` ADDF ブロックに `.claude/Worktrees.md` を追加
+4. `.gitignore` ADDF ブロックに `.claude/addf/Worktrees.md` を追加
 5. addf-init コピーリストへの追加作業は**不要**（カテゴリ1が `.claude/commands/addf-*.md` のグロブ列挙のため
    自動カバーされる）。CLAUDE.md / development-process.md / AGENTS.md へ言及を足す場合のみ、
    ペア5の被覆確認と同期ペア1〜4の再確認を同フェーズで行う
 6. テスト: mktemp サンドボックスの fake git リポジトリで「enable=false で発動しない / 型不正 ERROR /
    上限到達で待機記録 / worktree 作成と Worktrees.md 記録の整合」の状態別ふるまいを検証するシェルテスト
-   （`.claude/tests/tools/` 配下。mktemp サンドボックス + fake リポジトリの手法は sync-lint-design の
+   （`.claude/addf/tests/tools/` 配下。mktemp サンドボックス + fake リポジトリの手法は sync-lint-design の
    テスト作法を転用する）
 
 ### フェーズ2: integration 統合と一括ゲート
@@ -263,17 +263,17 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
    **過去日付の `integration/loop-*` ブランチの削除もここで扱う** — speculate-integrate.py は当日名しか
    作り直さないため、日をまたいだ運用でブランチが蓄積する。フェーズ2 レビュー Low 指摘）
 3. 昇格手順の文書化（squash マージ・衝突解消の feature 側反映・昇格後の状態遷移）
-4. `docs/guides/` への運用ガイド追記と `/addf-overview` 再生成
+4. `.claude/addf/guides/` への運用ガイド追記と `/addf-overview` 再生成
 
 ## 影響範囲
 
-- `.claude/addf-Behavior.toml`（`[speculation]` 追加）
+- `.claude/addf/Behavior.toml`（`[speculation]` 追加）
 - `.claude/commands/addf-speculate.md`（新規・配布対象）
 - `.claude/commands/addf-dev.md`（アイドル分岐1行）
-- `.gitignore` ADDF ブロック（`.claude/Worktrees.md`）
+- `.gitignore` ADDF ブロック（`.claude/addf/Worktrees.md`）
 - `/addf-init` コピーリスト（addf-speculate.md。ペア5被覆）
-- `.claude/tests/tools/`（サンドボックステスト追加）
-- `docs/guides/development-process.md` ほか同期ペア対象（addf-dev の手順変更が及ぶ場合 — 変更したら
+- `.claude/addf/tests/tools/`（サンドボックステスト追加）
+- `.claude/addf/guides/development-process.md` ほか同期ペア対象（addf-dev の手順変更が及ぶ場合 — 変更したら
   Feedback.md のルールに従い `/addf-lint` セクション6で確認）
 - Dashboard.example.md（既存の「投機ブランチ」セクションで足りる見込み。不足があればフェーズ2で拡張）
 
@@ -283,7 +283,7 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
 選定元の設定昇格 → YAGNI 承認 / `.claude` 複製 → 必須要件化）。残りは1件:
 
 - **`.claude` 複製の実現手段**（複製自体は必須 — Layer 1 参照）: WorktreeCreate フックによる自動コピー
-  （`docs/knowhow/ADDF/claude-code-hooks.md` に例あり）か、addf-speculate.md の手順内の明示コピーか。
+  （`.claude/addf/knowhow/ADDF/claude-code-hooks.md` に例あり）か、addf-speculate.md の手順内の明示コピーか。
   フックイベントの発火を実装時に実地確認し、確認できなければ手順内明示コピーに倒す（確実側）。
   フック採用時も、フック未導入環境へのフォールバックとして手順内コピーを残すのが安全
 
@@ -305,7 +305,7 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
 - アイドル時に直交概念を worktree で投機開発できる
   — サンドボックステスト（フェーズ1-6）が enable 時の worktree 作成・記録を PASS
 - 投機は enable=false で一切発動しない（ダウンストリーム配布時の安全性）
-  — 同テストの disable ケースが PASS。`bash .claude/tests/run-all.sh` に組み込まれている
+  — 同テストの disable ケースが PASS。`bash .claude/addf/tests/run-all.sh` に組み込まれている
 - integration ブランチでスカッシュ統合＋動作確認一括ができ、衝突が silent にならない
   — フェーズ2-4 のテストが PASS（衝突 feature の Worktrees.md への記録まで機械検証）。
   Dashboard への反映はエージェントの自然文生成のため機械検証できない
@@ -323,12 +323,12 @@ worktree が衝突を防ぐのは作業が本当に独立しているときだ�
 
 - CLAUDE.md「並列実装方針」— worktree 利用ルール。本 Plan はこれを「タスク間並列」へ拡張
 - CLAUDE.md「迷ったときの作法（7割共有原則）」— 3軸・unattended・speculative/ ブランチ・Dashboard
-- `docs/knowhow/ADDF/rule-placement-execution-guarantee.md` — 決定3・4の配置根拠
-- `docs/knowhow/ADDF/sync-lint-design.md` — 列挙を持たない単一ソース化（決定3）・サンドボックステスト作法
-- `docs/knowhow/ADDF/optional-skill-optin.md` — enable 型検証・オプトイン設計の前例
-- `docs/knowhow/ADDF/ignore-file-strategy.md` — Worktrees.md の gitignore 判断
-- `docs/knowhow/ADDF/claude-code-hooks.md` — WorktreeCreate フック（採否は実装時確認）
-- `docs/knowhow/ADDF/upstream-downstream-separation.md` — 配布スキルの記述ルール
+- `.claude/addf/knowhow/ADDF/rule-placement-execution-guarantee.md` — 決定3・4の配置根拠
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` — 列挙を持たない単一ソース化（決定3）・サンドボックステスト作法
+- `.claude/addf/knowhow/ADDF/optional-skill-optin.md` — enable 型検証・オプトイン設計の前例
+- `.claude/addf/knowhow/ADDF/ignore-file-strategy.md` — Worktrees.md の gitignore 判断
+- `.claude/addf/knowhow/ADDF/claude-code-hooks.md` — WorktreeCreate フック（採否は実装時確認）
+- `.claude/addf/knowhow/ADDF/upstream-downstream-separation.md` — 配布スキルの記述ルール
 - Plan 0029 — Behavior.toml スキーマ拡張・オプトイン機構の並走 Plan（lint-toml スキーマ検証の判断を共有）
 
 ## 関連 Plan

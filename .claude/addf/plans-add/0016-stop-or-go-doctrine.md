@@ -28,7 +28,7 @@ Fable（インタビュー対象エージェント）からの一次フィード
 
 ### 1. 「7割共有原則」の明文化
 
-`CLAUDE.md` または `.claude/templates/ProgressTemplate.addf.md` に判断ルールを記述する。
+`CLAUDE.md` または `.claude/addf/templates/ProgressTemplate.addf.md` に判断ルールを記述する。
 
 ```
 ## 迷ったときの作法（7割共有原則）
@@ -116,7 +116,7 @@ image_clarity: balanced  # specific | balanced (default) | vague
 
 | フラグ | 意味 | デフォルト |
 |---|---|---|
-| `dashboard_report` | 次セッション冒頭で `.claude/Dashboard.md` を表示するか | `true` |
+| `dashboard_report` | 次セッション冒頭で `.claude/addf/Dashboard.md` を表示するか | `true` |
 | `uncertainty_notify` | 閾値割れ・投機分岐・障害時に外部通知（Discord/Slack 等）を送るか | `false` |
 
 直交する2フラグで4パターンを表現:
@@ -141,7 +141,7 @@ uncertainty_notify: false
 
 #### `dashboard_report: true` の中身
 
-`.claude/Dashboard.md` を自動生成し、次セッション開始時に冒頭表示する:
+`.claude/addf/Dashboard.md` を自動生成し、次セッション開始時に冒頭表示する:
 
 ```markdown
 # 前回セッションからの差分まとめ
@@ -211,7 +211,7 @@ Checkpoint を Progress.md のテキスト記録だけでなく、**git ブラ�
 
 これにより「遺書を残す」発想から「履歴で巻き戻せる作業」へ重心を移す（Plan 0017 と思想を共有）。
 
-### 3. 質問箱 `.claude/Questions.md` の導入
+### 3. 質問箱 `.claude/addf/Questions.md` の導入
 
 非同期質問チャンネル。エージェントは止まらず、人間が後で答える。
 
@@ -223,7 +223,7 @@ Checkpoint を Progress.md のテキスト記録だけでなく、**git ブラ�
 
 ## 未回答
 
-### Q1: docs/plans-add/0020-xxx の「視点ずらし」具体実装
+### Q1: .claude/addf/plans-add/0020-xxx の「視点ずらし」具体実装
 - 投下日時: 2026-06-10
 - 投下者: addf-dev (Plan 0020 実装中)
 - 状況: 確信度 55%。worktree 隔離下のため進行可能だが、設計意図の確認が望ましい
@@ -238,8 +238,8 @@ Checkpoint を Progress.md のテキスト記録だけでなく、**git ブラ�
 `CLAUDE.md` のブートシーケンス手順 1 に `Questions.md` 読み込みを追加:
 
 ```diff
- 1. @.claude/Feedback.md を読む — 未対応の改善アクションを確認する
-+1.5. @.claude/Questions.md を読む — オーナーから新しい回答がついていれば対応する
+ 1. @.claude/addf/Feedback.md を読む — 未対応の改善アクションを確認する
++1.5. @.claude/addf/Questions.md を読む — オーナーから新しい回答がついていれば対応する
  2. @TODO.md を読む — タスクバックログと優先度を把握する
 ```
 
@@ -262,9 +262,9 @@ Checkpoint を Progress.md のテキスト記録だけでなく、**git ブラ�
 | ファイル | 変更 |
 |---|---|
 | `CLAUDE.md` | 「迷ったときの作法（7割共有原則）」セクション追加、ブートシーケンス 1.5 追加、`Dashboard.md` 起動時表示 |
-| `.claude/Questions.example.md` | 新規作成（テンプレート） |
-| `.claude/Dashboard.example.md` | 新規作成（`dashboard_report: true` 時の復帰用） |
-| `.claude/templates/ProgressTemplate.addf.md` | 判断ルール・差分まとめセクションを追加 |
+| `.claude/addf/Questions.example.md` | 新規作成（テンプレート） |
+| `.claude/addf/Dashboard.example.md` | 新規作成（`dashboard_report: true` 時の復帰用） |
+| `.claude/addf/templates/ProgressTemplate.addf.md` | 判断ルール・差分まとめセクションを追加 |
 | `.claude/commands/addf-mode.md` | 新規スキル（3軸 + 情報伝達フラグ切替） |
 | `.claude/commands/addf-dev.md` | スキップ可能フラグ・worktree 閾値・通知トリガーの参照を追加 |
 | `.claude/commands/addf-init.md` | 初期化時に `Questions.md` / `Dashboard.md` を生成 |
@@ -272,7 +272,7 @@ Checkpoint を Progress.md のテキスト記録だけでなく、**git ブラ�
 
 ## 検証
 
-1. `bash .claude/tests/run-all.sh` 通過
+1. `bash .claude/addf/tests/run-all.sh` 通過
 2. ダミー Plan（意図的に曖昧な要件）を作成し、`/addf-dev` 実行時に `Questions.md` へ質問が投下されることを確認
 3. `Questions.md` に Answer を書き、次セッションで Plan へ反映されることを確認
 

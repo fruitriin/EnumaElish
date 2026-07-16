@@ -26,7 +26,7 @@ status: active
 
 - 修正は2択: コードスパンで囲む（`` `speculative/<concept>` ``）か、HTML エンティティ（`&lt;番号&gt;`）にエスケープする。文中の書式仕様の説明など「コードでない」文脈ではエンティティを使う
 - CI（`.github/workflows/ci.yml` の docs job、Plan 0020）が PR ごとに `npm run docs:build` を回すため、今後は混入時に PR で検出される
-- ADDF マイグレーションで docs/plans-add/ や docs/project-overview/ に上流由来の md が入るとき、この形のプレースホルダが混入しやすい（2026-07-06 に5ファイル7箇所を検出。上流にも同じ問題がある可能性 — コントリビューション候補）
+- ADDF マイグレーションで .claude/addf/plans-add/ や .claude/addf/project-overview/ に上流由来の md が入るとき、この形のプレースホルダが混入しやすい（2026-07-06 に5ファイル7箇所を検出。上流にも同じ問題がある可能性 — コントリビューション候補）
 
 ## 注意点・制約
 

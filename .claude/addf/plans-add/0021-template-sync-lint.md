@@ -9,7 +9,7 @@
 1. `CLAUDE.md` ⇔ `AGENTS.md`（ブートシーケンス） — Plan 0012 で発見
 2. `ProgressTemplate.addf.md` ⇔ 運用中 `Progress.md`（運用ルール） — Plan 0020 で発見
 3. `ProgressTemplate.addf.md` ⇔ `ProgressTemplate.md`（ダウンストリーム版） — Plan 0019 で発見（0020/0016/0017 の3プラン分が未同期だった）
-4. `CLAUDE.md` ⇔ `docs/guides/development-process.md`（ブートシーケンス概要） — Plan 0017 で発見
+4. `CLAUDE.md` ⇔ `.claude/addf/guides/development-process.md`（ブートシーケンス概要） — Plan 0017 で発見
 
 ## 設計
 
@@ -27,7 +27,7 @@
 | ファイル | 変更 |
 |---|---|
 | `.claude/commands/addf-lint.md` | 同期チェックセクション追加 |
-| `.claude/tests/` | 同期チェックの自動テスト（可能なら） |
+| `.claude/addf/tests/` | 同期チェックの自動テスト（可能なら） |
 
 ## 検証
 
@@ -36,8 +36,8 @@
 
 ## 実装結果（2026-06-10 完了）
 
-- `.claude/addfTools/lint-template-sync.py` を4ペア対応に拡張。exit code 3値（0=OK / 1=ERROR / 2=WARNING のみ）。WARNING に git log 最終更新日ヒントを併記
-- `.claude/tests/tools/test-template-sync.sh` 新規作成（6テスト16アサーション、mktemp サンドボックスにドリフトを注入して検証）。`run-all.sh` に自動組み込み
+- `.claude/addf/addfTools/lint-template-sync.py` を4ペア対応に拡張。exit code 3値（0=OK / 1=ERROR / 2=WARNING のみ）。WARNING に git log 最終更新日ヒントを併記
+- `.claude/addf/tests/tools/test-template-sync.sh` 新規作成（6テスト16アサーション、mktemp サンドボックスにドリフトを注入して検証）。`run-all.sh` に自動組み込み
 - `.claude/commands/addf-lint.md` セクション6を4ペア表に更新、結果報告を ✓/⚠/✗ の3値化
 
 ### 設計からの変更点
@@ -51,4 +51,4 @@ Critical/High なし。Warning 2件（git リポジトリ外での誤メッセ�
 
 ### 知見
 
-`docs/knowhow/ADDF/sync-lint-design.md` に記録（検出はツール・解釈と修復はエージェント / サンドボックス注入テスト / SKIP 設計）。
+`.claude/addf/knowhow/ADDF/sync-lint-design.md` に記録（検出はツール・解釈と修復はエージェント / サンドボックス注入テスト / SKIP 設計）。

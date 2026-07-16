@@ -6,7 +6,7 @@
 
 「設計の骨子 5.」を、既存 `gui-test.enable` をマスタースイッチとして環境スキーマと独立に実装:
 
-- GUI スキル3本＋`addf-ui-test-agent` を `.claude/optional/{commands,agents}/` へ git mv（原本化）
+- GUI スキル3本＋`addf-ui-test-agent` を `.claude/addf/optional/{commands,agents}/` へ git mv（原本化）
 - `sync-optional-skills.py` 新設（check = /addf-lint セクション10 / apply = 配置・撤去）。3原則
   「原本が真実源・コピーは使い捨て・改変コピーは削除も上書きもしない」を実装。
   gitignore 列挙漏れ・原本を失った孤児コピーの検出付き（列挙の陳腐化対策）。
@@ -14,16 +14,16 @@
 - `.gitignore` ADDF ブロックに有効化コピー4パス追加（残骸エントリ問題の正統な再来版）
 - addf-init コピーリスト・addf-migrate（Phase 5 に手順 14.5「オプショナルスキルの同期」を実行ステップとして追加、
   完了レポートに /addf-lint 案内）・lint-frontmatter・addf-experience のスキャン範囲・
-  docs/guides（gui-test-setup / agents / skills）を追随
+  .claude/addf/guides（gui-test-setup / agents / skills）を追随
 - テスト25件（`test-optional-skills.sh`: 配置・撤去・改変保護・設定不正・gitignore 整合）
 - レビュー High 2件（ガイドの旧前提 / migrate 手順の未具現化 — 「参照では実行されない」の同型穴）・
   Medium 5件をフェーズ内修正
 
 **フェーズ1の残課題（Low/Info、記録のみ）**:
-- ~~L1: `docs/project-overview/*` が GUI スキル常設前提のまま（生成物。次回 /addf-overview 再生成で解消）~~
+- ~~L1: `.claude/addf/project-overview/*` が GUI スキル常設前提のまま（生成物。次回 /addf-overview 再生成で解消）~~
   → **解消済み（2026-07-05）**: Plan 0028 フェーズ3-4 の /addf-overview full 再生成で
   オプトイン前提の記述に統一。常設前提表現の残存ゼロを grep 確認済み
-- L3: `.claude/tests/skills/test-addf-{clip-image,annotate-grid}.md` に enable+apply 前提の一言がない
+- L3: `.claude/addf/tests/skills/test-addf-{clip-image,annotate-grid}.md` に enable+apply 前提の一言がない
 
 > **粗々の起票**: 設計の方向性と未決事項を出す段階。実装詳細は着手時に詰める。
 
@@ -111,7 +111,7 @@ Plan 0004 で定義した抽象操作（window-info / capture-window / annotate-
 | annotate-grid | 環境非依存（既存実装を全環境で共用） | ← | ← | ← | ← |
 | clip-image | 環境非依存（既存実装を全環境で共用） | ← | ← | ← | ← |
 
-- 配置規約（案）: `.claude/addfTools/drivers/<driver名>/` に環境固有実装を置き、
+- 配置規約（案）: `.claude/addf/addfTools/drivers/<driver名>/` に環境固有実装を置き、
   環境非依存ツール（annotate-grid / clip-image）は現行の場所のまま共用する
 - 本 Plan で**実装まで持つのは mac（既存）と web（Playwright）の2ドライバ**とし、
   windows / linux / ios / android は「インターフェース準拠のスタブ＋SKIP 報告」まで
@@ -128,8 +128,8 @@ GUI 関連スキルを発見パス外に退避しておき、オプトイン時�
 
 **配置（案）**:
 ```
-.claude/optional/commands/addf-gui-test.md      ← 原本（コミット対象。発見パス外）
-.claude/optional/agents/addf-ui-test-agent.md   ← 同上
+.claude/addf/optional/commands/addf-gui-test.md      ← 原本（コミット対象。発見パス外）
+.claude/addf/optional/agents/addf-ui-test-agent.md   ← 同上
 .claude/commands/addf-gui-test.md               ← 有効化コピー（gitignore。オプトイン時に生成）
 ```
 - 退避先は `.claude/commands/` / `.claude/agents/` の**外**に置く（`.claude/commands/` のサブディレクトリは
@@ -162,20 +162,20 @@ GUI 関連スキルを発見パス外に退避しておき、オプトイン時�
 - `.claude/commands/addf-gui-test.md`: 手順2のプラットフォーム判定を「環境タグ解決 → シナリオフィルタ →
   ドライバ選択」に書き換える
 - `.claude/agents/addf-ui-test-agent.md`: ツール一覧をドライバ抽象前提の記述に更新する
-- `docs/guides/gui-test-setup.md`: 「現在 macOS のみ対応」を環境マトリクス表に更新し、
+- `.claude/addf/guides/gui-test-setup.md`: 「現在 macOS のみ対応」を環境マトリクス表に更新し、
   環境ごとのセットアップ手順（web: Playwright、ios: Xcode/simctl 等）を追記する
 - `docs/test-scenarios/README.md`（あれば）: frontmatter 書式を記載する
 
 ## 影響範囲
 
-- `.claude/addf-Behavior.toml`（スキーマ拡張・後方互換）
+- `.claude/addf/Behavior.toml`（スキーマ拡張・後方互換）
 - `.claude/commands/addf-gui-test.md` / `addf-annotate-grid.md` / `addf-clip-image.md` /
-  `.claude/agents/addf-ui-test-agent.md`（`.claude/optional/` への退避＋有効化コピー機構）
+  `.claude/agents/addf-ui-test-agent.md`（`.claude/addf/optional/` への退避＋有効化コピー機構）
 - `.gitignore` ADDF ブロック（有効化コピーのエントリ追加。残骸エントリ `.claude/skills/addf-gui-test.md` の修正 — Plan 0026 Low 指摘の解消）
-- `.claude/addfTools/`（drivers/ ディレクトリ導入、web ドライバ新規）
-- `.claude/addfTools/lint-template-sync.py`（原本⇔有効化コピー・Behavior.toml⇔スキル実体の同期ペア追加。addf-lint.md セクション6の表も同時更新）
+- `.claude/addf/addfTools/`（drivers/ ディレクトリ導入、web ドライバ新規）
+- `.claude/addf/addfTools/lint-template-sync.py`（原本⇔有効化コピー・Behavior.toml⇔スキル実体の同期ペア追加。addf-lint.md セクション6の表も同時更新）
 - `/addf-init`（コピーリスト変更: GUI スキルを無条件コピーから optional 配置に変更。lint ペア5への影響確認）
-- `docs/guides/gui-test-setup.md` / `docs/test-scenarios/` の書式
+- `.claude/addf/guides/gui-test-setup.md` / `docs/test-scenarios/` の書式
 - `/addf-migrate`（`machine` → `environments` 移行、既存プロジェクトの GUI スキルの optional 退避移行）
 - `/addf-lint`（lint-toml.py の対象キー拡張。新スキーマの検証を足すか要検討）
 
@@ -199,19 +199,19 @@ GUI 関連スキルを発見パス外に退避しておき、オプトイン時�
 ## 完了条件（暫定）
 
 - 環境ごとに GUI テストをオプトインでき、未オプトイン環境ではシナリオが FAIL せず SKIP 報告される
-- GUI 関連スキル・エージェント定義が `.claude/optional/` に退避され、オプトイン時のみ発見パスに実体化される。
+- GUI 関連スキル・エージェント定義が `.claude/addf/optional/` に退避され、オプトイン時のみ発見パスに実体化される。
   無効時はスキルがコンテキストに載らず、Behavior.toml とスキル実体の不整合は lint が検出する
 - シナリオが要求環境を宣言でき、実行側が現環境で満たせるものだけを実行する
 - ドライバが差し替え可能で、mac（既存）と web（Playwright）の2実装が動作する。
   windows / linux / ios / android はスタブとして差し込み口が存在する
 - `machine` 単一値の既存設定が後方互換で動き、`/addf-migrate` で新スキーマへ移行できる
-- `bash .claude/tests/run-all.sh` が通過する
+- `bash .claude/addf/tests/run-all.sh` が通過する
 
 ## 関連
 
 - Plan 0004（GUI テストのクロスプラットフォーム抽象化）— 本 Plan はその抽象を環境マトリクスへ拡張する
 - Plan 0026（レビュー残課題バックログ）— `.gitignore` 残骸エントリの Low 指摘を本 Plan で解消する
 - Plan 0021 / 0022 / 0024（同期 lint 機構）— 原本⇔有効化コピーの同期ペアはこの機構に追加する
-- `docs/knowhow/ADDF/sync-lint-design.md` — 同期ペア追加時の作法
-- `docs/guides/gui-test-setup.md` — セットアップガイド（要更新）
+- `.claude/addf/knowhow/ADDF/sync-lint-design.md` — 同期ペア追加時の作法
+- `.claude/addf/guides/gui-test-setup.md` — セットアップガイド（要更新）
 - Feedback.md「ダウンストリーム配布時の安全性」観点 — デフォルト無効・SKIP 設計の根拠
