@@ -5,9 +5,81 @@ import (
 	"testing"
 
 	"github.com/fruitriin/EnumaElish/internal/dsl"
+	"github.com/fruitriin/EnumaElish/internal/eval"
 )
 
 var errLoadFailure = errors.New("simulated load failure")
+
+// TestBuildHookResponse verifies the mapping from evaluation results to the
+// hookSpecificOutput JSON payload (Plan 0022 Phase 1: modern hook I/O).
+func TestBuildHookResponse(t *testing.T) {
+	cases := []struct {
+		name         string
+		result       *eval.Result
+		wantNil      bool
+		wantDecision string
+		wantReason   string
+	}{
+		{
+			name:    "allow stays neutral",
+			result:  &eval.Result{Action: dsl.ActionAllow},
+			wantNil: true,
+		},
+		{
+			name:         "deny with message",
+			result:       &eval.Result{Action: dsl.ActionDeny, Message: "curl|bash is blocked"},
+			wantDecision: "deny",
+			wantReason:   "curl|bash is blocked",
+		},
+		{
+			name:         "deny without message gets default reason",
+			result:       &eval.Result{Action: dsl.ActionDeny},
+			wantDecision: "deny",
+			wantReason:   "blocked by ccchain",
+		},
+		{
+			name:         "warn becomes allow with reason",
+			result:       &eval.Result{Action: dsl.ActionWarn, Message: "outside workspace"},
+			wantDecision: "allow",
+			wantReason:   "outside workspace",
+		},
+		{
+			name:         "hint becomes allow with reason",
+			result:       &eval.Result{Action: dsl.ActionHint, Message: "consider using rg"},
+			wantDecision: "allow",
+			wantReason:   "consider using rg",
+		},
+		{
+			name:         "ask passes through with message",
+			result:       &eval.Result{Action: dsl.ActionAsk, Message: "container op"},
+			wantDecision: "ask",
+			wantReason:   "container op",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := buildHookResponse(tc.result)
+			if tc.wantNil {
+				if resp != nil {
+					t.Fatalf("expected nil (neutral) response, got %+v", resp)
+				}
+				return
+			}
+			if resp == nil {
+				t.Fatal("expected a response, got nil")
+			}
+			if resp.HookSpecificOutput.HookEventName != "PreToolUse" {
+				t.Errorf("hookEventName = %q, want PreToolUse", resp.HookSpecificOutput.HookEventName)
+			}
+			if resp.HookSpecificOutput.PermissionDecision != tc.wantDecision {
+				t.Errorf("permissionDecision = %q, want %q", resp.HookSpecificOutput.PermissionDecision, tc.wantDecision)
+			}
+			if resp.HookSpecificOutput.PermissionDecisionReason != tc.wantReason {
+				t.Errorf("permissionDecisionReason = %q, want %q", resp.HookSpecificOutput.PermissionDecisionReason, tc.wantReason)
+			}
+		})
+	}
+}
 
 // TestIsStrictConfigError_FromSettings verifies that Settings.StrictConfigError
 // activates strict mode regardless of loadErr. (Plan 0006 VULN-07)

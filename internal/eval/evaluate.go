@@ -348,7 +348,7 @@ func applyScopeToCommand(cmd *shell.Command, rule *dsl.Rule, config *dsl.Config,
 
 	// Legacy behavior (pre-v2 or scope: block without outside*): escalate any
 	// result less restrictive than ask when any path is outside.
-	// Rationale: warn/hint return {"decision":"allow"} at the hook layer, so
+	// Rationale: warn/hint return permissionDecision:"allow" at the hook layer, so
 	// they must not be treated as safer than allow for scope-violation
 	// purposes. This mirrors the step-comparison used by argsTooLongResult
 	// (from speculative/scope-violation-deny, now on main).

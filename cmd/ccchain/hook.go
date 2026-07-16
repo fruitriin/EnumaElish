@@ -13,8 +13,31 @@ import (
 
 // toolInput represents the JSON input from Claude Code's hook system.
 type toolInput struct {
-	ToolName string          `json:"tool_name"`
-	Input    json.RawMessage `json:"tool_input"`
+	ToolName       string          `json:"tool_name"`
+	Input          json.RawMessage `json:"tool_input"`
+	PermissionMode string          `json:"permission_mode"`
+	SessionID      string          `json:"session_id"`
+	CWD            string          `json:"cwd"`
+}
+
+// hookResponse is the PreToolUse hook JSON output (exit 0 + stdout).
+// https://code.claude.com/docs/en/hooks — hookSpecificOutput schema.
+type hookResponse struct {
+	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
+}
+
+type hookSpecificOutput struct {
+	HookEventName            string `json:"hookEventName"`
+	PermissionDecision       string `json:"permissionDecision"`
+	PermissionDecisionReason string `json:"permissionDecisionReason,omitempty"`
+}
+
+func newHookResponse(decision, reason string) *hookResponse {
+	return &hookResponse{hookSpecificOutput{
+		HookEventName:            "PreToolUse",
+		PermissionDecision:       decision,
+		PermissionDecisionReason: reason,
+	}}
 }
 
 // bashInput represents the input for a Bash tool call.
@@ -55,9 +78,8 @@ func runHookPre(configPath string, defaultAction string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ccchain config error: %v\n", err)
 		if isStrictConfigError(cfg, err) {
-			reason := fmt.Sprintf("config load failed: strict_config_error is enabled: %v", err)
-			fmt.Fprintln(os.Stderr, reason)
-			os.Exit(2)
+			reason := fmt.Sprintf("ccchain: config load failed and strict_config_error is enabled: %v", err)
+			emitResponse(newHookResponse("deny", reason))
 		}
 		os.Exit(0)
 	}
@@ -112,44 +134,47 @@ func runHookPre(configPath string, defaultAction string) {
 		os.Exit(0)
 	}
 
-	outputResult(result)
+	emitResponse(buildHookResponse(result))
 }
 
-func outputResult(result *eval.Result) {
+// buildHookResponse maps an evaluation result to the hook JSON response.
+// A nil return means the hook stays neutral (exit 0, no output): Claude Code
+// falls through to its own permission flow, same as before ccchain existed.
+//
+// allow is intentionally neutral rather than permissionDecision:"allow" —
+// ccchain's allow means "ccchain does not object", not "skip the user's
+// remaining permission layers". deny/ask/warn/hint carry an opinion, so they
+// emit JSON.
+func buildHookResponse(result *eval.Result) *hookResponse {
 	switch result.Action {
-	case dsl.ActionAllow:
-		os.Exit(0)
-
 	case dsl.ActionDeny:
 		msg := result.Message
 		if msg == "" {
 			msg = "blocked by ccchain"
 		}
-		fmt.Fprintln(os.Stderr, msg)
-		os.Exit(2)
+		return newHookResponse("deny", msg)
 
-	case dsl.ActionWarn:
-		output := map[string]any{
-			"decision": "allow",
-			"message":  result.Message,
-		}
-		if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
-			fmt.Fprintf(os.Stderr, "ccchain: json encode error: %v\n", err)
-		}
-		os.Exit(0)
+	case dsl.ActionWarn, dsl.ActionHint:
+		// Let the call through but land the caution text in Claude's context.
+		return newHookResponse("allow", result.Message)
 
 	case dsl.ActionAsk:
-		output := map[string]any{
-			"decision": "ask",
-		}
-		if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
-			fmt.Fprintf(os.Stderr, "ccchain: json encode error: %v\n", err)
-		}
-		os.Exit(0)
+		return newHookResponse("ask", result.Message)
 
 	default:
-		os.Exit(0)
+		return nil
 	}
+}
+
+// emitResponse writes the hook JSON to stdout and exits 0. Per the hooks
+// spec, JSON output requires exit 0 (Claude Code ignores JSON on exit 2).
+func emitResponse(resp *hookResponse) {
+	if resp != nil {
+		if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
+			fmt.Fprintf(os.Stderr, "ccchain: json encode error: %v\n", err)
+		}
+	}
+	os.Exit(0)
 }
 
 // extractMCPArg attempts to extract a file path or URL from MCP tool input.

@@ -211,7 +211,7 @@ settings:
 preToolUse
   warn cat
 `)
-	// warn returns {"decision":"allow"} at the hook layer, so scope must
+	// warn returns permissionDecision:"allow" at the hook layer, so scope must
 	// still escalate warn → deny for outside paths.
 	r, err := Evaluate("cat /etc/passwd", cfg)
 	if err != nil {

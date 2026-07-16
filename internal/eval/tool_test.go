@@ -126,7 +126,7 @@ settings:
 preToolUse
   warn Read
 `)
-	// warn returns {"decision":"allow"} at the hook layer, so scope must
+	// warn returns permissionDecision:"allow" at the hook layer, so scope must
 	// still escalate warn → deny for outside paths.
 	r := EvaluateTool("Read", "/etc/passwd", cfg)
 	assertEqual(t, "tool warn escalated to deny", r.Action, dsl.ActionDeny)
