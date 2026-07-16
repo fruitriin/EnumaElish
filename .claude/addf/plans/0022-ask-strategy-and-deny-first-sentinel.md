@@ -57,14 +57,36 @@
 
 背景セクションの転写を信じず、WebFetch で以下を再確認する。**結果は本 Plan のこのセクションに追記し、乖離があれば設計を修正してから Phase 1 に進む。**
 
-- [ ] https://code.claude.com/docs/en/hooks-guide.md — PreToolUse の入出力スキーマ（`permission_mode` フィールドの正確な名前と値集合、`hookSpecificOutput.permissionDecision` の4値、`permissionDecisionReason` の表示先）
-- [ ] https://code.claude.com/docs/en/permission-modes.md — 6モードの正確な挙動、auto での ask → defer 扱いの記述
-- [ ] https://code.claude.com/docs/en/permissions.md — deny > ask > allow の評価順、bypassPermissions での deny/ask の有効性
-- [ ] **headless の検出方法**: hook 入力 JSON から headless（`claude -p`）を判別できるか（permission_mode に現れるのか、別フィールドか、判別不能か）。判別不能なら ask_strategy の「headless」区分は「非インタラクティブ系モードと同一扱い」に設計変更する
-- [ ] **旧形式との共存**: exit 2 + stderr（現行の deny）と新 JSON 形式のどちらが優先されるか。旧 Claude Code バージョンに新 JSON を渡した場合の挙動（後方互換戦略の決定材料）
-- [ ] `permissionDecisionReason` の文字数制限・表示のされ方（deny+hint の承認手順埋め込みが読める形で届くか）
+- [x] https://code.claude.com/docs/en/hooks-guide.md — PreToolUse の入出力スキーマ（`permission_mode` フィールドの正確な名前と値集合、`hookSpecificOutput.permissionDecision` の4値、`permissionDecisionReason` の表示先）
+- [x] https://code.claude.com/docs/en/permission-modes.md — 6モードの正確な挙動、auto での ask → defer 扱いの記述
+- [x] https://code.claude.com/docs/en/permissions.md — deny > ask > allow の評価順、bypassPermissions での deny/ask の有効性
+- [x] **headless の検出方法**: hook 入力 JSON から headless（`claude -p`）を判別できるか（permission_mode に現れるのか、別フィールドか、判別不能か）。判別不能なら ask_strategy の「headless」区分は「非インタラクティブ系モードと同一扱い」に設計変更する
+- [x] **旧形式との共存**: exit 2 + stderr（現行の deny）と新 JSON 形式のどちらが優先されるか。旧 Claude Code バージョンに新 JSON を渡した場合の挙動（後方互換戦略の決定材料）
+- [x] `permissionDecisionReason` の文字数制限・表示のされ方（deny+hint の承認手順埋め込みが読める形で届くか）
 
 検証結果の記録先: 本セクション末尾に「### 検証結果（YYYY-MM-DD）」を追記。.claude/addf/knowhow/ADDF/claude-code-hooks.md との乖離があれば `/addf-knowhow-revise` で更新する。
+
+### 検証結果（2026-07-17）
+
+公式ドキュメント（hooks.md / hooks-guide.md / permission-modes.md / permissions.md）を WebFetch で再確認した。
+
+**確定した事実（出典付き）:**
+
+1. **`permission_mode` フィールドは実在**（hooks.md の PreToolUse 入力スキーマ）。キー名は `permission_mode`、値は `default` / `acceptEdits` / `plan` / `auto` / `dontAsk` / `bypassPermissions` の6値すべて。他フィールド: `session_id`, `cwd`, `tool_name`, `tool_input`, `hook_event_name`, `effort`, `prompt_id`, `transcript_path`。**session_id は来る**（Phase 3 のスコープ判定に併用可）
+2. **`hookSpecificOutput.permissionDecision` は4値**（allow / deny / ask / defer）。`defer` は「通常の permissions フローへ委譲。headless `-p` mode でのみ機能」と明記。`permissionDecisionReason` は Claude にフィードバックされる（エージェントのコンテキストに入る）
+3. **`permissionDecisionReason` の文字数制限は記載なし** → 降格 deny の承認手順埋め込みは長さの面で問題ないが、自衛的に上限は設ける（下記設計修正）
+4. **旧形式（exit 2 + stderr）と新 JSON（exit 0）は両方サポート**。「Don't mix them: Claude Code ignores JSON when you exit 2」（hooks-guide.md）。新 JSON が推奨 → **`hook_output: legacy` 設定オプションは追加しない**（Plan の条項どおり、不要な設定面を増やさない）
+5. **auto モードで hook が ask を返した場合の挙動は公式に明記なし**。dontAsk は「prompt する代わりに deny」（permission-modes.md）、bypassPermissions では「explicit ask rules は依然 prompt する」。背景転写の「auto → classifier 行き」は裏取りできなかったが、いずれにせよ auto/dontAsk で ask が人間に確実に届く保証はなく、降格戦略の価値は変わらない
+6. **headless は hook 入力 JSON から判別不能**（該当フィールドの記載なし） → **設計変更: ask_strategy の「headless」区分は削除**。分類は permission_mode のみで行う2区分（interactive / nonInteractive）
+7. **評価順 deny > ask > allow を確認**（permissions.md）。「hook の決定は permission rules をバイパスしない」— hook が allow を返しても settings の deny/ask ルールは独立に評価される（hooks-guide.md）
+8. **PreToolUse hook は permission-mode チェックの前に走る**（hooks-guide.md「PreToolUse hooks fire before any permission-mode check」）
+
+**設計修正（本検証を受けて）:**
+
+- `classifyMode` は2区分で確定: interactive（default / acceptEdits / plan / bypassPermissions）/ nonInteractive（auto / dontAsk / 未知値 / 空文字）。未知・空は保守的に nonInteractive
+- `hook_output: legacy` オプションは追加しない。全アクションを exit 0 + `hookSpecificOutput` JSON に統一（deny の exit 2 + stderr を廃止 — 破壊的変更として CHANGELOG に明記）
+- Phase 3 のスコープ判定は session_id + cwd の併用で確定
+- 降格メッセージは `permissionDecisionReason` に埋め込む。公式の文字数制限はないが、サニタイズ層の切詰め上限を 200 → 600 字に拡大して承認手順が収まるようにする（prompt injection サニタイズ自体は維持）
 
 ## Phase 1: hook I/O 現代化
 

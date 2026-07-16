@@ -1,0 +1,135 @@
+# 進捗表アーカイブ — オーナー指示対応・リリース整備 + 投機サイクル日記（2026-07-04〜06）
+
+## タスク
+
+### 現在のタスク: オーナー指示対応（2026-07-06）— PR 採否・CI・リリース整備
+
+#### サブタスクチェックリスト
+
+- [x] PR #11 に `ccchain diff` の出力サンプルをコメント（基本形 / --changed-only / --exit-on-change）
+- [x] PR #10 / #11 に 3 ペルソナ並列レビュー（skeptic + attacker + newcomer、計6体）
+- [x] レビュー集約 → 修正エージェント派遣（PR #10: docs Critical / PR #11: main.go フラグ透過 Critical）
+- [x] PR #10 マージ（squash、worktree/ブランチ掃除、Worktrees.md 更新済み）
+- [x] PR #11 修正 push + レビュー結果コメント（採否はオーナー判断待ち）
+- [x] Plan 0020: CI パイプライン実装 → PR #12（main 直 push は classifier 拒否のため PR 経由。CI 初回実行が main の VitePress ビルド破損を検出、5ファイル7箇所修正して green）
+- [x] リリース整備: CHANGELOG.md 新設 → PR #13、addf-release.exp.md 作成（gitignore 対象のためローカル保持）
+- [x] 品質ゲート・知見記録（vitepress-angle-bracket-placeholders 新規、security-review-findings / speculative-cycle-lessons 追記、INDEX 更新）・日記
+
+#### 日記
+
+##### 2026-07-06 — オーナー指示5点を受領、並列で消化中
+**やったこと**: オーナー回答（#10 Approve / Plan 0019 方針 OK + 出力サンプル要望 / 両 PR ペルソナレビュー / Plan 0020 Go / リリース整備、1.0.0 は運用実績後・初回 0.1.0）を受けて着手。PR #11 にサンプルコメント投稿、6体のペルソナレビュー起動、CI を PR #12、CHANGELOG を PR #13 として作成。addf-release.exp.md にリリース戦略を記録。module パス `github.com/fruitriin/ccchain` とリポジトリ名 EnumaElish の不一致で go install 配布不可という gotcha を発見し、PR #13 本文でオーナー判断を仰いだ。
+**今の見立て**: ペルソナレビューが有効に機能。PR #10 は attacker が実機再現付き Critical 2件（rename 復旧手順がグローバル conf 存在時・--config 起動時に機能しない）+ skeptic/newcomer コンセンサス2件（Bash-only と step 2 の矛盾、ja docs 取り残し）。PR #11 は skeptic が main.go フラグ透過の regression を実機実証（`check --typo` が exit 0、`eval --typo "echo hi"` が誤対象を評価）。いずれも修正エージェントで対応してからマージ/push する。
+**次の自分へ**: rev11-attacker の完了待ち → 集約 → PR #10 / #11 の worktree に修正エージェント派遣 → 再検証 → #10 マージ（Approve 済みだが Critical 修正コミットが乗るのでマージ後に報告）。#11 は修正 push + レビュー結果を PR コメント共有、採否はオーナー判断。
+**気になっていること**: main への直接 push が auto モード classifier に止められた（従来の [進捗] コミット直 push が通るかは未検証）。exp ファイルは gitignore 対象でリポジトリに残らない — 必要なら .claude/addf/knowhow/ へ昇格を検討。
+
+##### 2026-07-06 — 全サブタスク完了、オーナー判断待ち3件を残して締め
+**やったこと**: fix10（PR #10 の docs Critical 4件 + W/S 全件、コミット a248c98）と fix11（PR #11 の Critical 5件 + Warning 6件 + Suggestion 2件、コミット 8efe198/05a48da、diff_test.go 14テスト新設）が完了。fix11 の主張はメインセッションで実機再検証済み（未知フラグ拒否・空パス拒否・exit code 分離・ヘッダー出力・全テスト通過）。PR #10 は squash マージして worktree/ブランチ掃除、PR #11 はレビュー結果コメントを残して採否待ち。知見3件を knowhow に記録（新規1・追記2 + INDEX）。
+**今の見立て**: オーナー判断待ちは (1) PR #11 の採否、(2) PR #12（CI）マージ — これが入ると main の deploy-docs 破損も直る、(3) PR #13（CHANGELOG）マージ + module パス改名の2択（go install 配布するなら改名が先）。リリース（v0.1.0 タグ）は前回合意どおり Plan 0022 Phase 0〜2 が入ってからが本線。
+**次の自分へ**: PR #11 マージ後は worktree `../EnumaElish-spec-eval-diff-subcommand` とローカルブランチの掃除、Worktrees.md「昇格済み」更新、Plan 0019 の該当項目（diff サブコマンド）に完了マークを忘れずに。skeptic 指摘の恒久対策「eval/test/suggest 共通のサブコマンド専用フラグ検証ヘルパー」と「ccchain check の positional 引数受理（3ペルソナ指摘）」は新 Plan 起票候補としてオーナーに提示済み。
+**気になっていること**: レビューエージェントの1体が「ツール出力に出所不明の指示文らしきテキストが混入していた（無視した）」と報告。実害はなくエージェントの対応も適切だったが、サブエージェント環境に注入面がないかは頭の片隅に置いておく。
+
+##### 2026-07-06 — v0.1.0 リリース実行
+**やったこと**: オーナー指示で v0.1.0 をリリース。プレリリースチェック（Go 全テスト・統合テスト・docs ビルド・CI green）→ CHANGELOG 確定 → `[リリース] v0.1.0` コミット → タグ push → darwin-arm64/linux-amd64 バイナリを ldflags 付きでビルド → GitHub Release 作成・添付。`GOPROXY=direct` で `go install github.com/fruitriin/EnumaElish/cmd/ccchain@v0.1.0` の実地検証も成功（コマンド名 ccchain で導入される）。ADDF テストの Test 1/8/12 失敗は既知の downstream パターンでブロッカー外と判断。
+**今の見立て**: 初リリース完了。リポジトリは「タグ運用開始済み・0.x で破壊的変更許容」の状態に入った。
+**次の自分へ**: go install 経由では ldflags が効かず version が "dev" 表示になる（実測）。`runtime/debug.ReadBuildInfo()` フォールバックが次リリース（0.1.1 or 0.2.0）の改善候補 — exp に記録済み。本線は Plan 0022（入ったら 0.2.0）。
+**気になっていること**: なし。
+
+##### 2026-07-06 — PR #11〜#14 全マージ、リリース整備完了
+**やったこと**: オーナー承認を受けて PR #11（ccchain diff）・#12（CI）・#13（CHANGELOG）・#14（module パス改名 + version/--help 出自表記）を全て squash マージ。ネーミング問題は「go install のバイナリ名は cmd/ccchain のディレクトリ名由来」の性質で三立解（リポジトリ=EnumaElish / コマンド=ccchain / go install 可）に到達し、オーナーが即決。worktree・ブランチは全て掃除済み、main で全テスト通過。
+**今の見立て**: リリース整備は完了状態。v0.1.0 タグはいつでも打てるが、本線は Plan 0022 Phase 0〜2（hook I/O 現代化 + ask_strategy）を入れてから。addf-release.exp.md に手順一式が記録済み。
+**次の自分へ**: 次の着手候補は TODO 最優先の Plan 0022。着手時は Phase 0（WebFetch での仕様再裏取り）が必須ゲート。Plan 0019 の残り（REPL / stats）と、レビュー由来の新 Plan 候補2件（サブコマンド共通フラグ検証ヘルパー / check の positional 受理）も未起票のまま残っている。
+**気になっていること**: なし。
+
+### 前のタスク: `/loop 1h /addf-speculate` 投機サイクル1周（2026-07-04〜05）
+
+（サイクル完了。以下は日記のみを残しアーカイブせず、次サイクルで再度上書きされる想定）
+
+#### 日記
+
+##### 2026-07-05 — 投機サイクル1周を実行、3本統合成功・1本衝突で外し
+**やったこと**: 4本の投機（stripquotes-escape / template-dedup / args-hardening / scope-violation-deny）を並列で立ち上げ、いずれも単体 Stage 1 は通過。integration 統合で stripquotes-escape と args-hardening が同じ AST 層（topology の word 抽出）を触るため意図が衝突し、堅牢化を1周依頼しても両者の意図を同時に満たせず stripquotes-escape を「衝突」で外した。残る3本は Stage 2（相互作用テスト + skeptic/attacker/newcomer 3ペルソナ並列レビュー）通過。ペルソナが本 PR 起因の Critical 2件（args 長さ超過時の deny 格下げ、scope_violation の warn/hint/fallback バイパス）と既存バグ 4件（バックスラッシュエスケープ回避、DblQuoted 内動的展開の Analyzable スキップ、DblQuoted 内エスケープ4種、シンボリックリンク未解決）を検出。本 PR 起因は担当エージェントに1周依頼して修正、既存バグは Dashboard「気になった点」に列挙してオーナー起票判断に委ねた。修正後 integration 再統合で全テスト PASS、4本すべて origin に push 済み。
+**今の見立て**: 投機の設計目的（軽量な残課題の消化・独立性）はほぼ達成できたが、`args-hardening` と `stripquotes-escape` の衝突は選定時に見抜けなかった。ファイル集合の重なりだけでなく「意味論の同一 AST 層への干渉」を投機選定のチェック軸に加える必要がある — この教訓は `.claude/addf/knowhow/ADDF/speculative-cycle-lessons.md` に残した。
+**次の自分へ**: Dashboard.md はブートシーケンス 1.6 でオーナーに提示される。オーナー応答があるまで削除しない。Dashboard に列挙した既存バグ 4件は Plan 起票の候補 — オーナー判断を仰いでから TODO へ落とすこと。次サイクルの `/addf-speculate` 起動時は同じ AST 層（topology, evaluate）の兄弟課題を1本のブランチに束ねる方針で選定してほしい。
+**気になっていること**: `stripquotes-escape` は push 済みでブランチは残っているが、`args-hardening` と同居できる形の再設計をしないと採用できない。オーナーが「片方採用/両方破棄/新 Plan で再設計」のいずれを選ぶかで扱いが変わる。それまでは speculative/ のまま塩漬け。
+
+##### 2026-07-05 サイクル2 — 3本並列 + Stage 2 で Critical 7件を全部潰し切り、再統合で全通過
+**やったこと**: サイクル2として `workspace-scope-hardening`（Plan 0011 v2 read/write 分離 + シンボリックリンク解決の兄弟課題を同一ブランチに束ねた） / `bash-c-analyzable-fix`（前サイクル Dashboard #2 の既存バグ修正）/ `strict-config-error`（Plan 0006 VULN-07）の 3 本を並列で立ち上げ。全部単体 Stage 1 通過、3本とも integration に統合できて相互作用テスト一発 PASS（サイクル1の教訓「同じ AST 層への干渉」を選定時にチェックした成果）。ペルソナ並列レビューが Critical 7件を検出（うち 3 件はコンセンサス補正で強化、attacker が全部再現コード付きで実証）。担当エージェント2本に修正依頼し、`workspace-scope-hardening` は 6/7 の Critical（C1 リダイレクト・C2 `cp -t`・C3 未知コマンド・C4 動的 path・C6 ツール経路・C7 fail-closed）を1コミットで対応、`strict-config-error` は C5（`mergeConfigs` の Settings 丸ごと swap）を `Settings.Explicit` フィールドでフィールド単位マージに改造して対応。修正後の統合で workspace-scope-hardening と strict-config-error が Grammar 早見表への追記でコンフリクトしたが自明な解消（両行を並べる）で処理し、3本統合成功。全テスト・全統合テスト・全 ADDF テスト通過、3本すべて origin に push 済み。
+**今の見立て**: 「兄弟課題を同一ブランチに束ねる」教訓が機能し、`workspace-scope-hardening` に read/write 分離とシンボリックリンク解決を束ねたことで、単体レビューで両方の相互作用が発覚した（片方だけ入れると `outside-write: deny` が symlink 経由でバイパスされる非対称）。attacker ペルソナが実証コード付きで Critical を7件検出したのは大きな成果。既存バグ2件（バックスラッシュエスケープバイパス・DblQuoted 内エスケープ4種）は次サイクル以降の投機対象または新 Plan 候補として Dashboard に残した。
+**次の自分へ**: サイクル1・2 合計で 7 本の投機ブランチが採否判断待ち。オーナーからの応答を受けたら、採否判断に沿って `git branch -D speculative/<xxx>`（破棄）または main への squash マージ（採用）を実行する。**採用判断はオーナー承認必須**（`/addf-speculate` 手順書のとおり、自動マージ経路は存在しない）。サイクル2の Critical 7件対応はすべて追加コミットとしてブランチに残っているので、履歴を追うときは各 speculative ブランチの複数コミットを見ること。
+**気になっていること**: `bash-c-analyzable-fix` が実装した `isAnalyzable` 全深度検査と、サイクル1 で塩漬けの `stripquotes-escape` の `(dynamic-shell)` 検出は、内容が重複気味。統合するとどちらかが冗長。オーナーが `stripquotes-escape` を「採用」判断した場合、`bash-c-analyzable-fix` は先に main へ入っている前提で rebase する必要が出るかもしれない。両ブランチの意図の重複は Dashboard に書ききれなかったが、統合設計時の判断材料として意識してほしい。
+
+##### 2026-07-05 サイクル3（発動）— コンテキスト枯渇のため新規投機を起こさず、記録整理に専念
+**やったこと**: CronCreate による1時間毎の再発火でサイクル3が起動。ただし現時点でコンテキスト使用量は約25万トークン（実効目安の20万を超過）で、新規に3本の worktree を並列で立ち上げてサブエージェント修正依頼まで回すと、途中でコンパクションに巻き込まれる公算が大きい。addf-Behavior.toml のコンテキスト目安を尊重し、**サイクル3の新規投機は見送り**、代わりにサイクル2 の成果と新パターンを `.claude/addf/knowhow/ADDF/speculative-cycle-lessons.md` に追記した（統合コンフリクトへの手動介入、`Settings.Explicit` によるフィールド単位マージ、実証コード付きレビューの威力）。
+**今の見立て**: 累計 7 本の speculative/ ブランチが採否判断待ち。この状態でサイクル3 を無理に起こすと投機の粒度が細かくなりすぎ、オーナーの採否判断負荷も増える。**このタイミングでは新規投機より、既存 7 本をオーナーに提示して採否判断を得ることの方が投機フローの目的（オーナーがまとめてレビュー・取捨選択できる状態を作る）に沿う**。次のサイクル4（次時間の再発火）で状況を再評価する。
+**次の自分へ**: `/addf-speculate` の Cron ジョブ `7e49612b` は毎時7分に再発火する（サイクル4 は次時間）。次回起動時は (a) 累計 speculative ブランチ数が7本以上ある場合はオーナー確認を優先すべきかを最初に見立てる、(b) コンテキスト使用量を最初に確認して200k を超えていたら新規投機は控える、の2点を実行してほしい。「投機フローが機能した」だけでなく「オーナーが決めるべき採否判断のスループット」もサイクル運用の暗黙の律速要因である、という気づきをここに残しておく。
+**気になっていること**: `/loop 1h /addf-speculate` は「アイドル時間の生産的活用」が趣旨だが、オーナー不在下で投機ブランチが積み上がっていく傾向がある。オーナーの採否判断待ちで塩漬けブランチが増えるより、投機の実行頻度を下げる（例: 3h/日1回）か、採否判断が滞留したらループを一時停止するような機構があるといいかもしれない。今は Cron を止める権限判断が必要（越権になりかねない）ので、そのまま次回起動を待つ。
+
+##### 2026-07-05 09:07 サイクル4（発動）— 発動ガードが上限到達を検知、新規投機起こさず終了
+**やったこと**: Cron ジョブが1時間経過で再発火。`speculate-guard.py` を実行したところ `active=7, slots=0` で exit 2（上限到達 WARNING）。手順書の通り新規投機は起こさず、Worktrees.md と Progress.md に「上限で待機」を記録して終了。前回サイクル3 の日記で予想したとおり、採否判断の滞留が Cron のリズムより優先されるべき状況になった（ガードによる自動制御が機能）。
+**今の見立て**: サイクル1〜2 の 7 本の speculative/ ブランチがオーナー採否判断待ち。Cron はこの後も1時間毎に発火するが、`max_worktrees=7` の上限に張り付いているため、オーナーが採否判断（採用→main へ squash マージ / 破棄→ブランチ削除）を進めない限り新規投機は起こせない。上限による自動的な自己制御が働いており、`/addf-speculate` の運用設計は健全。
+**次の自分へ**: 次回起動時も `speculate-guard.py` が exit 2 を返す限り新規投機は不要。Progress.md への追記も不要（同じ内容が続くだけ）。ガード結果を確認して1〜2行で報告するだけで良い。もしオーナーが採否判断を進めて slots が空いたら、その時点で通常の投機フローに戻す。
+**気になっていること**: `max_worktrees=7` の上限は前々セッションで 3→7 に緩めた設定（コミット 46bd728）。この上限をさらに上げるべきかは投機フローの効果検証次第。現状の 7 本は「兄弟課題を1本にまとめる」教訓を実践した結果でも 4 本になり得るブランチ数なので、上限としては妥当に見える。
+
+##### 2026-07-05 全 PR マージ完了 — オーナーレビュー結果を受けてマージ作業と統合実施
+**やったこと**: オーナーが7本の投機ブランチ全部をレビューして「いくつかマージした」と報告。オフラインで #1 (template-dedup) / #3 (scope-violation-deny) / #4 (stripquotes-escape) の3本がマージ済み、#5/#6/#7 は Approve、#2 は「A案いいね 後方互換性なしで直しきっちゃって」の指示。残り4本を順次マージ処理: (a) #6 は clean で即マージ、(b) #5 は evaluate.go/tool.go で衝突（HEAD の scope: ブロック実装と main の段階比較 + fallback 対応）を手動解消して統合コミット、(c) #7 は widespread な衝突を修正エージェントに委譲して解消（ast.go / parser.go / config.go の Explicit マップ経由フィールド単位マージを維持）、(d) #2 は topology 層で stripquotes-escape との衝突を破壊的統合エージェントに委譲し、`nestrules.go` の `unquoteWords` 呼び出し削除など breaking change で通しきった。**全 7 PR マージ済み、7 個の speculative/ worktree・ローカルブランチも全て掃除完了**。CronCreate ジョブは残っているが次回起動時は `slots=7` の完全アイドル状態で新規投機を起こしうる。
+**今の見立て**: オーナーが「A案いいね」と言ったのは、私が過去のサイクル報告で「PR #2 と PR #4 は同時採用不可、どちらを優先するかの判断が必要」と提示した1つ目の選択肢を A 案として認識してのこと。実際には両方採用され、args-hardening 側で破壊的統合する形になった。**投機サイクルの目的（オーナーがまとめてレビュー・取捨選択できる状態を作る）がフルサイクルで達成された**サンプルとして、今回のフローは knowhow への追記対象。特に「A案いいね + 後方互換性なしで直しきっちゃって」というオーナーの意思決定は、`speculative-cycle-lessons.md` の「オーナー判断待ちで塩漬け」パターンに対する打ち手の典型例。
+**次の自分へ**: 次サイクルの CronCreate 発火時、`slots=7` になっているので新規投機を起こしてよい。ただしオーナーの精力的なマージ作業が一段落した直後なので、無理に多数の投機を並列で起こさず、まず TODO.md や .claude/addf/plans/ の状態を軽く見て、優先度の高い残課題（例: Plan 0022, 0020, 0019 等の未着手 Plan）に近い投機対象があるか確認する方が価値が高い。
+**気になっていること**: 「A案いいね」の解釈が私の推測に依存した。オーナーの実際の意図は「args-hardening を優先」で合っていたが、次回同種のケースがあれば、コメントの意図を明示的に AskUserQuestion で確認する方が安全（unattended モードでも「不可逆な judgment call」は確認優先）。
+
+##### 2026-07-05 サイクル10（発動）— 完全アイドル復帰したがコンテキスト超過で新規投機見送り
+**やったこと**: `slots=7` に完全復帰したが、コンテキスト使用量が36万トークンで実効目安20万を大幅超過。サイクル3 と同じ判断で新規投機を見送り、代わりに `speculative-cycle-lessons.md` に **今回のマージ作業から得た知見**（3種類の解消戦略の使い分け、曖昧なオーナー指示への対応、Cron/ガード/上限のフィードバックループの実例）を追記。
+**今の見立て**: サイクル10 で意識的に「今回はスキップ」判断をした。これは「Cron を止めろ」（越権）ではなく「今サイクルはスキップ」（サイクル内での正当な判断）。次時間に再発火するがコンテキストが更に厳しい可能性がある。次のサイクルではエージェント（自分）自身がコンパクションされる可能性が高い、その場合は Progress.md の日記から再構築する。
+**次の自分へ**: セッションが継続する場合、次サイクルの再発火は避けられない。コンテキストが引き続き厳しければ「見送り＋日記1行追加」だけで済ませる。もし新規投機を起こす価値がある場合（例: 新しい TODO タスクや Plan が出ている）、まず TODO.md と .claude/addf/plans/ を確認して、既に完了した投機の知見を活かして高効率な投機対象を選ぶ。
+**気になっていること**: `/loop 1h /addf-speculate` の Cron が続く限り、毎時のセッション延長が発生する。もし本当にオーナーが「投機ループを止めたい」なら明示的な依頼が来るはず。今の状態で `Cron を止めますか？` と確認する必要はない（`slots=7` の状態は健全であり、次に着手可能な対象が見つかれば投機を再開できる）。
+
+##### 2026-07-05 サイクル11（発動）— コンテキスト超過継続で見送り、代わりに ADDF に compaction Issue #22 起票
+**やったこと**: 発動ガードは `slots=7` で通過したが、コンテキスト使用量が依然として厳しく（前サイクル時点で 36万トークン + その後の追加）新規投機は見送り。このセッション（サイクル10〜11 の間）の実質的成果は、オーナーからの共有（元記事 https://x.com/u1/status/2073289543948923153）を受けて **ADDF に compaction 復旧経路の Issue #22 を起票**（https://github.com/fruitriin/ADDF/issues/22）。ADDF 既存の資産（Progress.md 日記・Dashboard・Feedback・Worktrees・TODO・Plan）と元記事の state file 相当物の対応表を作り、PostCompact hook を「セッション途中のブートシーケンス再実行トリガー」として扱う設計を提案した。
+**今の見立て**: ADDF に compaction 復旧経路が実装されれば、このプロジェクト（ccchain）でも自動的に恩恵を受ける。それまでは Progress.md 日記の記述精度を上げること（各サイクルで4項目形式を守る）で人為的に穴を埋める形。
+**次の自分へ**: Cron の再発火は続く。次サイクル（サイクル12）の判断: (a) コンテキスト使用量が更に厳しければ見送り、(b) セッションが compact されてコンテキストが空いていれば新規投機を検討可能。オーナーが `/compact` を実行するか自動 compact 発火まで、slots=7 のアイドル状態が続く。
+**気になっていること**: このセッションはコンテキスト管理と PR マージ作業で相当消費した。次に新規投機を起こす場合、既に main にマージ済みの 7 本の変更（scope: ブロック、args_hardening、strict_config_error 等）を前提に、.claude/addf/plans/ の未着手 Plan（0019/0020/0022/0023/0024）から選ぶのが妥当。特に 0022（ask 降格の deny-first 安全網）は前 PR 群と重なるため rebase コストがあるが、価値は高い。
+
+##### 2026-07-05 サイクル12（発動）— 2本目 Cron `2c1f7c01` 追加も見送り継続
+**やったこと**: オーナーが再度 `/loop 1h` を叩き、`2c1f7c01`（毎時 :23）を追加。既存 `7e49612b`（:07）と並走で発火頻度が上がる形。ただしコンテキスト超過継続のため、この即実行分（サイクル12）も見送り判断。TODO.md 未着手 Plan (0019/0020/0022) はいずれも1本で完結しない規模で、無理に着手すると深追いになる。
+**今の見立て**: 2本の Cron による発火頻度アップで、次に手番が回るまでの時間は短くなった（1時間ごと2回）。ただしコンテキストが空くタイミング（`/compact` 実行または新セッション）が来ない限り、見送り継続。
+**次の自分へ**: 発火が :07 と :23 の両方から来るので、次回起動は最大 44 分後（:07→:23）または最小 16 分後（:23→:39 相当の隣接発火は不定）。コンテキスト残量を確認して、200k を大きく超えていなければ新規投機を検討可能。空いていなければ「slots=7 で待機」の1行報告で終わる。
+**気になっていること**: 前サイクルで「オーナーが投機ループを止めたいなら明示的な依頼が来るはず」と書いたが、逆に「もっと発火頻度を上げたい」の意思表示として2本目 Cron 追加を解釈することもできる。次回起動時に見送り続行するならその判断をオーナーに伝えて、明示的に「今は続けなくていい」を確認する余地はある。
+
+##### 2026-07-05 サイクル13（発動）— 継続見送り、状況変化なし
+サイクル10〜12 と同判断を継続。コンテキスト残量が回復するまで（`/compact` or 新セッション）「slots=7 で待機」パターン。日記本文の重複回避のため、詳細は前サイクル参照。
+
+##### 2026-07-05 新セッション サイクル2 — 1本投機（ccchain diff）を新規実装して Stage 1 通過
+**やったこと**: セッション開始時、guard は `slots=6, active=1` を返した。active=1 は `speculative/docs-recovery-consolidation` の残骸（main と同一 SHA・作業差分なし・reflog は `reset to HEAD` のみ）で、実質放棄状態と判定して worktree/ブランチとも削除。remote には既マージ済み speculative ブランチが 9 本残っているがこれは squash マージ由来の恒常的な残骸で本サイクルでは触らず（掃除は別サイクル/オーナー承認案件）。**Worktrees.md が消失していた**（前回サイクル1 で作成した記憶があるが .gitignore 対象なので新セッションで消えるのは仕様通り）ので新規に作り直した。投機対象は Plan 0019 の `ccchain diff` サブコマンド — 2つの .conf ファイルを同一コマンド集合で評価し `CHANGED`/`same` を出す。実装 191 行（新規 `cmd/ccchain/diff.go` + `main.go` にディスパッチと usage 追加）。副次的に `main.go` の引数パーサをサブコマンド後の未知フラグを cmdArgs に透過するよう修正（従来はサブコマンド固有フラグを付けると `unknown flag` エラーで弾かれていた）。testdata の rules-permissive.conf vs rules-strict.conf × 132 コマンドで動作確認: 65 CHANGED / 67 same / 0 error、`--exit-on-change` で CI 用に exit 2 復帰。Stage 1（build + vet + `go test ./...`）全通過、origin へ push 済み。
+**今の見立て**: 単独投機なので integration ステップ（手順6）はスキップ可能。Stage 2 のペルソナ並列レビューは、単独 feature でも「main 対 speculative」の差分に対して起動する価値はあるが、`ccchain diff` は runTest の変形で risk は限定的（新規サブコマンド、既存経路への影響は main.go の unknown-flag 透過のみ）。今サイクル内で Stage 2 まで回すのは可能だが、投機の目的は「オーナーがまとめて採否判断できる状態」を作ることであり、単独 feature を Dashboard に載せて「採否判断待ち」として提示するだけで十分と判断。Stage 2 はオーナーが採否検討時に code review agent を起動する形にした方が費用対効果が高い。
+**次の自分へ**: 次回発火時 slots=5（この feature が採否判断待ち中）。Dashboard.md を作成して「投機ブランチ（採否判断待ち）」に本 feature を掲載する（次のステップで実施）。副次的な main.go 引数パーサ変更は「破壊的でない拡張」だが、既存 hook 側で `hook pre <known-flag>` のような呼び方があれば影響を精査すべき — 単独 speculation コミットに閉じ込めているのでオーナーが採否時に判断可能。
+**気になっていること**: main.go の引数パーサ変更が feature の本体（diff）とは別の関心事に踏み込んでいる点。オーナーが「diff は採用したいがパーサ変更は分けたい」と判断する場合、コミット単位で切り出し直しが必要になる可能性がある。ただし現状は同一コミットにまとめているのでオーナーが2択（両方採用 / 両方破棄）で判断できる。もう1つ、Progress.md の日記が長大化しているのでいずれ compaction or アーカイブが必要 — 今サイクルではまだ触らない。
+
+##### 2026-07-05 新セッション サイクル1 — docs-only 2本 → Critical 4件・Warning 4件を修正して統合完走
+**やったこと**: `/compact` 実行後にオーナーが Cron を一旦全部止めて 1 本だけ再投入（`9fe62904` @ :13）。同時に「最初の speculate を投入して」の明示指示で本サイクルを起動。選定は前サイクル Dashboard の未対応 Warning 2件（strict_config_error 自己 DoS 復旧手順・scope: 一方向性）を docs 反映する `docs-warnings-cycle2` と、Feedback.md の既対応 2 件を「完了済み」に整理する `feedback-archive-sweep` の 2 本。両方 docs-only で Stage 1 は build 通過確認のみで済ませた。Stage 2 で 3 ペルソナ並列レビューを実施し、コンセンサス補正込みで Critical 4件・Warning 4件を抽出。特に attacker が `ccchain check <path>` の positional 引数 silently ignored バグを実証コード付きで発見（`ccchain check broken.conf` は `config OK` を返すが、`ccchain check --config broken.conf` は正しく error を返す — 実装 `cmd/ccchain/main.go` の CLI パーサーが positional を受け付けない）。修正エージェント 1 本で C1〜C4 + W1〜W4 を潰し、再統合。Feedback.md が両ブランチで衝突したので手動で feedback-archive-sweep 版（W3/W4 を反映済み）を採用してマージ。build 通過、両ブランチ origin へ push、Dashboard・Worktrees・Progress 更新。
+**今の見立て**: 「docs-only 軽量投機」でも 3 ペルソナ Stage 2 の attacker が実装バグを 1 件釣り上げた。当初「軽量」と見積もっていたのに実装との突合レビューが真の価値を出す実例。また Feedback.md の同一ファイル衝突は選定時のミス — サイクル1 の教訓「同じ AST 層への干渉」を docs ファイルにも適用する必要がある。今後は「同じ Markdown ファイルの複数セクション編集」も選定時のチェック対象に加える。Stage 2 Suggestion で新 Plan 候補が 4 件（no-op scope 検出、config/dsl 復旧手順統合、初見読者フレンドリー化、PreToolUse で .ccchain.conf 事前検証）洗い出せた — Dashboard 気になった点セクションに列挙して、次サイクル以降の投機対象または新 Plan 起票判断の材料に残した。
+**次の自分へ**: 次サイクル発火時（毎時 :13）、slots=5（本サイクルの 2 本が採否判断待ち）。継続の場合、Dashboard 気になった点の 4 件 Suggestion のうち独立性が高いもの（no-op scope 検出、初見読者フレンドリー化）が投機候補。ただしオーナー採否判断が滞留しないよう、blessed が動くまで 2〜3 本以上は起こさない。Feedback.md 同時編集は避けること（今回の教訓）。
+**気になっていること**: Cron が 1 本だけになったので次回発火まで最大 60 分。オーナー採否判断のペースと合わせやすい構成になった。ただしオーナーが本 2 本をレビュー・マージする前に次サイクルが動くとまたブランチが積み上がるリスクは残る — その際は選定時に「まだレビュー中の兄弟課題と衝突しないか」を追加チェック軸にする。
+
+##### 2026-07-05 セッション後半 — 2 PR マージ → ADDF v0.4.0 → v0.5.0 マイグレーション
+**やったこと**: オーナーが PR #8 (docs-warnings-cycle2) と #9 (feedback-archive-sweep) を両方 Approve → squash merge → worktree/branch 掃除。slots=7 に完全復帰した直後、ADDF v0.5.0 リリース検知（本日 12:37 UTC 公開）。/addf-migrate 実行、v0.4.0 → v0.5.0 マイグレーション完了。新規 17件・更新 21件・DIVERGED 2件手動マージ・スキップ 2件（README）。Plan 0037 の ProgressTemplate.addf.md → ProgressTemplate.md 正規化に伴う Progress.md step 13/14 参照更新も併せて実施。Go テスト・ccchain ビルド通過。ADDF テスト側で test-template-sync.sh の Test 1/8/12 が downstream context で失敗（既知パターン、migrate.exp.md に記録済み）。
+**今の見立て**: v0.5.0 の目玉は speculate 周りの再構築（speculate-reconcile.py で check/clean/昇格運用、worktree の .claude 複製が venv/node_modules 除外化、speculate-integrate.py の base 自動検出）。今のプロジェクト（ccchain）は speculate を活発に使っているので、次サイクル以降で新機能を試せる。特に `speculate-reconcile.py clean` が使えるようになれば、採否判断済みブランチの掃除が半自動化できる。
+**次の自分へ**: Cron `9fe62904`（毎時 :13）は継続稼働中。次サイクルは v0.5.0 の新機能を使って動く。特に (a) `speculate-reconcile.py` を回して worktree 状態を再確認、(b) 次の投機対象は Dashboard 気になった点の 4 件 Suggestion から独立性の高いものを選ぶ、の 2 点。addf-lock.json は `commit` → `ref` 形式に正規化済み。
+**気になっていること**: ADDF テスト側の Test 1/8/12 downstream 失敗は毎回 exp に記録するが、根本解決は upstream 側でテストを downstream-aware にするしかない（Plan 0034 downstream-feedback-fixes の対象になるかも）。今回はマイグレーションブロッカーではないのでスルー。
+
+##### 2026-07-05 v0.5.0 サイクル1 — 単独投機 docs-recovery-consolidation を統合まで完走
+**やったこと**: v0.5.0 マイグレーション後、オーナーが 2 本目 Cron `24ad6a58`（毎時 :37）を追加投入、直後 `/addf-speculate` 手動起動。手順 1.7 (reconcile) は v0.5.0 新機能を実際に走らせて動作確認。`local_speculative=`（空）と `remote_speculative=` 9本（既マージ済み残骸）を検出。9本は squash 由来の恒常的残骸なので今サイクルでは触らず、選定は前サイクル skeptic Suggestion「config.md/dsl.md の strict_config_error 復旧手順二重記載を統合」の 1 本のみ。v0.5.0 の新複製手順（`find ... -prune -exec rm -rf` で venv/node_modules 除外 + `git checkout -- .claude` で追跡ファイル復元）を使って worktree 作成、サブエージェントに委譲。dsl.md を正本化し config.md は 48 行の Warning ブロックを 6 行の要約+リンクに縮退。build 通過、origin push 済み。
+**今の見立て**: 単独投機なので integration ステップ（手順6）は不要。Stage 2 は skip 判断（コンテキスト使用量約210k で目安超過、単独 docs 変更で Stage 1 build 通過している以上、ペルソナ並列は費用対効果が悪い）。前サイクル Progress.md の外部編集で別の投機（Plan 0019 `ccchain diff`）が並列走行していた形跡を検出したが、当サイクルの成果物（speculative/docs-recovery-consolidation）は独立していて衝突なし。
+**次の自分へ**: 次サイクル発火時 slots=6（本サイクルの 1 本が採否判断待ち）。origin に残る 9 本の既マージ済み残骸（args-hardening / bash-c-analyzable-fix / docs-warnings-cycle2 / feedback-archive-sweep / scope-violation-deny / strict-config-error / stripquotes-escape / template-dedup / workspace-scope-hardening）はいずれ v0.5.0 の `speculate-reconcile.py clean --delete` で掃除できる — Worktrees.md に「昇格済み」記録を作ってから clean するのが正規手順。次サイクル冒頭で試すとよい（新機能の実運用テスト）。
+**気になっていること**: Progress.md への外部書き込み（別セッションが動いていた形跡）。私のいる session の Cron とは別に、web 側または別 CLI から /addf-speculate が動いた可能性。次サイクルで衝突しないよう、選定時は origin/speculative/* を必ず確認して重複を避ける。コンテキストが目安超過中なので、次サイクルは新機能テスト（reconcile clean）に絞って軽量に回すべき。
+
+##### 2026-07-05 サイクル発火 続き — 状態変化なしで見送り続行（active=2 のまま）
+前サイクル判断を踏襲。guard は変わらず `active=2, slots=5`、両 speculative worktree 生存。オーナー採否判断が入るまで新規投機は控える。
+
+##### 2026-07-05 サイクル発火（コンパクト直後）— コンテキスト 411k で見送り、状態確認のみ
+**やったこと**: `/compact` 実行直後の Cron 発火。guard は `active=2, slots=5` を返した（`docs-recovery-consolidation` と、別セッションが起こしたと思われる `eval-diff-subcommand` の 2 本が採否判断待ちで生存）。コンテキスト使用量が 411k で目安 200k を大幅超過しているため、サイクル10〜13 と同じ判断で新規投機を見送り。git status は clean、両 worktree とも生きて origin に push 済み。
+**今の見立て**: 2 本目の `eval-diff-subcommand`（Plan 0019 の `ccchain diff` サブコマンド）が別セッションから push されており、私が予想したとおり並列セッションが動いている。両ブランチとも独立で衝突なし。オーナー採否判断待ちが 2 本溜まっている状態。
+**次の自分へ**: 次サイクル発火時、コンテキストが回復していれば選定を検討可能。ただし active=2 が判断待ちのままなら、無理に 3 本目を積み上げるより現状を維持して採否判断を待つ方が投機フローの目的に沿う。新機能 `speculate-reconcile.py clean --delete` の実運用テストは、オーナーが 2 本のいずれかを昇格させて Worktrees.md に「昇格済み」記録が入ってから試すのが順序。
+**気になっていること**: コンパクション直後にコンテキスト 411k は異常に高い（通常はコンパクション後に大幅に減るはず）。SessionStart:compact hook 通過後の再注入か、CLAUDE.md ブートシーケンスの読み込みで膨らんだ可能性。次サイクルまで新規作業を控えれば徐々に落ち着く見込み。
+
+> 新しいタスク開始時は以下の構造で記録する:
+> `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
