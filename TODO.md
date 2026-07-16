@@ -34,6 +34,7 @@
 | 21 | 19 | `docs/plans/0019-eval-repl-and-dx.md` | 一部完了 | diff は PR #11 で実装済み（2026-07-06）。REPL / stats が残り |
 | 22 | 23 | `docs/plans/0023-addf-hook-integration.md` | 未着手（スタブ） | 0022 依存。/addf-init での hook 自動設営 |
 | 23 | 24 | `docs/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
+| 24 | 25 | `docs/plans/0025-loop-body-static-analysis.md` | 未着手 | ADDF ドッグフーディング（Plan 0040）由来。リテラル `for` ループの部分解析＋`unanalyzable_action` 設定。0022 とは独立 |
 
 ## 割り込み対応
 
