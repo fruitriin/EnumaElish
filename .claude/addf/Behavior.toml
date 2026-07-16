@@ -18,9 +18,36 @@ enable = true
 # 同時に「開発中」にできる speculative worktree の上限（採否判断待ちのブランチは数えない）
 max_worktrees = 7
 
+[transcript-archive]
+# true にすると PreCompact フック（pre-compact-archive.sh）が compaction 直前の
+# トランスクリプト JSONL を archive_dir 配下にコピーする（Plan 0042・オプトイン）。
+# 用途: (a) コンテキストの保全・アーカイブ、(b) アーカイブを新 UUID にリネームして
+# `claude --resume` すれば compaction 直前状態への復元（.claude/addf/knowhow/ADDF/
+# transcript-archive-restore.md 参照）。
+#
+# ⚠️ トレードオフ: 有効化するとホームディレクトリ配下にディスク消費が発生する
+# （1セッション数 MB × max_generations の目安）。トランスクリプトには機密が
+# 含まれうるため、ダウンストリーム配布時のデフォルトは無効に保つ方針。
+enable = false
+
+# アーカイブ先のベースディレクトリ。配下に `<プロジェクトスラグ>/` を掘る。
+# リポジトリ外を既定にする理由: サイズが数 MB × 世代数になるため、およびリポジトリ
+# コピー時に機密の副次コピーを発生させないため。
+archive_dir = "~/.claude/addf-transcript-archive"
+
+# 世代数上限。同一プロジェクトスラグ配下でこの数を超えたら古いものから削除する。
+# 保守的に少なめの既定値（Plan 0042 オーナー方針）。0 で無限保存（非推奨）。
+max_generations = 10
+
 [context-reminder]
 # 能動コンパクション促しの発火閾値（実測トークン数）。0 で無効化。
-# 公称ウィンドウではなく「実効コンテキスト」（文脈の取り違えが増え始める手前）基準
+# 公称ウィンドウではなく「実効コンテキスト」（文脈の取り違えが増え始める手前）基準。
+# Plan 0041 フェーズ1 の実測（trigger="auto" の compact_boundary エントリから）:
+#   - 200k 標準セッション: 発動点 ≈ 175k (87.5% / N=1・claude-fable-5)
+#   - 1M variant セッション: 発動点 ≈ 970k (min 968k / median 973k / max 1001k / N=3・claude-fable-5)
+#   - opus 系の auto 発火サンプルは今回のトランスクリプトに含まれず（未計測）
+# 教義: この閾値は「作業を止める」ためではなく「記録の外部化を促す」ため。
+# 満杯到達時は auto-compact が harness 側で発動し、復帰フックが受け止める（Plan 0041）。
 threshold_tokens = 180000
 # 再通知に必要な増分トークン（通知済み後、これだけ増えるまで黙る）
 renotify_step_tokens = 50000
@@ -32,3 +59,5 @@ renotify_step_tokens = 50000
 # transcript から判別できないため。Plan 0023 調査結果 2.5 参照）
 opus = 200000 # Opus 1M: 250k 前後から劣化が観測されたため手前の 200k
 # fable = 未計測。実効器が広い可能性あり — 計測でき次第追加
+# Plan 0041 フェーズ1 で 1M variant の auto-compact が ~970k で発動する例 (fable-5) は観測できたが、
+# 「効果的な劣化観測」ではなく「発動限界の観測」なので実効コンテキストの根拠にはならない

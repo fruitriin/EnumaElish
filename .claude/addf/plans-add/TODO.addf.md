@@ -3,7 +3,7 @@
 `.claude/addf/plans-add/` の完了状態・優先度をトラックする。
 計画ファイルと TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: 0035 フェーズA（PR 作法ドキュメント）完了・0033 完了（2026-07-05）。次は 0035 B/C→0036→0038→0037 の順で実装。0026 はオーナー指示待ち。未着手 0030〜0032、0029 フェーズ2以降
+## 現在のフェーズ: Plan 0053 完了・v0.6.2 リリース作業中（2026-07-11。別セッションが着手した Plan 0053 を本セッションが引き継いで完走させた）。Plan 0054（settings.json/hooks自己書き換え保護・検討スタブ）新規起票。Plan 0040・0048 は要確認で静観中（Q5・Q6投下済み）
 
 ## バックログ
 
@@ -34,19 +34,35 @@
 | 23 | 23 | `.claude/addf/plans-add/0023-turn-reminder-context-split.md` | 完了 |
 | 24 | 24 | `.claude/addf/plans-add/0024-todo-plan-status-lint.md` | 完了 |
 | 25 | 25 | `.claude/addf/plans-add/0025-rename-repo-to-addf.md` | 完了 |
-| 1 | 26 | `.claude/addf/plans-add/0026-review-residual-backlog.md` | 一部完了（残りはオーナー指示待ち） |
+| 1 | 26 | `.claude/addf/plans-add/0026-review-residual-backlog.md` | 一部完了（残りは Plan 0043 に回収予定・オーナー指示反映 2026-07-06） |
 | 2 | 27 | `.claude/addf/plans-add/0027-executable-checklist-doctrine.md` | 完了 |
 | 3 | 28 | `.claude/addf/plans-add/0028-worktree-speculative-dev.md` | 完了 |
 | 4 | 29 | `.claude/addf/plans-add/0029-gui-test-environment-matrix.md` | 一部完了（フェーズ1 完了。環境マトリクスはフェーズ2以降） |
-| 5 | 30 | `.claude/addf/plans-add/0030-ci-quality-gate.md` | 未着手 |
-| 6 | 31 | `.claude/addf/plans-add/0031-binary-verification.md` | 未着手 |
-| 7 | 32 | `.claude/addf/plans-add/0032-knowhow-freshness-audit.md` | 未着手 |
+| 5 | 30 | `.claude/addf/plans-add/0030-ci-quality-gate.md` | 一部完了（実装・CI 実地検証済み。branch protection の要否のみオーナー判断待ち） |
+| 6 | 31 | `.claude/addf/plans-add/0031-binary-verification.md` | 完了 |
+| 7 | 32 | `.claude/addf/plans-add/0032-knowhow-freshness-audit.md` | 完了 |
 | 4 | 33 | `.claude/addf/plans-add/0033-downstream-reported-fixes.md` | 完了（項目4=PlanTemplate は Plan 0035 フェーズA で実施） |
 | 5 | 34 | `.claude/addf/plans-add/0034-downstream-feedback-fixes.md` | 完了 |
-| 3 | 35 | `.claude/addf/plans-add/0035-pr-standard-format.md` | 一部完了（フェーズA=PR 作法ドキュメント一式 完了。B=投機運用拡張・C=誤完了 lint 残り） |
-| 3 | 36 | `.claude/addf/plans-add/0036-plan-audit-skill.md` | 未着手（オーナー起案 2026-07-05。/addf-plan-audit スキル・migrate ワンショット統合） |
-| 4 | 37 | `.claude/addf/plans-add/0037-addf-directory-consolidation.md` | 未着手（オーナー起案 2026-07-05。docs 明け渡し・.claude/addf/ 集約。0035/0036/0038 消化後に着手推奨・メジャーリリース級・one-shot 実施） |
-| 3 | 38 | `.claude/addf/plans-add/0038-speculation-fitness.md` | 未着手（オーナー起案 2026-07-05。投機適性3区分・Plan 化フォールバック・大改造の窓検出。0037 着手前に完了が望ましい） |
+| 3 | 35 | `.claude/addf/plans-add/0035-pr-standard-format.md` | 完了（フェーズA・B・C。2026-07-05） |
+| 3 | 36 | `.claude/addf/plans-add/0036-plan-audit-skill.md` | 完了（2026-07-05。/addf-plan-audit 新設・migrate ワンショット統合。ドッグフーディング検出10件は処置提案としてオーナー判断待ち） |
+| **1** | 37 | `.claude/addf/plans-add/0037-addf-directory-consolidation.md` | 完了（フェーズ1〜3・v0.6.0 メジャーリリース 2026-07-06。オーナー同席の単一セッションで完走） |
+| 3 | 38 | `.claude/addf/plans-add/0038-speculation-fitness.md` | 完了（2026-07-05。投機適性3区分・Plan 化フォールバック・one-shot 定義の guides 単一ソース化・窓検出（手順 1.8）・reconcile check に pending_count 追加） |
+| 5 | 39 | `.claude/addf/plans-add/0039-docs-website.md` | 一部完了（フェーズ1=addf-doc-review-agent 逆輸入・フェーズ2=VitePressサイト骨格 完了 2026-07-10。フェーズ3=GitHub Pages公開はオーナー操作待ち） |
+| 4 | 40 | `.claude/addf/plans-add/0040-ccchain-optin.md` | 要確認（質問投下済み・Q5 2026-07-10）。オーナー起案 2026-07-06・投機的実施承認済みだが、hook配線がcronループ自身のBash実行をゲートするリスクがあるため cron 経由での着手可否を確認中 |
+| **2** | 41 | `.claude/addf/plans-add/0041-context-exhaustion-loop-wall.md` | 一部完了（フェーズ1・2 完了 2026-07-06。実地検証は別サイクル。止まらない教義＋compaction 耐性のタスク運びを配線） |
+| 3 | 42 | `.claude/addf/plans-add/0042-precompact-transcript-archive.md` | 完了（2026-07-07。PreCompact フック・[transcript-archive] 設定・復元手順 knowhow・36テスト。code-review Warning 3件と Suggestion 4件、doc-review 指摘を全反映） |
+| 3 | 43 | `.claude/addf/plans-add/0043-security-recovery.md` | 完了（2026-07-07。4項目とも最小実装: 項目1 deny 11パターン・項目2 addf-init preview・項目3 destructive-git-guard フック 13テスト・項目4 パストラバーサル Test 20 x3。事後観測方式で段階調整） |
+| 5 | 44 | `.claude/addf/plans-add/0044-experience-strategy-decision.md` | 完了（2026-07-10。実測に基づき案A〔現行分離方式〕採用・addf-experience を「参照の自己整合性・書式健全性検証」に再定義） |
+| 6 | 45 | `.claude/addf/plans-add/0045-language-specific-rules.md` | 完了（2026-07-10。EnumaElish・wasurenainder を実測し肥大化の実害ゼロを確認、意図的な不採用として決定） |
+| 3 | 46 | `.claude/addf/plans-add/0046-delegation-prohibition-boundary.md` | 完了（2026-07-07。DelegationRules.md 新設・境界緩和・lint-template-sync 検査境界明文化＋Test 4b） |
+| 3 | 47 | `.claude/addf/plans-add/0047-change-route-criteria-and-followup-granularity.md` | 完了（2026-07-07。変更ルート判断表新設・運用ルール7 主題軸化・同期ペア3面通過・doc-review Warning 3件と Suggestion 2件全反映） |
+| 6 | 48 | `.claude/addf/plans-add/0048-review-agent-emotional-feedback.md`（検討スタブ） | 要確認（質問投下済み・Q6 2026-07-10）。着手トリガーは満たすが、美学レイヤーの設計判断が「良い塩梅」を要する性質のため、無人ループでの独断実装を避け小規模プロトタイプの進め方をオーナーに確認中 |
+| 4 | 49 | `.claude/addf/plans-add/0049-model-allocation-policy.md` | 完了（2026-07-07 worktree で実装 → 2026-07-10 main へ回収・採番を 0048→0049 に変更。ダウンストリーム wasurenainder 実運用構想の逆輸入。addf-implementer エージェント新設・model-allocation.md ガイド・CLAUDE.repo.example.md プレースホルダ節） |
+| 7 | 50 | `.claude/addf/plans-add/0050-readme-docs-table-gap.md` | 完了（2026-07-10。README.md/README.en.md に skills.md・model-allocation.md の行を追加） |
+| 2 | 51 | `.claude/addf/plans-add/0051-quality-improvement-worktree-isolation-and-knowhow-links.md` | 完了（2026-07-10。CLAUDE.md「並列実装方針」に worktree 隔離破り〔cd 永続〕の注意事項を追記、knowhow `worktree-isolation-cd-persistence.md` 新設、`cron-loop-worktree-race.md` との相互参照、knowhow 一方向リンク12件+新設分2件＝計14件を解消。doc-review 指摘の重複記載を修正済み） |
+| **2** | 52 | `.claude/addf/plans-add/0052-migrate-runtime-hardening.md` | 完了（2026-07-11。Issue #26〔wardrobe-test での v0.6.1 移行実測レポート〕回収。項目1〜4を全て実装（GUIバイナリtimeoutガード・guides混在確認・gitignore旧位置パターン検知・Test15 SKIPフォールバック）。3体レビュー（code-review Critical1/Warning2/Low1・doc-review Warning3・contribution-agent Medium2/Low1）を全て反映。run-all.sh・/addf-lint 全通過） |
+| 2 | 53 | `.claude/addf/plans-add/0053-changelog-and-skill-listing-completeness.md` | 完了（2026-07-11。別セッションが着手・本セッションが引き継いで完走。CHANGELOG記載漏れ〔Plan 0030・0031・0032・0035・0036・0038・0039・0041・0044・0049・0051・0052〕の回収・READMEスキル一覧の掲載漏れ〔addf-plan-audit〕解消・lint-template-sync.py ペア8新設。3体レビュー指摘計5件を反映、うち1件はPlan 0054として切り出し） |
+| **1** | 54 | `.claude/addf/plans-add/0054-settings-self-write-protection.md`（検討スタブ） | 未着手（2026-07-11 起票。Plan 0053 の doc-review で Plan 0026 の [Critical]「settings.json/hooks 自己書き換え保護」が Plan 0043 で明示的にスコープ外とされたまま独立 Plan 未作成で放置されていたことが判明。Progress 運用ルール7〔主題外Critical最優先切り出し〕に従い起票。設計方向性はオーナー判断待ち） |
 
 オーナーリクエスト:
 タスクが無くなったら以下に取り組んでください

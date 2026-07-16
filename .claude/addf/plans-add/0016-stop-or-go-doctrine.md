@@ -2,11 +2,21 @@
 
 ## 実装状況: 完了（2026-06-10、2026-06-11 遡及確認）
 
+## 意図的完了の明記（2026-07-06・Plan 0036 埋没監査 #5 の回収）
+
+- 「responsiveness 自動切替は別途 Plan を起こす」は**意図的な先送り**として明記して閉じる（オーナー指示 B3）
+- 再起票の条件: モード手動切替が煩雑と感じる実運用が観測されたとき（現時点で需要未観測。3軸モードの手動切替で機能中）
+
+
 > **状態: 実装完了（2026-06-10）**
 > - CLAUDE.md に3軸 doctrine + ブートシーケンス 1.5/1.6、AGENTS.md 同期、Questions/Dashboard の example と実ファイル、`/addf-mode` スキル（状態は CLAUDE.local.md に保存）、addf-dev/addf-init 拡張を実装
 > - レビュー指摘（Critical 1 / Warning 4 / Suggestion 4）対応済み: サブステップの実行順明記、image_clarity のキー名と3軸デフォルトの明文化、Dashboard は応答確認後に削除、Questions.md の書式参照とコミット方針明記、AGENTS.md の英語統一、checkpoint ブランチをテンプレートにも記載
 > - 未対応（先送り）: CLAUDE.md の doctrine セクションをさらに骨子化する案（S-1、レビュー Suggestion）— 現状の分量で運用開始し、肥大が問題になったら別 Plan で対応
 > - 自動切替（カレンダー連携等）は設計どおり将来 Plan へ
+
+## 関連 Plan
+
+- [Plan 0041: コンテキスト枯渇によるループ停止の壁の突破](0041-context-exhaustion-loop-wall.md) — 本 Plan が扱った「突然死への備え」に対し、コンテキスト枯渇時の「自主停止」を扱う後続 Plan
 
 ## Context
 
