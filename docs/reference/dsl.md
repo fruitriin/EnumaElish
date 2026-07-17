@@ -25,6 +25,7 @@ ccchain uses an indent-based text DSL for rule configuration.
   mode: block | warn | hint  # DEPRECATED: parsed but has no effect. Use warn/hint actions directly.
   message: "..."
   next: <template_name>
+  unattended: deny | allow  # ask rules only — degrade direction in non-interactive modes
 
 # Template definition
 template <name>
@@ -45,6 +46,9 @@ settings:
   workspace: <path>[, <path> ...]   # workspace scope roots (see `scope:`)
   scope_violation: ask | deny         # escalate outside-workspace paths (default ask)
   strict_config_error: true | false   # deny on config load failure (default false = fail-open)
+  ask_strategy: degrade | passthrough | deny-all   # how ask resolves at the hook layer (default degrade)
+  ask_degrade_default: deny | allow                # which side ask degrades to under degrade (default deny)
+  unanalyzable_action: ask | deny                  # action for structurally unanalyzable commands (default deny)
 ```
 
 **Shell-quoting note:** Both command-name and argument matching operate on strings *after* shell quote removal, just like the shell does before executing the command — `"rm"` matches a `deny rm` rule, `curl -X "POST"` matches an `args:` pattern of `-X POST`, and `rm "-rf" /` matches `-rf` in args:. Only literal single/double-quote wrappers are stripped; backslash escapes inside double quotes (`\"`, `\$`, `\\`, `` \` ``, etc.) and ANSI-C `$'...'` sequences are passed through as written, so patterns that need to defend against escaped variants must account for them explicitly.
@@ -53,11 +57,11 @@ settings:
 
 | Action | Meaning |
 |---|---|
-| `allow` | Permit the command |
-| `deny` | Block the command (exit 2 + message to Claude) |
-| `warn` | Allow but send a warning to Claude |
-| `ask` | Delegate to Claude Code's permission dialog |
-| `hint` | PostToolUse: suggest next action to Claude |
+| `allow` | Permit the command (ccchain stays neutral — see [Hook Output](./config.md#hook-output)) |
+| `deny` | Block the command. Emits `permissionDecision: "deny"` + reason JSON |
+| `warn` | Allow but attach a caution message. Emits `permissionDecision: "allow"` + reason |
+| `ask` | Delegate to Claude Code's permission dialog. In non-interactive modes, degrades per [`ask_strategy`](#ask_strategy) and the rule's [`unattended:`](#unattended) direction |
+| `hint` | PreToolUse: friendlier `warn`. PostToolUse: suggest next action to Claude (planned) |
 
 ## Context Modifiers
 
@@ -133,7 +137,7 @@ allow cat
 - If path is outside and used as a write argument → `outside-write:` > `outside:` (in that order)
 - If path is outside and used as a read argument → `outside-read:` > `outside:` (in that order)
 
-**Read/write classification** uses a built-in [semantics table](../../internal/semantics/table.go):
+**Read/write classification** uses a built-in [semantics table](https://github.com/fruitriin/EnumaElish/blob/main/internal/semantics/table.go):
 
 | Command family | Kind |
 |---|---|
@@ -156,7 +160,7 @@ allow cat
 
 **Backward compatibility.** Rules without any `scope:` block keep the previous auto-escalation behavior: `allow` escalates to `ask` whenever any path argument is outside the workspace. Rules with `scope: outside: allow` explicitly opt out of that escalation for the whole command.
 
-**One-directional (strict-only) semantics.** `scope:` clauses can only make the base rule's action **stricter**, never looser. The five actions are ordered `allow < hint < warn < ask < deny` (see [`restrictionLevel` in evaluate.go](../../internal/eval/evaluate.go)); a scope-derived candidate action is applied only when it is more restrictive than the base rule's action, otherwise the base action is kept. Concretely:
+**One-directional (strict-only) semantics.** `scope:` clauses can only make the base rule's action **stricter**, never looser. The five actions are ordered `allow < hint < warn < ask < deny` (see [`restrictionLevel` in evaluate.go](https://github.com/fruitriin/EnumaElish/blob/main/internal/eval/evaluate.go)); a scope-derived candidate action is applied only when it is more restrictive than the base rule's action, otherwise the base action is kept. Concretely:
 
 - If the base rule is `deny rm`, writing `scope: outside: allow` does **not** promote outside deletions to `allow`. The scope clause is accepted syntactically but the evaluator keeps the base `deny`.
 - If the base rule is `ask cp`, writing `scope: inside: allow` does **not** demote inside copies to `allow`. It is silently ignored and the base `ask` is kept.
@@ -206,6 +210,9 @@ settings:
   workspace: ~/workspace       # workspace scope (comma-separated for multiple paths)
   scope_violation: ask         # action when a path outside the workspace is detected (ask|deny)
   strict_config_error: true    # fail closed (deny) when config load fails; default: false
+  ask_strategy: degrade        # how ask resolves at the hook layer (degrade|passthrough|deny-all)
+  ask_degrade_default: deny    # which way ask degrades under degrade (deny|allow)
+  unanalyzable_action: deny    # action for structurally unanalyzable commands (ask|deny)
 ```
 
 ### `scope_violation`
@@ -221,6 +228,67 @@ Controls what happens when a command or tool call that would otherwise be
 
 Only `allow` results are escalated; explicit `ask` and `deny` rules are
 left untouched. Any value other than `ask` or `deny` is a parse error.
+
+### `ask_strategy`
+
+Controls how an `ask` decision is resolved when the hook writes its response
+to Claude Code. In some [permission modes](https://docs.claude.com/en/docs/claude-code/permissions) — `auto`, `dontAsk`,
+`headless` (`claude -p`) — an `ask` cannot show a confirmation dialog to a
+human. `ask_strategy` picks the behaviour ccchain uses in those modes:
+
+- `degrade` (default): in interactive modes (`default` / `acceptEdits` /
+  `plan` / `bypassPermissions`) `ask` passes through unchanged. In every
+  other mode `ask` is **downgraded** — to `deny + hint` by default, or to
+  `warn + hint` when the specific rule opts in via
+  [`unattended: allow`](#unattended). The hint text explains why the block
+  happened and includes the human approval procedure via
+  [`ccchain approve`](./approve.md).
+- `passthrough`: emit `ask` unchanged regardless of mode. This is the
+  pre-Plan-0022 behaviour and is useful if you fully trust Claude Code's
+  auto classifier to route asks correctly.
+- `deny-all`: escalate every `ask` to `deny + hint` in every mode, even for
+  rules that explicitly wrote `unattended: allow`. Intended for CI or other
+  strict environments where no ask should ever leak through.
+
+Resolution order for the direction (`deny` vs. `allow`) under `degrade`:
+per-rule [`unattended:`](#unattended) → `ask_degrade_default` (global) →
+built-in `deny` (safe default).
+
+Any value other than `degrade`, `passthrough`, or `deny-all` is a parse
+error.
+
+### `ask_degrade_default`
+
+Global default for the direction `ask_strategy: degrade` takes when a
+matching rule does not specify `unattended:`. Accepted values:
+
+- `deny` (default): degrade to `deny + hint`. Turns the block into an
+  asynchronous conversation — the owner runs `ccchain approve --last` in
+  their own terminal to unblock the request (see [Approval Tokens](./approve.md))
+- `allow`: degrade to `warn`. The call is allowed but a caution message
+  lands in Claude's context. Use this for rules where "please confirm" is a
+  reminder rather than a security gate
+
+Any value other than `deny` or `allow` is a parse error.
+
+### `unanalyzable_action`
+
+Controls the action for commands that ccchain cannot statically analyse:
+`eval`, dynamic subshells, non-literal `for` loops, C-style loops, `select`,
+positional-parameter iteration, control-flow constructs where the body
+depends on runtime values, etc. Literal `for` loops (`for f in a b c; do
+BODY; done`) are expanded and evaluated per iteration and are **not**
+affected by this setting.
+
+- `deny` (default): treat unanalysable commands as `deny`. Combined with
+  `ask_strategy: degrade` this becomes the safety net for auto / dontAsk
+  modes where an ask would silently classifier-decide
+- `ask`: treat them as `ask`. Softer, useful when you want interactive
+  confirmation on constructs whose intent you cannot pre-write
+
+`allow` is deliberately **not** accepted — enabling it would let a single
+setting disable the safety net that guards control-flow, subshells, and
+dynamic commands. Any other value is a parse error.
 
 ### `strict_config_error`
 
@@ -328,6 +396,34 @@ ccchain check --config broken.conf   # CORRECT: validates broken.conf
    is needed — `dsl.LoadConfig` runs on every hook invocation, so the next
    tool call reloads the corrected config automatically and the workspace
    unblocks.
+
+## `unattended:` (ask rules only)
+
+Per-rule override for [`ask_strategy: degrade`](#ask_strategy). Declares
+which side this specific `ask` should fall to when the current permission
+mode is non-interactive (auto / dontAsk / headless / unknown):
+
+```
+ask docker
+  message: "Container operations should be confirmed"
+  unattended: allow          # in non-interactive modes, degrade to warn
+                             # (allow the call, land the caution in Claude's context)
+
+ask git-branch-delete
+  message: "Take a backup ref before deleting the branch"
+  unattended: deny           # same as the built-in default, spelled explicitly:
+                             # degrade to deny+hint with the approve procedure
+```
+
+Rules:
+
+- Only valid on `ask` rules. Placing `unattended:` on any other action is a
+  parse error
+- Values: `deny` or `allow` (parse error otherwise)
+- Ignored under `ask_strategy: passthrough` (the whole ask passes through);
+  overridden under `ask_strategy: deny-all` (every ask is denied)
+- When omitted, the direction falls back to [`ask_degrade_default`](#ask_degrade_default)
+  → built-in `deny`
 
 ## Multiple Commands Per Rule
 

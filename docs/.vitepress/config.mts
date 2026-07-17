@@ -4,7 +4,7 @@ export default defineConfig({
   title: 'ccchain',
   description: 'Claude Code Chain: Structural Permission Control',
   base: '/EnumaElish/',
-  ignoreDeadLinks: true,
+  ignoreDeadLinks: false,
 
   head: [
     ['meta', { name: 'theme-color', content: '#5f67ee' }],
@@ -60,6 +60,8 @@ export default defineConfig({
             { text: 'DSL Syntax', link: '/reference/dsl' },
             { text: 'Actions', link: '/reference/actions' },
             { text: 'Config Files', link: '/reference/config' },
+            { text: 'Approval Tokens', link: '/reference/approve' },
+            { text: 'Sentinel Preset', link: '/reference/sentinel' },
           ],
         },
       ],
@@ -134,6 +136,8 @@ export default defineConfig({
                 { text: 'DSL 構文', link: '/ja/reference/dsl' },
                 { text: 'アクション', link: '/ja/reference/actions' },
                 { text: '設定ファイル', link: '/ja/reference/config' },
+                { text: '承認トークン', link: '/ja/reference/approve' },
+                { text: 'sentinel プリセット', link: '/ja/reference/sentinel' },
               ],
             },
           ],

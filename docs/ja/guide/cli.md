@@ -12,17 +12,14 @@ ccchain check -v                       # 詳細表示（パースされたルー
 
 ## `ccchain hook pre`
 
-PreToolUse hook。Claude Code からツール情報 JSON を stdin で受け取り、評価結果に応じた exit code を返します。
+PreToolUse hook。Claude Code からツール情報 JSON を stdin で受け取り、`hookSpecificOutput` JSON を stdout に出力します。
 
 ```bash
 # .claude/settings.json に登録して使用（直接呼び出しは通常しない）
-echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | ccchain hook pre
+echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto","session_id":"...","cwd":"..."}' | ccchain hook pre
 ```
 
-| exit code | 意味 |
-|---|---|
-| 0 | 許可（または Bash 以外のツール） |
-| 2 | 拒否（理由が stderr に出力） |
+常に exit `0`。判定は JSON 本文で伝えます — 正確なスキーマは [Hook 出力](../reference/config#hook-出力) を、非対話 `permission_mode` での `ask` 降格は [`ask_strategy`](../reference/dsl#ask_strategy) を参照。
 
 ## `ccchain hook post`
 
@@ -155,14 +152,32 @@ cat commands.txt | ccchain suggest
 デフォルトの `.ccchain.conf` を生成します。既存ファイルがある場合は上書きしません。
 
 ```bash
-ccchain init
+ccchain init                # デフォルトプリセット
+ccchain init --sentinel     # deny-first sentinel プリセット（reference/sentinel 参照）
 ```
+
+`--sentinel` は auto / dontAsk / headless 環境を狙ったキュレート済み deny-first ルールセットを出力します — 詳細は [sentinel プリセット](../reference/sentinel) 参照。
 
 生成後の次のステップも表示されます:
 1. `.ccchain.conf` を確認・カスタマイズ
 2. `.claude/settings.json` に Hook を登録
 3. `ccchain check` で検証
 4. `ccchain audit` で展開確認
+
+## `ccchain approve`
+
+[承認トークンフロー](../reference/approve) の人間側コマンド。ccchain が非対話モードで `ask` を `deny + hint` に降格したとき、リクエストは pending として記録されます。オーナーが自身のターミナルで `ccchain approve` を実行すると、その具体的なコマンドだけがブロック解除されます。
+
+```bash
+ccchain approve --last                # 直近の pending を承認
+ccchain approve --list                # pending 一覧
+ccchain approve <hash-prefix>         # ハッシュ prefix 指定で承認
+ccchain approve --revoke-all          # 未消費の承認をすべて破棄
+ccchain approve --last --ttl 1h       # 有効期限を指定（デフォルト 15m）
+ccchain approve --last --global       # session/cwd を問わずマッチ（デフォルト: 現在のみ）
+```
+
+> **セキュリティ:** agent の Bash ツールから `ccchain approve` を絶対に実行させないこと。sentinel プリセットは deny するが、二重防御として `settings.json` の `permissions.deny` に `Bash(ccchain approve*)` を追加すること。
 
 ## 共通フラグ
 

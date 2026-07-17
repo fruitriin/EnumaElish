@@ -16,54 +16,48 @@ allow find
 
 ### `deny`
 
-コマンドをブロックします。メッセージが stderr 経由で Claude に伝わり、自律的な書き直しが可能になります。
+コマンドをブロックします。メッセージは `permissionDecisionReason` として Claude に届き（[設定リファレンス / Hook 出力](./config.md#hook-出力) 参照）、自律的な書き直しが可能になります。
 
 ```
 deny rm  "trash コマンドを使ってください"
 deny eval  "eval は静的解析不能です。コマンドを直接記述してください"
 ```
 
-**Hook 動作:** exit 2、メッセージが stderr に出力。
+**Hook 動作:** exit 0、JSON に `permissionDecision: "deny"` + `permissionDecisionReason` を出力。
 
 **設計原則:** deny メッセージには「なぜブロックされたか」と「代わりに何をすべきか」を書く。これにより ccchain は単なるブロッカーではなく、AI への教育ツールになります。
 
 ### `warn`
 
-コマンドを許可しますが、Claude に警告を送信します。
+コマンドを許可しますが、Claude に注意メッセージを送信します。
 
 ```
 warn curl  "WebFetch の使用を検討してください"
 ```
 
-**Hook 動作:** exit 0、`{"decision":"allow","message":"..."}` が stdout に出力。
+**Hook 動作:** exit 0、`permissionDecision: "allow"` + `permissionDecisionReason`（注意文は Claude のコンテキストに残るが実行はブロックされない）。
 
-**注意:** Claude が警告に従うかはモデル依存です。ccchain は exit code と出力フォーマットを保証しますが、Claude の振る舞いは制御しません。
+**注意:** Claude が警告に従うかはモデル依存です。ccchain は出力フォーマットを保証しますが、Claude の振る舞いは制御しません。
 
 ### `ask`
 
-Claude Code の組み込みパーミッションダイアログに委譲し、ユーザーに判断を求めます。
+Claude Code の組み込みパーミッションダイアログに委譲します。非対話モード（`auto` / `dontAsk` 等）では [`ask_strategy`](./dsl.md#ask_strategy) と ask ルールの [`unattended:`](./dsl.md#unattended) 指定に従って `deny + hint`（既定）または `warn` に降格します。
 
 ```
 ask rm
   message: "ファイル削除を確認してください"
+  unattended: deny   # 既定: 非対話モードでは deny+hint に降格
 ```
 
-**Hook 動作:** exit 0、`{"decision":"ask"}` が stdout に出力。
+**Hook 動作:** exit 0、JSON に `permissionDecision: "ask"`（対話モードのみ）。
 
 ### `hint`
 
-> **注意:** `ccchain hook post` は現在パススルーです。`hint` アクションと PostToolUse のルール評価は将来のリリースで対応予定です。
+> **注意:** `ccchain hook post` は現在パススルーです。`postToolUse` ルール内での `hint` アクション、および PostToolUse のルール評価は将来のリリースで対応予定です。
 
-PostToolUse アクション。コマンド実行後に次のアクションを Claude に提案します。
+PreToolUse 層での `hint` は「よりソフトな warn」として振る舞います — 実行はブロックされず、メッセージが Claude のコンテキストに届きます。
 
-```
-postToolUse
-  allow WebFetch
-    mode: hint
-    message: "結果をファイルに保存してください"
-```
-
-**Hook 動作:** exit 0、メッセージが stdout に出力（PostToolUse のみ）。
+**Hook 動作:** exit 0、`permissionDecision: "allow"` + `permissionDecisionReason`。
 
 ## 評価順序
 

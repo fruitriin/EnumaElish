@@ -62,29 +62,51 @@ ccchain は優先度順に設定ファイルを探します。後のファイル
 
 ## Hook 入力フォーマット
 
-ccchain は Claude Code の Hook フォーマットに従った JSON を stdin から読みます:
+ccchain は Claude Code の PreToolUse Hook フォーマットに従った JSON を stdin から読みます:
 
 ```json
 {
   "tool_name": "Bash",
   "tool_input": {
     "command": "find . -name '*.log' | rm -rf"
-  }
+  },
+  "permission_mode": "auto",
+  "session_id": "01HXYZ...",
+  "cwd": "/home/user/project"
 }
 ```
 
-Bash 以外のツールはそのまま通過します（exit 0）。
+- `permission_mode` — `default` / `acceptEdits` / `plan` / `auto` / `dontAsk` / `bypassPermissions` のいずれか。非対話モードで `ask` を降格させる [`ask_strategy`](./dsl.md#ask_strategy) の分岐入力に使う。未知の値・欠落は非対話扱い（安全側）
+- `session_id` — Claude Code のセッション ID。`cwd` と併用して [`ccchain approve`](./approve.md) トークンの既定スコープを決める
+- `cwd` — Claude Code がツールを呼び出したときのカレントディレクトリ
+
+Bash 以外のツール（`Read` / `Edit` / `Write` / `WebFetch` / `mcp__*`）も同じ hook 経由でルーティングされ、ccchain はファイルパス・URL を tool ルールで評価する。未知のツール名はそのまま通過する（exit 0）。
 
 ## Hook 出力
 
 ### PreToolUse
 
-| 判定 | exit code | 出力 |
+すべてのアクションは exit code `0` を返し、Claude Code の `hookSpecificOutput` スキーマに沿った JSON を出力します:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "ccchain: curl | bash はレビュー無しでリモートコードを実行します。まず `curl -o /tmp/install.sh` で保存 → 中身を確認 → 明示的に `bash /tmp/install.sh` を実行してください。"
+  }
+}
+```
+
+| 評価結果 | `permissionDecision` | 備考 |
 |---|---|---|
-| 許可 | 0 | (なし) |
-| 拒否 | 2 | メッセージが stderr に |
-| 警告 | 0 | `{"decision":"allow","message":"..."}` が stdout に |
-| 委譲 | 0 | `{"decision":"ask"}` が stdout に |
+| `allow` | (出力なし) | ccchain は中立を保ち、Claude Code の後続パーミッションレイヤの評価を妨げない |
+| `deny` | `deny` | `permissionDecisionReason` にメッセージ、ask→deny 降格経路では承認手順も含まれる |
+| `warn` | `allow` | reason は Claude のコンテキストに注意文として残る。実行はブロックされない |
+| `hint` | `allow` | warn と同形式（従来は出力なしで無言だったが、hint テキストを届けるようになった） |
+| `ask` | `ask` | 対話モードでのみ。`auto` / `dontAsk` / 未知モードでの降格は [`ask_strategy`](./dsl.md#ask_strategy) を参照 |
+
+> **変更履歴。** ccchain は以前、`deny` を `exit 2` + stderr メッセージで返し、`hint` は無出力でした。両者とも上表の exit-0 + `hookSpecificOutput` JSON に置き換わり、現在の Claude Code hooks 仕様に準拠しています。stderr パースや旧 `{"decision": "ask"}` 形式を扱っていた場合は本表の各フィールドへ移行してください。
 
 ## エラー処理（Fail-Open）
 

@@ -25,6 +25,7 @@ ccchain はインデントベースのテキスト DSL を使用します。
   mode: block | warn | hint  # 非推奨: パースされるが評価に影響しない。warn/hint アクションを直接使用
   message: "..."
   next: <テンプレート名>
+  unattended: deny | allow  # ask ルール専用 — 非対話モードでの降格方向
 
 # テンプレート定義
 template <名前>
@@ -45,6 +46,9 @@ settings:
   workspace: <path>[, <path> ...]   # ワークスペーススコープのルート（`scope:` 参照）
   scope_violation: ask | deny         # ワークスペース外パスを検出したときの動作（デフォルト ask）
   strict_config_error: true | false   # 設定ロード失敗時に deny (デフォルト false = fail-open)
+  ask_strategy: degrade | passthrough | deny-all   # hook 層で ask をどう解決するか（デフォルト degrade）
+  ask_degrade_default: deny | allow                # degrade で ask をどちら側に倒すか（デフォルト deny）
+  unanalyzable_action: ask | deny                  # 構造的に解析不能なコマンドのアクション（デフォルト deny）
 ```
 
 **シェルクォートに関する注記:** コマンド名・引数どちらのマッチングも、シェルがコマンド実行前に行うのと同じ **クォート除去後の文字列** に対して行われる。`"rm"` は `deny rm` にマッチし、`curl -X "POST"` は args: パターン `-X POST` にマッチし、`rm "-rf" /` は args: の `-rf` にマッチする。除去されるのは静的な `'...'` / `"..."` の外側ラップのみで、ダブルクォート内のバックスラッシュエスケープ（`\"`, `\$`, `\\`, `` \` `` 等）や ANSI-C `$'...'` はソース表記のまま渡される。エスケープ亜種に対しても防御したいパターンは明示的にカバーすること。
@@ -53,11 +57,11 @@ settings:
 
 | アクション | 意味 |
 |---|---|
-| `allow` | コマンドを許可 |
-| `deny` | コマンドをブロック（exit 2 + メッセージを Claude に通知） |
-| `warn` | 許可するが Claude に警告を送信 |
-| `ask` | Claude Code の標準パーミッションダイアログに委譲 |
-| `hint` | PostToolUse: 次のアクションを Claude に提案 |
+| `allow` | コマンドを許可（ccchain は中立を保つ — [Hook 出力](./config.md#hook-出力) 参照） |
+| `deny` | コマンドをブロック。`permissionDecision: "deny"` + reason JSON を出力 |
+| `warn` | 許可するが注意メッセージを添える。`permissionDecision: "allow"` + reason を出力 |
+| `ask` | Claude Code の標準ダイアログに委譲。非対話モードでは [`ask_strategy`](#ask_strategy) と該当ルールの [`unattended:`](#unattended) 指定に従って降格 |
+| `hint` | PreToolUse: よりソフトな `warn`。PostToolUse: 次のアクションを Claude に提案（将来対応） |
 
 ## コンテキスト修飾子
 
@@ -133,7 +137,7 @@ allow cat
 - パスが workspace 外かつ書き込み引数 → `outside-write:` > `outside:` の順で採用
 - パスが workspace 外かつ読み取り引数 → `outside-read:` > `outside:` の順で採用
 
-**read/write の判定**は組み込みセマンティクステーブル（[`internal/semantics/table.go`](../../../internal/semantics/table.go)）で行う:
+**read/write の判定**は組み込みセマンティクステーブル（[`internal/semantics/table.go`](https://github.com/fruitriin/EnumaElish/blob/main/internal/semantics/table.go)）で行う:
 
 | コマンド | 判定 |
 |---|---|
@@ -196,6 +200,9 @@ settings:
   workspace: ~/workspace       # ワークスペーススコープ（カンマ区切りで複数指定可）
   scope_violation: ask         # ワークスペース外パス検出時のアクション（ask|deny）
   strict_config_error: true    # 設定ロード失敗時に fail-closed（deny）にする。デフォルト: false
+  ask_strategy: degrade        # hook 層で ask をどう解決するか（degrade|passthrough|deny-all）
+  ask_degrade_default: deny    # degrade で ask をどちら側に倒すか（deny|allow）
+  unanalyzable_action: deny    # 構造的に解析不能なコマンドのアクション（ask|deny）
 ```
 
 ### `scope_violation`
@@ -211,6 +218,62 @@ settings:
 
 降格の対象は `allow` 結果のみで、明示的な `ask` / `deny` ルールは変更されません。
 `ask` / `deny` 以外の値はパースエラーになります。
+
+### `ask_strategy`
+
+Hook が `ask` の判定を Claude Code に返すときの解決方法を制御します。一部の
+[permission mode](https://docs.claude.com/en/docs/claude-code/permissions) — `auto` / `dontAsk` / `headless`（`claude -p`） — では
+`ask` の確認ダイアログが人間に届きません。`ask_strategy` は、これらのモード
+での `ask` の扱いを選択します:
+
+- `degrade`（デフォルト）: 対話モード（`default` / `acceptEdits` / `plan` /
+  `bypassPermissions`）では `ask` をそのまま返す。それ以外のモードでは
+  **降格** — 既定は `deny + hint`、該当ルールが
+  [`unattended: allow`](#unattended) を明示していれば `warn + hint` に降格。
+  hint テキストにはブロックの理由と、[`ccchain approve`](./approve.md) 経由の
+  人間承認手順が含まれる
+- `passthrough`: モードを問わず `ask` をそのまま返す。Plan 0022 以前の挙動。
+  Claude Code の auto classifier に ask のルーティングを完全に委ねる場合向け
+- `deny-all`: モードを問わず、そしてルールに `unattended: allow` が書かれて
+  いても、すべての `ask` を `deny + hint` に格上げする。CI などで ask を絶対
+  に素通ししたくない厳格環境向け
+
+`degrade` 下での降格方向（`deny` / `allow`）の解決順:
+ルール単位の [`unattended:`](#unattended) → `ask_degrade_default`（グローバル）→
+組込みの `deny`（安全側デフォルト）。
+
+`degrade` / `passthrough` / `deny-all` 以外の値はパースエラーです。
+
+### `ask_degrade_default`
+
+`ask_strategy: degrade` で、該当ルールに `unattended:` 指定がないときに使う
+グローバル既定の降格方向:
+
+- `deny`（デフォルト）: `deny + hint` に降格。ブロックを非同期の対話に変える —
+  オーナーが自身のターミナルで `ccchain approve --last` を実行するとリクエスト
+  が通る（[承認トークン](./approve.md) 参照）
+- `allow`: `warn` に降格。実行を通しつつ、注意メッセージが Claude のコンテ
+  キストに残る。「念のため確認」的な ask に向く
+
+`deny` / `allow` 以外の値はパースエラーです。
+
+### `unanalyzable_action`
+
+ccchain が静的に解析できないコマンドのアクションを制御します:
+`eval` / 動的サブシェル / リテラルでない `for` ループ / C 系 for ループ /
+`select` / 位置パラメータループ / 実行時の値に依存する制御構造など。
+リテラル `for` ループ（`for f in a b c; do BODY; done`）は展開されて各
+イテレーションが個別に評価されるため、本設定の**影響を受けません**。
+
+- `deny`（デフォルト）: 解析不能コマンドを `deny` として扱う。`ask_strategy:
+  degrade` と組み合わせると、ask が classifier に黙って吸われがちな auto /
+  dontAsk モードでの安全網になる
+- `ask`: 解析不能コマンドを `ask` として扱う。事前ルール化が難しい構造に対して
+  対話的な確認を挟みたい場合向け
+
+`allow` は**意図的に非対応** — この設定ひとつで、制御構造・サブシェル・動的
+コマンドを守る安全網を無効化できてしまうためです。それ以外の値もパース
+エラーになります。
 
 ### `strict_config_error`
 
@@ -311,6 +374,33 @@ ccchain check --config broken.conf   # 正しい: broken.conf を検証する
    を直しただけなら再起動は不要 — `dsl.LoadConfig` はフック呼び出しごとに
    実行されるため、次のツール呼び出しで修正済み設定が自動的に再ロードされ、
    ワークスペースのブロックが解除されます。
+
+## `unattended:`（ask ルール専用）
+
+[`ask_strategy: degrade`](#ask_strategy) のルール単位の上書き。この `ask` が
+非対話モード（auto / dontAsk / headless / 未知）でどちらに降格するかを宣言
+します:
+
+```
+ask docker
+  message: "コンテナ操作は確認したい"
+  unattended: allow          # 非対話モードでは warn に降格
+                             # (実行を通しつつ、注意を Claude のコンテキストに残す)
+
+ask git-branch-delete
+  message: "ブランチ削除は backup ref を先に"
+  unattended: deny           # 組込みの既定と同じ動作を明示:
+                             # deny + approve 手順の hint に降格
+```
+
+ルール:
+
+- `ask` ルールにのみ有効。他のアクションに書くとパースエラー
+- 値は `deny` / `allow` のいずれか（それ以外はパースエラー）
+- `ask_strategy: passthrough` 下では ask ごとそのまま通るため無視される。
+  `ask_strategy: deny-all` 下では上書きされる（すべての ask が deny）
+- 未指定の場合、方向は [`ask_degrade_default`](#ask_degrade_default) →
+  組込みの `deny` の順でフォールバック
 
 ## 複数コマンドの一行記法
 

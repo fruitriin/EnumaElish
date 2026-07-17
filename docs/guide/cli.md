@@ -12,17 +12,14 @@ ccchain check -v  # verbose: show parsed rules and templates
 
 ## `ccchain hook pre`
 
-PreToolUse hook. Reads Claude Code's tool JSON from stdin, evaluates the command, and returns the appropriate exit code.
+PreToolUse hook. Reads Claude Code's tool JSON from stdin, evaluates the command, and emits a `hookSpecificOutput` JSON response on stdout.
 
 ```bash
 # Registered in .claude/settings.json — not called directly
-echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | ccchain hook pre
+echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto","session_id":"...","cwd":"..."}' | ccchain hook pre
 ```
 
-| Exit Code | Meaning |
-|---|---|
-| 0 | Allow (or non-Bash tool) |
-| 2 | Deny (reason on stderr) |
+Always exits `0`. The decision is carried by the JSON body — see [Hook Output](../reference/config#hook-output) for the exact schema and [`ask_strategy`](../reference/dsl#ask_strategy) for how `ask` degrades in non-interactive `permission_mode`s.
 
 ## `ccchain hook post`
 
@@ -144,10 +141,26 @@ cat commands.txt | ccchain suggest
 Generates a default `.ccchain.conf` with sensible rules.
 
 ```bash
-ccchain init
+ccchain init                # default preset
+ccchain init --sentinel     # deny-first sentinel preset (see reference/sentinel)
 ```
 
-Will not overwrite an existing file.
+Will not overwrite an existing file. `--sentinel` selects the curated deny-first ruleset targeted at auto / dontAsk / headless environments — see [Sentinel Preset](../reference/sentinel).
+
+## `ccchain approve`
+
+Human-side of the [approval-token flow](../reference/approve). When ccchain degrades an `ask` to `deny + hint` in a non-interactive mode, it records the request as pending; the owner runs `ccchain approve` in their own terminal to unblock exactly that command.
+
+```bash
+ccchain approve --last                # approve the most recent pending entry
+ccchain approve --list                # list pending entries
+ccchain approve <hash-prefix>         # approve by hash prefix
+ccchain approve --revoke-all          # invalidate every un-consumed approval
+ccchain approve --last --ttl 1h       # custom lifetime (default 15m)
+ccchain approve --last --global       # match any session/cwd (default: current only)
+```
+
+> **Security:** never run `ccchain approve` from an agent's Bash tool. The sentinel preset denies it; also add `Bash(ccchain approve*)` to `settings.json` `permissions.deny` for defense in depth.
 
 ## Global Flags
 

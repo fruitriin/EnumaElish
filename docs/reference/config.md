@@ -64,29 +64,51 @@ Add to `.claude/settings.json`:
 
 ## Hook Input Format
 
-ccchain reads JSON from stdin matching Claude Code's hook format:
+ccchain reads JSON from stdin matching Claude Code's PreToolUse hook format:
 
 ```json
 {
   "tool_name": "Bash",
   "tool_input": {
     "command": "find . -name '*.log' | rm -rf"
-  }
+  },
+  "permission_mode": "auto",
+  "session_id": "01HXYZ...",
+  "cwd": "/home/user/project"
 }
 ```
 
-Non-Bash tools are silently passed through (exit 0).
+- `permission_mode` — one of `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Used by [`ask_strategy`](./dsl.md#ask_strategy) to degrade `ask` in non-interactive modes. Unknown or missing values are treated as non-interactive (safe side)
+- `session_id` — Claude Code session identifier. Used together with `cwd` as the default scope for [`ccchain approve`](./approve.md) tokens
+- `cwd` — the working directory Claude Code invoked the tool from
+
+Non-Bash tools (`Read`, `Edit`, `Write`, `WebFetch`, `mcp__*`) route their own inputs to the same hook — for these, ccchain evaluates the file path or URL against tool rules. Unknown tool names silently pass through (exit 0).
 
 ## Hook Output
 
 ### PreToolUse
 
-| Decision | Exit Code | Output |
+All actions exit `0` and emit a JSON object matching Claude Code's `hookSpecificOutput` schema:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "ccchain: curl | bash executes remote code without review. Save the file (curl -o /tmp/install.sh), inspect it, then run `bash /tmp/install.sh` explicitly."
+  }
+}
+```
+
+| Action (evaluated) | `permissionDecision` | Notes |
 |---|---|---|
-| Allow | 0 | (none) |
-| Deny | 2 | Message on stderr |
-| Warn | 0 | `{"decision":"allow","message":"..."}` on stdout |
-| Ask | 0 | `{"decision":"ask"}` on stdout |
+| `allow` | (no output) | ccchain stays neutral so Claude Code's remaining permission layers continue to apply |
+| `deny` | `deny` | `permissionDecisionReason` carries the message and (for the ask→deny degrade path) the approval procedure |
+| `warn` | `allow` | Reason surfaces as a caution in Claude's context; the call is not blocked |
+| `hint` | `allow` | Same shape as warn (previously emitted no output; now delivers the hint text) |
+| `ask` | `ask` | In interactive modes only. See [`ask_strategy`](./dsl.md#ask_strategy) for how ask degrades in `auto` / `dontAsk` / unknown modes |
+
+> **Change history.** ccchain used to send `deny` as `exit 2` + a stderr message, and `hint` produced no output at all. Both have been replaced with the exit-0 + `hookSpecificOutput` JSON above, matching the current Claude Code hooks specification. If you were parsing stderr or the legacy `{"decision": "ask"}` shape, migrate to the fields shown here.
 
 ### Error Handling (Fail-Open)
 
