@@ -49,6 +49,7 @@ settings:
   ask_strategy: degrade | passthrough | deny-all   # hook 層で ask をどう解決するか（デフォルト degrade）
   ask_degrade_default: deny | allow                # degrade で ask をどちら側に倒すか（デフォルト deny）
   unanalyzable_action: ask | deny                  # 構造的に解析不能なコマンドのアクション（デフォルト deny）
+  log: <path>                                      # hook 評価結果の JSONL 出力先。デフォルト未指定（無効）
 ```
 
 **シェルクォートに関する注記:** コマンド名・引数どちらのマッチングも、シェルがコマンド実行前に行うのと同じ **クォート除去後の文字列** に対して行われる。`"rm"` は `deny rm` にマッチし、`curl -X "POST"` は args: パターン `-X POST` にマッチし、`rm "-rf" /` は args: の `-rf` にマッチする。除去されるのは静的な `'...'` / `"..."` の外側ラップのみで、ダブルクォート内のバックスラッシュエスケープ（`\"`, `\$`, `\\`, `` \` `` 等）や ANSI-C `$'...'` はソース表記のまま渡される。エスケープ亜種に対しても防御したいパターンは明示的にカバーすること。
@@ -203,6 +204,7 @@ settings:
   ask_strategy: degrade        # hook 層で ask をどう解決するか（degrade|passthrough|deny-all）
   ask_degrade_default: deny    # degrade で ask をどちら側に倒すか（deny|allow）
   unanalyzable_action: deny    # 構造的に解析不能なコマンドのアクション（ask|deny）
+  log: .ccchain/log.jsonl      # hook 評価結果を JSONL で永続化する（`ccchain stats` の入力）
 ```
 
 ### `scope_violation`
@@ -274,6 +276,31 @@ ccchain が静的に解析できないコマンドのアクションを制御し
 `allow` は**意図的に非対応** — この設定ひとつで、制御構造・サブシェル・動的
 コマンドを守る安全網を無効化できてしまうためです。それ以外の値もパース
 エラーになります。
+
+### `log`
+
+hook 評価結果のオプトイン永続化。設定すると、PreToolUse の各評価が JSONL
+1 行として指定パスに追記され、[`ccchain stats`](./stats.md) で集計できる
+ようになります（deny の多いルール Top N、直近 24h のアクション分布 等）。
+デフォルトは未設定 — ログは書かれず、実行時オーバーヘッドもありません。
+
+```
+settings:
+  log: .ccchain/log.jsonl
+```
+
+- パス解決: 絶対パスはそのまま、相対パスは hook の `cwd`（プロジェクト
+  ルート）基準で解決
+- パーミッション: ログファイルは 0600、親ディレクトリは 0700 — 承認スト
+  アと同じ脅威モデル
+- コマンド切り詰め: 各エントリの `command` は 200 UTF-8 バイトで切り詰め
+  （`internal/evallog.CommandLengthLimit`）。UTF-8 境界を尊重
+- **`.gitignore` 推奨**: コマンド文字列には秘密情報が混入し得ます。ログ
+  ディレクトリ（例: `.ccchain/`）を `.gitignore` に加えてください
+
+ログ書き込み失敗（ディスク満杯・シンボリックリンク攻撃など）は stderr に
+警告を出しますが、allow / deny 判定には**影響しません** — ログはあくまで
+best-effort です。
 
 ### `strict_config_error`
 

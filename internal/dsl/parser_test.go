@@ -426,3 +426,54 @@ func TestParseSettingsDefaultAskStrategy(t *testing.T) {
 	assertEqual(t, "default ask_strategy", cfg.Settings.AskStrategy, AskStrategyDegrade)
 	assertEqual(t, "default ask_degrade_default", string(cfg.Settings.AskDegradeDefault), "deny")
 }
+
+// Plan 0029: settings.log: path for hook evaluation log.
+func TestParseSettingsLogPath(t *testing.T) {
+	cfg, err := Parse(strings.NewReader("settings:\n  log: .ccchain/log.jsonl\n"))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "log path", cfg.Settings.LogPath, ".ccchain/log.jsonl")
+	if !cfg.Settings.Explicit["log"] {
+		t.Error("Explicit[log] not set")
+	}
+}
+
+func TestParseSettingsLogPathEmptyRejected(t *testing.T) {
+	_, err := Parse(strings.NewReader("settings:\n  log: \n"))
+	if err == nil {
+		t.Fatal("expected error for empty log path")
+	}
+}
+
+func TestParseSettingsLogPathDefaultEmpty(t *testing.T) {
+	cfg, err := Parse(strings.NewReader("allow ls\n"))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if cfg.Settings.LogPath != "" {
+		t.Errorf("default LogPath should be empty, got %q", cfg.Settings.LogPath)
+	}
+}
+
+// Plan 0029: merge from overlay must carry LogPath through.
+func TestMergeSettingsLogPath(t *testing.T) {
+	base := DefaultSettings()
+	overlay := DefaultSettings()
+	overlay.LogPath = "/tmp/overlay.jsonl"
+	overlay.Explicit["log"] = true
+
+	merged := mergeSettings(base, overlay)
+	assertEqual(t, "merged log path", merged.LogPath, "/tmp/overlay.jsonl")
+	if !merged.Explicit["log"] {
+		t.Error("merged Explicit[log] not set")
+	}
+
+	// base with log, overlay without log — base should survive.
+	base2 := DefaultSettings()
+	base2.LogPath = "/tmp/base.jsonl"
+	base2.Explicit["log"] = true
+	overlay2 := DefaultSettings()
+	merged2 := mergeSettings(base2, overlay2)
+	assertEqual(t, "base log survives", merged2.LogPath, "/tmp/base.jsonl")
+}

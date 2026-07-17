@@ -49,6 +49,7 @@ settings:
   ask_strategy: degrade | passthrough | deny-all   # how ask resolves at the hook layer (default degrade)
   ask_degrade_default: deny | allow                # which side ask degrades to under degrade (default deny)
   unanalyzable_action: ask | deny                  # action for structurally unanalyzable commands (default deny)
+  log: <path>                                      # path for hook evaluation log (JSONL). Default: unset (disabled)
 ```
 
 **Shell-quoting note:** Both command-name and argument matching operate on strings *after* shell quote removal, just like the shell does before executing the command — `"rm"` matches a `deny rm` rule, `curl -X "POST"` matches an `args:` pattern of `-X POST`, and `rm "-rf" /` matches `-rf` in args:. Only literal single/double-quote wrappers are stripped; backslash escapes inside double quotes (`\"`, `\$`, `\\`, `` \` ``, etc.) and ANSI-C `$'...'` sequences are passed through as written, so patterns that need to defend against escaped variants must account for them explicitly.
@@ -213,6 +214,7 @@ settings:
   ask_strategy: degrade        # how ask resolves at the hook layer (degrade|passthrough|deny-all)
   ask_degrade_default: deny    # which way ask degrades under degrade (deny|allow)
   unanalyzable_action: deny    # action for structurally unanalyzable commands (ask|deny)
+  log: .ccchain/log.jsonl      # persist hook evaluation results as JSONL (see `ccchain stats`)
 ```
 
 ### `scope_violation`
@@ -289,6 +291,33 @@ affected by this setting.
 `allow` is deliberately **not** accepted — enabling it would let a single
 setting disable the safety net that guards control-flow, subshells, and
 dynamic commands. Any other value is a parse error.
+
+### `log`
+
+Opt-in path for the hook evaluation log. When set, every PreToolUse
+evaluation is appended as a JSONL line to that path, and [`ccchain
+stats`](./stats.md) can aggregate the file (top denies, deny-by-rule,
+etc.). The default is unset — no log is written and there is no runtime
+overhead.
+
+```
+settings:
+  log: .ccchain/log.jsonl
+```
+
+- Path resolution: absolute paths are used as-is; relative paths are
+  resolved against the hook's `cwd` (the project root)
+- Permissions: the log file is created 0600 and its parent directory
+  0700 — the same threat model as the approval store
+- Command truncation: each entry stores the command truncated to 200
+  UTF-8 bytes (`internal/evallog.CommandLengthLimit`); longer commands
+  are cut on a rune boundary
+- **Gitignore recommended**: command strings can carry secrets. Add
+  the log directory (e.g. `.ccchain/`) to `.gitignore`
+
+Failures to write the log (disk full, symlink attack, etc.) emit a stderr
+warning but do **not** change the allow/deny decision — the log is
+best-effort by design.
 
 ### `strict_config_error`
 

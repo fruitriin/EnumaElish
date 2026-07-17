@@ -231,6 +231,7 @@ deny rm
 | `ccchain generate-rules` | 組込みセマンティクステーブルからルールを生成 |
 | `ccchain audit` | テンプレート展開後の全ルールをフラット表示 |
 | `ccchain approve` | 降格 deny をオーナー側で承認（`--last` / `--list` / `<hash-prefix>` / `--revoke-all`） |
+| `ccchain stats` | hook 評価ログ（`settings.log:` オプトイン）の集計（`--since` / `--group-by` / `--json`） |
 | `ccchain hook pre` / `hook post` | PreToolUse / PostToolUse Hook（stdin から JSON を読取） |
 | `ccchain version` | バージョン表示 |
 
@@ -247,6 +248,7 @@ deny rm
 | [DSL リファレンス](https://fruitriin.github.io/EnumaElish/ja/reference/dsl) | DSL 構文（ask_strategy / unattended / unanalyzable_action 含む） |
 | [承認トークン](https://fruitriin.github.io/EnumaElish/ja/reference/approve) | `ccchain approve` の思想・CLI・脅威モデル |
 | [sentinel プリセット](https://fruitriin.github.io/EnumaElish/ja/reference/sentinel) | deny-first キュレートルールの詳細 |
+| [統計](https://fruitriin.github.io/EnumaElish/ja/reference/stats) | `settings.log:` オプトインと `ccchain stats` の使い方 |
 
 ## ライセンス
 

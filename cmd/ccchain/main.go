@@ -22,6 +22,7 @@ var flagPassthroughCommands = map[string]bool{
 	"diff":    true,
 	"approve": true,
 	"init":    true,
+	"stats":   true,
 }
 
 // cliArgs holds the parsed global CLI state.
@@ -118,6 +119,8 @@ func main() {
 			printDiffUsage()
 		case "approve":
 			printApproveUsage()
+		case "stats":
+			printStatsUsage()
 		default:
 			printUsage()
 		}
@@ -159,6 +162,8 @@ func main() {
 		runDiff(c.defaultAction, c.cmdArgs)
 	case "approve":
 		runApprove(c.cmdArgs)
+	case "stats":
+		runStats(c.configPath, c.cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s — Claude Code Chain (%s)\n", version, repoURL)
 	case "":
@@ -312,6 +317,7 @@ Commands:
   generate-rules   Generate rules from built-in semantics table
   audit            Display flat expansion of all rules
   approve          Approve a deny that degraded from an ask (human-side)
+  stats            Aggregate the hook evaluation log (requires settings.log:)
   init [--sentinel] Generate .ccchain.conf (default preset; --sentinel: deny-first)
   version          Print version
 

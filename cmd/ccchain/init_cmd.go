@@ -165,7 +165,6 @@ allow Write
 // Plan 0022 Phase 4 (the collection).
 var sentinelConfig = preset.Sentinel()
 
-
 // runInit writes the default (non-sentinel) preset to .ccchain.conf.
 // Preserved as-is for backward compatibility with existing docs and users
 // who rely on the untouched behavior of ` + "`ccchain init`" + `.
@@ -203,6 +202,10 @@ func writePreset(path, content, presetName string) {
 	fmt.Println(`     }`)
 	fmt.Println("  3. Run 'ccchain check' to validate")
 	fmt.Println("  4. Run 'ccchain audit' to see expanded rules")
+	fmt.Println("  5. (Optional) Persist hook decisions for `ccchain stats`:")
+	fmt.Println("       settings:")
+	fmt.Println("         log: .ccchain/log.jsonl")
+	fmt.Println("       # Add `.ccchain/` to .gitignore — command strings can carry secrets.")
 	if presetName == "sentinel" {
 		fmt.Println()
 		fmt.Println("The sentinel preset is deny-first: destructive patterns produce a deny")

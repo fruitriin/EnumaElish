@@ -170,6 +170,10 @@ func mergeSettings(base, overlay *Settings) *Settings {
 		out.AskDegradeDefault = overlay.AskDegradeDefault
 		out.Explicit["ask_degrade_default"] = true
 	}
+	if overlay.Explicit["log"] {
+		out.LogPath = overlay.LogPath
+		out.Explicit["log"] = true
+	}
 	if len(overlay.Explicit) > 0 {
 		out.Line = overlay.Line
 	}

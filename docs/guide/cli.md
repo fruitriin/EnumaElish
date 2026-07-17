@@ -162,6 +162,18 @@ ccchain approve --last --global       # match any session/cwd (default: current 
 
 > **Security:** never run `ccchain approve` from an agent's Bash tool. The sentinel preset denies it; also add `Bash(ccchain approve*)` to `settings.json` `permissions.deny` for defense in depth.
 
+## `ccchain stats`
+
+Aggregates the JSONL evaluation log emitted by the hook when `settings.log:` is set. See [Stats](../reference/stats) for the full reference.
+
+```bash
+ccchain stats                                     # last 24h, group by action
+ccchain stats --since 7d --group-by rule --top 10 # top 10 rules over 1 week
+ccchain stats --json | jq '.'                     # JSON for scripting
+```
+
+Exits 1 with a hint if `settings.log:` is not set — logging is opt-in.
+
 ## Global Flags
 
 | Flag | Description |

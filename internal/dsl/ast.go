@@ -129,6 +129,7 @@ type Settings struct {
 	StrictConfigError  bool     // if true, hook denies when config load fails
 	AskStrategy        string   // ask_strategy: how ask resolves at the hook layer (degrade|passthrough|deny-all)
 	AskDegradeDefault  Action   // ask_degrade_default: which way ask degrades in non-interactive modes (deny|allow)
+	LogPath            string   // log: path for hook evaluation log (JSONL). Empty = disabled (Plan 0029).
 	Line               int
 
 	// Explicit fields set by the parser (keyed by DSL key name).

@@ -511,6 +511,15 @@ func (p *parser) parseSettings() (*Settings, error) {
 				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid bool for strict_config_error: %q (expected true|false)", val)}
 			}
 			settings.Explicit["strict_config_error"] = true
+		case "log":
+			// Plan 0029: hook evaluation log path (JSONL). Empty string
+			// disables logging; the hook only writes to the file when this
+			// setting is present.
+			if val == "" {
+				return nil, &ParseError{Line: childLine.LineNo, Message: "log: requires a non-empty path"}
+			}
+			settings.LogPath = val
+			settings.Explicit["log"] = true
 		case "workspace":
 			// Collect all tokens after colon (parseKeyValue only returns first)
 			var allParts []string

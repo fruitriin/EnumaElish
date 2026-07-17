@@ -179,6 +179,18 @@ ccchain approve --last --global       # session/cwd を問わずマッチ（デ�
 
 > **セキュリティ:** agent の Bash ツールから `ccchain approve` を絶対に実行させないこと。sentinel プリセットは deny するが、二重防御として `settings.json` の `permissions.deny` に `Bash(ccchain approve*)` を追加すること。
 
+## `ccchain stats`
+
+`settings.log:` オプトイン下で hook が書き出す JSONL 評価ログを集計します。詳細は [統計](../reference/stats) を参照。
+
+```bash
+ccchain stats                                     # 直近 24h、action 別
+ccchain stats --since 7d --group-by rule --top 10 # 1 週間・ルール別・Top 10
+ccchain stats --json | jq '.'                     # JSON でスクリプト連携
+```
+
+`settings.log:` が未設定なら「log is not enabled」のヒントを出して exit 1 — ログ出力はオプトインです。
+
 ## 共通フラグ
 
 | フラグ | 説明 |

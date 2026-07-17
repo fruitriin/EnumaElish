@@ -1,6 +1,14 @@
 # Plan 0029: hook 評価結果ログ永続化と `ccchain stats`（Issue #17）
 
-## 実装状況: 未着手
+## 実装状況: 実装完了（2026-07-17）
+
+- `internal/evallog/` パッケージ新設（JSONL 追記・stats 集計・並行安全・切り詰め）
+- `dsl.Settings.LogPath` 追加、`settings: log:` パーサー + `mergeSettings` 対応
+- `cmd/ccchain/hook.go` の `runHookPre` 最終段に `writeEvalLog` を挿入（approval 消費時のパスも含む）
+- `cmd/ccchain/stats.go` 新設: `--since` / `--group-by` / `--top` / `--json` / `--log` / `--config`
+- `printUsage`（README サブコマンド表）・`init` Next steps・docs（en/ja の `reference/dsl.md`, `reference/stats.md`, `guide/cli.md`）更新、VitePress sidebar に stats 追加
+
+`go test ./...` / `go vet ./...` / `go build ./cmd/ccchain` 全通過。実機で hook → JSONL 追記 → `ccchain stats` 表形式・JSON 集計を確認済み。
 
 ## 背景
 

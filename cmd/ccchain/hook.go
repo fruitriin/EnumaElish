@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fruitriin/EnumaElish/internal/approve"
 	"github.com/fruitriin/EnumaElish/internal/dsl"
 	"github.com/fruitriin/EnumaElish/internal/eval"
+	"github.com/fruitriin/EnumaElish/internal/evallog"
 )
 
 // toolInput represents the JSON input from Claude Code's hook system.
@@ -161,6 +163,9 @@ func runHookPre(configPath string, defaultAction string) {
 	if bashCommand != "" && preAskAction == dsl.ActionAsk && result.Action == dsl.ActionDeny {
 		if consumed, entry := lookupApproval(bashCommand, ti.CWD, ti.SessionID); consumed {
 			approved := approvalAllowResult(entry)
+			// Plan 0029: record the approved-allow decision so the operator's
+			// `ccchain stats` sees consumption alongside allow/deny counts.
+			writeEvalLog(cfg, &ti, bashCommand, approved)
 			emitResponse(buildHookResponse(approved))
 			return
 		}
@@ -174,7 +179,61 @@ func runHookPre(configPath string, defaultAction string) {
 		recordPendingApproval(bashCommand, ti.CWD, ti.SessionID, result)
 	}
 
+	// Plan 0029: persist the evaluation outcome for later `ccchain stats`.
+	// Errors are logged to stderr only; the log is best-effort and must
+	// never change the allow/deny decision.
+	writeEvalLog(cfg, &ti, bashCommand, result)
 	emitResponse(buildHookResponse(result))
+}
+
+// writeEvalLog appends the evaluation result to the configured JSONL log.
+// No-op when settings.log is not set. Errors are surfaced to stderr but
+// swallowed so the hook decision is never affected (Plan 0029: fail-open).
+//
+// Relative log paths are resolved against ti.CWD (the hook's cwd), matching
+// how `.ccchain.conf` itself is discovered. Absolute paths are used as-is.
+func writeEvalLog(cfg *dsl.Config, ti *toolInput, bashCommand string, result *eval.Result) {
+	if cfg == nil || cfg.Settings == nil || cfg.Settings.LogPath == "" {
+		return
+	}
+	if result == nil {
+		return
+	}
+	logPath := cfg.Settings.LogPath
+	if !filepath.IsAbs(logPath) {
+		base := ti.CWD
+		if base == "" {
+			// Fall back to process cwd — the hook may lack a cwd field on old
+			// Claude Code versions. This mirrors what `.ccchain.conf` search
+			// does implicitly.
+			if wd, err := os.Getwd(); err == nil {
+				base = wd
+			}
+		}
+		if base != "" {
+			logPath = filepath.Join(base, logPath)
+		}
+	}
+
+	// Prefer the raw bash command (when available) so operators can grep the
+	// log for the exact string they saw at the prompt. Non-Bash tools log
+	// the tool argument via ExtractedTarget wrapped in Result.Message if we
+	// have one, otherwise empty.
+	command := bashCommand
+
+	entry := evallog.Entry{
+		ToolName:       ti.ToolName,
+		Command:        command,
+		Action:         string(result.Action),
+		MatchedRule:    result.MatchedRule,
+		Message:        result.Message,
+		PermissionMode: ti.PermissionMode,
+		SessionID:      ti.SessionID,
+		CWD:            ti.CWD,
+	}
+	if err := evallog.Log(logPath, entry); err != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: eval log write failed (allowing): %v\n", err)
+	}
 }
 
 // lookupApproval consults the store for a live, matching approval and
