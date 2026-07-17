@@ -310,6 +310,41 @@ func TestFixtureSentinelParses(t *testing.T) {
 	}
 }
 
+// TestFixtureSentinelSelfProtectsConfigFiles is attacker C7's regression
+// guard: the sentinel preset must deny Edit/Write on `.ccchain.conf` and
+// `.ccchain.local.conf` so an agent cannot disable the deny-first safety net
+// by rewriting the config out from under it.
+func TestFixtureSentinelSelfProtectsConfigFiles(t *testing.T) {
+	cfg := loadRuleFixture(t, "../preset/sentinel.conf")
+	cases := []struct {
+		tool string
+		path string
+	}{
+		{"Edit", ".ccchain.conf"},
+		{"Edit", ".ccchain.local.conf"},
+		{"Edit", "/workspace/.ccchain.conf"},
+		{"Edit", "/workspace/.ccchain.local.conf"},
+		{"Write", ".ccchain.conf"},
+		{"Write", ".ccchain.local.conf"},
+		{"Write", "/workspace/.ccchain.conf"},
+		{"Write", "/workspace/.ccchain.local.conf"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.tool+"_"+tc.path, func(t *testing.T) {
+			r := EvaluateTool(tc.tool, tc.path, cfg)
+			if r.Action != dsl.ActionDeny {
+				t.Errorf("%s %s: expected deny, got %s", tc.tool, tc.path, r.Action)
+			}
+		})
+	}
+	// Read must still be allowed (or at least NOT denied) — audit / review
+	// legitimately reads the file.
+	rread := EvaluateTool("Read", ".ccchain.conf", cfg)
+	if rread.Action == dsl.ActionDeny {
+		t.Errorf("Read .ccchain.conf should not be denied; got %s (%s)", rread.Action, rread.Message)
+	}
+}
+
 // smell-allow: conditional-test-logic — error skip is necessary when comparing 3 Evaluate results
 // TestFixtureCompareRulesets compares results across rulesets for the same commands.
 // Verifies that rulesets produce meaningfully different results and outputs a diff report.

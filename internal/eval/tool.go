@@ -140,6 +140,9 @@ func applyScopeToToolCall(toolName, toolArg string, rule *dsl.Rule, config *dsl.
 				Action:  act.Action,
 				Message: firstNonEmpty(act.Message, "workspace scope: "+scopeDescription(scope, kind)),
 				Context: []string{toolName, toolArg},
+				// Skeptic C3: preserve parent's Unattended (see the Bash
+				// path for details).
+				Unattended: baseResult.Unattended,
 			}
 			if isMoreRestrictive(candidate, baseResult) {
 				return candidate
@@ -160,6 +163,8 @@ func applyScopeToToolCall(toolName, toolArg string, rule *dsl.Rule, config *dsl.
 			Action:  scopeViolationAction(config),
 			Message: "workspace scope: accessing path outside workspace",
 			Context: []string{toolName, toolArg},
+			// Skeptic C3: preserve parent's Unattended.
+			Unattended: baseResult.Unattended,
 		}
 	}
 	return baseResult
@@ -194,6 +199,9 @@ func applyToolArgsRules(toolArg string, rule *dsl.Rule, baseResult *Result) *Res
 	}
 
 	if lastMatch != nil {
+		// Skeptic C3: propagate parent's Unattended (tool-side mirror of
+		// applyArgsRules).
+		lastMatch.Unattended = baseResult.Unattended
 		return lastMatch
 	}
 	return baseResult

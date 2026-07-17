@@ -35,6 +35,7 @@
 | 22 | 23 | `.claude/addf/plans/0023-addf-hook-integration.md` | 未着手（スタブ） | 0022 依存。/addf-init での hook 自動設営 |
 | 23 | 24 | `.claude/addf/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
 | 24 | 25 | `.claude/addf/plans/0025-loop-body-static-analysis.md` | 未着手 | ADDF ドッグフーディング（Plan 0040）由来。リテラル `for` ループの部分解析＋`unanalyzable_action` 設定。0022 とは独立 |
+| 25 | 26 | `.claude/addf/plans/0026-approve-store-hardening.md` | 未着手 | Plan 0022/0025 レビューで検出された主題外 7 項目（承認ストア HMAC・Scope 型安全化・Phase 0 再検証・git config 保護補完 等）。0022 とは独立 |
 
 ## 割り込み対応
 

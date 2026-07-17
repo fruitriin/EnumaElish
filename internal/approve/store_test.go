@@ -45,15 +45,18 @@ func mustHash(t *testing.T, cmd string) (string, string) {
 	return h, canon
 }
 
-// TestDefaultDir verifies the env-var override and the config-dir fallback.
+// TestDefaultDir verifies the test-hook override and the config-dir fallback.
+// Security H2: the production DefaultDir no longer honors an env-var seam;
+// only SetDefaultDirForTest can redirect the store dir at test time.
 func TestDefaultDir(t *testing.T) {
-	t.Setenv(storeEnvVar, "/tmp/x")
+	SetDefaultDirForTest("/tmp/x")
+	t.Cleanup(func() { SetDefaultDirForTest("") })
 	got, err := DefaultDir()
 	if err != nil || got != "/tmp/x" {
-		t.Fatalf("env override: got %q, err %v", got, err)
+		t.Fatalf("test override: got %q, err %v", got, err)
 	}
 
-	t.Setenv(storeEnvVar, "")
+	SetDefaultDirForTest("")
 	t.Setenv("CLAUDE_CONFIG_DIR", "/abs/claude")
 	got, err = DefaultDir()
 	if err != nil || got != "/abs/claude/ccchain" {
@@ -67,6 +70,25 @@ func TestDefaultDir(t *testing.T) {
 	}
 	if !filepath.IsAbs(got) {
 		t.Errorf("home fallback should return absolute path, got %q", got)
+	}
+}
+
+// TestDefaultDir_NoEnvVarSeam asserts that setting the historical
+// CCCHAIN_APPROVE_STORE env var has no effect on DefaultDir. Regression
+// guard for Security H2.
+func TestDefaultDir_NoEnvVarSeam(t *testing.T) {
+	SetDefaultDirForTest("")
+	t.Setenv("CCCHAIN_APPROVE_STORE", "/tmp/hijacked")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/abs/claude")
+	got, err := DefaultDir()
+	if err != nil {
+		t.Fatalf("DefaultDir: %v", err)
+	}
+	if got == "/tmp/hijacked" {
+		t.Fatalf("env var CCCHAIN_APPROVE_STORE unexpectedly hijacked DefaultDir")
+	}
+	if got != "/abs/claude/ccchain" {
+		t.Fatalf("expected CLAUDE_CONFIG_DIR path, got %q", got)
 	}
 }
 

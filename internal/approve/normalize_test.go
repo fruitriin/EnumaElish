@@ -90,6 +90,56 @@ func TestNormalize_Empty(t *testing.T) {
 	}
 }
 
+// TestNormalize_ArgvBoundaryPreserved verifies that commands whose argv
+// shape differs — e.g. `echo "a b"` (1 arg) vs `echo a b` (2 args) — never
+// collide on the normalized hash. This is skeptic C2: the space-joined
+// canonical form let an approval of `echo a b` be redeemed against
+// `echo "a b"` (a semantically different command).
+func TestNormalize_ArgvBoundaryPreserved(t *testing.T) {
+	cases := [][2]string{
+		{`echo "a b"`, `echo a b`},
+		{`find "-name x"`, `find -name x`},
+		{`printf "%s %s" a b`, `printf %s %s a b`},
+		{`git commit -m "one two"`, `git commit -m one two`},
+	}
+	for _, pair := range cases {
+		h1, _, err := Normalize(pair[0])
+		if err != nil {
+			t.Fatalf("Normalize(%q): %v", pair[0], err)
+		}
+		h2, _, err := Normalize(pair[1])
+		if err != nil {
+			t.Fatalf("Normalize(%q): %v", pair[1], err)
+		}
+		if h1 == h2 {
+			t.Errorf("argv boundary collision: %q and %q both hash to %s", pair[0], pair[1], h1)
+		}
+	}
+}
+
+// TestNormalize_ForClauseUnsupported verifies that ForClause / WhileClause /
+// IfClause / CaseClause / FuncDecl return ErrUnsupported, giving the hook an
+// explicit signal to attach a human-readable reason to the deny. Regression
+// for skeptic C1 (silent Normalize failures dropped the deny promise).
+func TestNormalize_ForClauseUnsupported(t *testing.T) {
+	cases := []string{
+		`for f in a b; do rm $f; done`,
+		`while true; do echo hi; done`,
+		`if true; then echo hi; fi`,
+		`case $x in y) echo hi;; esac`,
+		`myfn() { echo hi; }`,
+	}
+	for _, cmd := range cases {
+		_, _, err := Normalize(cmd)
+		if !errors.Is(err, ErrUnsupported) && !errors.Is(err, ErrDynamicCommand) {
+			// Some cases parse with a $ inside (case $x, while ...) and will
+			// hit ErrDynamicCommand first; that is also an acceptable
+			// non-silent error.
+			t.Errorf("Normalize(%q): want ErrUnsupported or ErrDynamicCommand, got %v", cmd, err)
+		}
+	}
+}
+
 // TestNormalize_ParseError surfaces mvdan.cc/sh parse errors verbatim.
 func TestNormalize_ParseError(t *testing.T) {
 	_, _, err := Normalize(`echo "unterminated`)

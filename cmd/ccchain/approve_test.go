@@ -89,3 +89,51 @@ func TestShortHashAndPreview(t *testing.T) {
 		t.Errorf("preview runes = %d, want 80 (got byte length %d)", runes, len(got))
 	}
 }
+
+// TestPreviewCommand_SanitizesControlChars is Security H1's regression guard:
+// commands may contain ANSI escapes or other C0 control bytes (e.g.
+// `echo $'\x1b[2Jhi'`). Displaying them raw in `approve --list` lets an
+// attacker manipulate the terminal — clear the screen, hide characters, fake
+// prompts — and mislead the human's approval decision.
+func TestPreviewCommand_SanitizesControlChars(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+	}{
+		{"ansi escape", "echo \x1b[2Jhi"},
+		{"carriage return", "echo hi\rignored"},
+		{"vertical tab", "echo hi\x0bthere"},
+		{"del", "echo hi\x7fthere"},
+		{"nul-ish (0x01)", "echo hi\x01there"},
+		{"bell", "echo hi\x07there"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := previewCommand(tc.in)
+			for _, r := range got {
+				if r < 0x20 || r == 0x7f {
+					t.Errorf("preview retained control char %U in %q", r, got)
+				}
+			}
+		})
+	}
+}
+
+// TestSanitizeApprovalDisplay covers the standalone sanitizer used by
+// printApprovalGranted for cwd / session_id.
+func TestSanitizeApprovalDisplay(t *testing.T) {
+	got := sanitizeApprovalDisplay("/tmp/x\x1b[2J")
+	for _, r := range got {
+		if r < 0x20 || r == 0x7f {
+			t.Errorf("sanitize retained %U in %q", r, got)
+		}
+	}
+	// Regular text passes through unchanged.
+	if sanitizeApprovalDisplay("plain text") != "plain text" {
+		t.Error("plain ASCII was modified")
+	}
+	// Multi-byte UTF-8 survives.
+	if got := sanitizeApprovalDisplay("日本語"); got != "日本語" {
+		t.Errorf("multi-byte lost: %q", got)
+	}
+}

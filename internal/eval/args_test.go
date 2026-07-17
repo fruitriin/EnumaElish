@@ -193,6 +193,37 @@ allow rm
 	assertEqual(t, "over-length action must stay deny", r.Action, dsl.ActionDeny)
 }
 
+// TestArgsMatch_PreservesUnattended is skeptic C3's regression guard: when a
+// parent rule declares `ask ... unattended: deny` and an args: sub-rule
+// escalates the action, the escalated Result must retain the parent's
+// Unattended so ResolveAsk still degrades in the intended direction.
+//
+// Scenario: `ask docker unattended: deny` + `args: --privileged: ask` (still
+// ask, but a different message). ResolveAsk under auto mode must land on
+// deny because of the parent's `unattended: deny`, not on ask_degrade_default.
+func TestArgsMatch_PreservesUnattended(t *testing.T) {
+	cfg := mustParseConfig(t, `
+settings:
+  ask_degrade_default: allow
+
+ask docker
+  message: "confirm docker op"
+  unattended: deny
+  args:
+    --privileged: ask "docker --privileged requires review"
+`)
+	r, err := Evaluate("docker run --privileged image", cfg)
+	if err != nil {
+		t.Fatalf("evaluate error: %v", err)
+	}
+	assertEqual(t, "action before ResolveAsk", r.Action, dsl.ActionAsk)
+	assertEqual(t, "Unattended must be inherited from parent rule", r.Unattended, dsl.ActionDeny)
+
+	// Now verify the composed pipeline: ResolveAsk under auto must deny.
+	resolved := ResolveAsk(r, "auto", cfg.Settings)
+	assertEqual(t, "auto mode with args match still degrades to deny", resolved.Action, dsl.ActionDeny)
+}
+
 // TestArgsMaxLenPicksStrictestOfArgsBlock: when multiple ArgsRules of
 // differing strictness are present, over-length input is escalated to the
 // strictest one — not merely ask.

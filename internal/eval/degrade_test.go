@@ -121,6 +121,25 @@ func TestResolveAskNilSettings(t *testing.T) {
 	}
 }
 
+// TestResolveAsk_UnattendedSurvivesArgsMatch guards against skeptic C3.
+// When a parent rule declares `ask ... unattended: deny` and an args: sub-rule
+// escalates the action (e.g. `--privileged: ask`) the args-matched Result
+// must retain the parent's Unattended so ResolveAsk still degrades in the
+// intended direction. Before the fix, Unattended was empty on the args
+// Result and ask_degrade_default won instead.
+func TestResolveAsk_UnattendedSurvivesArgsMatch(t *testing.T) {
+	// Simulate what evaluate.applyArgsRules produces after inheriting the
+	// parent's Unattended.
+	in := &Result{Action: dsl.ActionAsk, Unattended: dsl.ActionDeny, Message: "docker --privileged"}
+	// ask_degrade_default is allow; only the rule-level Unattended should
+	// keep us on the deny path.
+	settings := settingsWith("", dsl.ActionAllow)
+	got := ResolveAsk(in, "auto", settings)
+	if got.Action != dsl.ActionDeny {
+		t.Fatalf("unattended: deny should override ask_degrade_default: allow; got %s", got.Action)
+	}
+}
+
 func TestResolveAskSanitizesPermissionMode(t *testing.T) {
 	// permission_mode comes from external JSON — it must be sanitized before
 	// interpolation into the reason (prompt injection defense).

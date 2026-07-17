@@ -125,11 +125,13 @@ allow Edit
     \.env$|\.env\.: deny  ".env contains secrets. Edit .env.example instead"
     node_modules/: deny  "Don't edit node_modules. Modify package.json and run npm install"
     dist/|build/|out/: deny  "Don't edit build artifacts. Modify source code instead"
+    \.ccchain(\.local)?\.conf$: deny  "editing ccchain's own configuration would let the agent disable its safety rules. Owner: edit the file directly (attacker C7)."
 
 allow Write
   args:
     \.env$|\.env\.: deny  ".env contains secrets. Write to .env.example instead"
     node_modules/: deny  "Don't write to node_modules. Modify package.json"
+    \.ccchain(\.local)?\.conf$: deny  "writing to ccchain's own configuration would let the agent disable its safety rules. Owner: edit the file directly (attacker C7)."
 `
 
 // sentinelConfig is the deny-first curated preset delivered by
@@ -186,5 +188,14 @@ func writePreset(path, content, presetName string) {
 		fmt.Println("The sentinel preset is deny-first: destructive patterns produce a deny")
 		fmt.Println("with an explanatory message (why + how to accomplish safely). Approvals")
 		fmt.Println("must come from the human owner running the command interactively.")
+		fmt.Println()
+		fmt.Println("Recommended defense in depth — add this to .claude/settings.json to")
+		fmt.Println(`prevent the agent from ever invoking "ccchain approve" via its own Bash:`)
+		fmt.Println(`     "permissions": {`)
+		fmt.Println(`       "deny": ["Bash(ccchain approve*)"]`)
+		fmt.Println(`     }`)
+		fmt.Println("Security H4: ccchain enforces the same fence via the sentinel preset,")
+		fmt.Println("but relying on ccchain to guard itself is a self-referential loop — the")
+		fmt.Println("settings.json deny is the belt-and-suspenders layer.")
 	}
 }

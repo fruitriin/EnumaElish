@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fruitriin/EnumaElish/internal/approve"
 )
@@ -212,13 +214,15 @@ func buildApproveOptions(opts approveOpts) approve.ApproveOptions {
 
 func printApprovalGranted(entry *approve.ApprovedEntry, seed *approve.PendingEntry) {
 	ttl := time.Duration(entry.TTLSeconds) * time.Second
+	// Security H1: cwd / session_id also flow from untrusted input (hook
+	// tool_input) and can carry control sequences; sanitize before print.
 	fmt.Printf("approved: %s\n", shortHash(entry.Hash))
 	fmt.Printf("  command: %s\n", previewCommand(entry.Command))
-	fmt.Printf("  scope:   %s\n", entry.Scope)
+	fmt.Printf("  scope:   %s\n", sanitizeApprovalDisplay(string(entry.Scope)))
 	if entry.Scope == approve.ScopeSession {
-		fmt.Printf("  cwd:     %s\n", entry.CWD)
+		fmt.Printf("  cwd:     %s\n", sanitizeApprovalDisplay(entry.CWD))
 		if entry.SessionID != "" {
-			fmt.Printf("  session: %s\n", entry.SessionID)
+			fmt.Printf("  session: %s\n", sanitizeApprovalDisplay(entry.SessionID))
 		}
 	}
 	fmt.Printf("  ttl:     %s\n", ttl)
@@ -232,10 +236,50 @@ func shortHash(h string) string {
 	return h[:12]
 }
 
+// previewCommand renders a command for `approve --list` / audit output.
+// Control characters (including ANSI escapes) are replaced with spaces before
+// the length cap is applied — an approval command that embeds `\x1b[…m` could
+// otherwise re-color the terminal, hide characters via `\r`, or fake the
+// prompt with `\x1b[2J`, all of which mislead the human's approval judgment
+// (Security H1). Sanitization runs before length capping so the visible
+// output length is bounded on displayed characters, not source bytes.
 func previewCommand(cmd string) string {
 	const max = 80
-	if len(cmd) <= max {
-		return cmd
+	sanitized := sanitizeApprovalDisplay(cmd)
+	if len(sanitized) <= max {
+		return sanitized
 	}
-	return cmd[:max-1] + "…"
+	cut := max - 1
+	// Cut on a rune boundary so multi-byte characters do not produce broken UTF-8.
+	for cut > 0 && !utf8.RuneStart(sanitized[cut]) {
+		cut--
+	}
+	return sanitized[:cut] + "…"
+}
+
+// sanitizeApprovalDisplay replaces control characters with a space and drops
+// bytes that would break UTF-8. Mirrors sanitizeForMessage in internal/eval
+// but is kept local to the approve command to avoid a package dependency.
+func sanitizeApprovalDisplay(s string) string {
+	if s == "" {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r == utf8.RuneError:
+			b.WriteByte(' ')
+		case r < 0x20:
+			// Tab, newline, CR, ANSI ESC, all other C0 controls become space
+			// so any ANSI escape sequence loses its introducer.
+			b.WriteByte(' ')
+		case r == 0x7f:
+			// DEL — treat as control.
+			b.WriteByte(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

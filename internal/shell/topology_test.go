@@ -626,6 +626,121 @@ func TestBuildTopologySubshellIsDeny(t *testing.T) {
 	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
 }
 
+// TestBuildTopologyForLoopWhitespaceLiteralFallsBack is skeptic C4's
+// regression guard. A literal item containing whitespace (`"target dir"`)
+// would, if substituted into an unquoted `$f` position, cause the shell to
+// split it into two argv entries at runtime — but static substitution keeps
+// it as one string. That exec/eval divergence lets scope checks miss a
+// scope violation on the second word. The conservative fix is to bail on any
+// whitespace-containing literal in the word list.
+func TestBuildTopologyForLoopWhitespaceLiteralFallsBack(t *testing.T) {
+	cases := []string{
+		`for f in "target dir" x; do cp -t $f file; done`,
+		`for f in "a b"; do echo $f; done`,
+		"for f in \"tab\there\" x; do echo $f; done", // literal tab in dblq
+	}
+	for _, cmd := range cases {
+		topo, err := BuildTopology(cmd)
+		if err != nil {
+			t.Fatalf("BuildTopology(%q) error: %v", cmd, err)
+		}
+		if len(topo.Segments) != 1 {
+			// Expansion succeeded — that means we substituted the whitespace
+			// literal without accounting for the exec/eval divergence.
+			t.Fatalf("%q: expected 1 segment (deny fallback), got %d", cmd, len(topo.Segments))
+		}
+		if topo.Segments[0].Commands[0].Analyzable {
+			t.Errorf("%q: whitespace literal in word list must force non-analyzable fallback", cmd)
+		}
+	}
+}
+
+// TestBuildTopologyForLoopBuiltinRebindings is attacker C5's regression guard.
+// Builtins that rebind the loop variable at runtime (read, mapfile, printf -v,
+// declare, local, export, typeset, let, getopts) must be treated as
+// shadowing so the static expansion doesn't lie about the runtime value.
+func TestBuildTopologyForLoopBuiltinRebindings(t *testing.T) {
+	cases := []string{
+		`for f in safe.txt; do read f <<< "/"; rm -rf $f; done`,
+		`for f in a b; do mapfile f < /etc/passwd; echo $f; done`,
+		`for f in a b; do readarray f < /etc/passwd; echo $f; done`,
+		`for f in a b; do printf -v f "%s" "/etc"; echo $f; done`,
+		`for f in a b; do declare f=/etc; echo $f; done`,
+		`for f in a b; do local f=/etc; echo $f; done`,
+		`for f in a b; do export f=/etc; echo $f; done`,
+		`for f in a b; do let f=99; echo $f; done`,
+		`for f in a b; do getopts abc f; echo $f; done`,
+		`for f in a b; do typeset f=/etc; echo $f; done`,
+	}
+	for _, cmd := range cases {
+		topo, err := BuildTopology(cmd)
+		if err != nil {
+			t.Fatalf("BuildTopology(%q) error: %v", cmd, err)
+		}
+		if len(topo.Segments) != 1 {
+			t.Fatalf("%q: expected 1 segment (builtin shadow → deny), got %d", cmd, len(topo.Segments))
+		}
+		if topo.Segments[0].Commands[0].Analyzable {
+			t.Errorf("%q: builtin rebinding must force non-analyzable fallback", cmd)
+		}
+	}
+}
+
+// TestBuildTopologyBackslashCommandNameUnescape is attacker C6's regression
+// guard: `\rm -rf /` is executed by the shell as `rm -rf /` (the leading
+// backslash disables alias / function lookup for that one word). ccchain must
+// strip the leading backslash when matching command names, or else a shell
+// user who reflexively types `\rm` would bypass every rm rule.
+func TestBuildTopologyBackslashCommandNameUnescape(t *testing.T) {
+	cases := []struct {
+		input string
+		name  string
+	}{
+		{`\rm -rf /`, "rm"},
+		{`\git push --force main`, "git"},
+		{`\curl x | \bash`, "curl"}, // pipeline: also check the piped side below
+		{`\ls -la`, "ls"},
+	}
+	for _, c := range cases {
+		topo, err := BuildTopology(c.input)
+		if err != nil {
+			t.Fatalf("BuildTopology(%q) error: %v", c.input, err)
+		}
+		if len(topo.Segments) == 0 || len(topo.Segments[0].Commands) == 0 {
+			t.Fatalf("%q: no command extracted", c.input)
+		}
+		if got := topo.Segments[0].Commands[0].Name; got != c.name {
+			t.Errorf("%q: command name = %q, want %q", c.input, got, c.name)
+		}
+	}
+
+	// Second-hand check: the piped `\bash` in `\curl x | \bash` should also
+	// be unescaped.
+	topo, err := BuildTopology(`\curl x | \bash`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) == 1 && len(topo.Segments[0].Commands) >= 2 {
+		if got := topo.Segments[0].Commands[1].Name; got != "bash" {
+			t.Errorf("piped: name = %q, want %q", got, "bash")
+		}
+	}
+
+	// Regression: literal `\\rm` (source: two backslashes + rm) — the shell
+	// would treat the target command as `\rm`, which is NOT the same as `rm`.
+	// ccchain must NOT strip past a doubled backslash.
+	topo, err = BuildTopology(`\\rm -rf /`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) == 1 && len(topo.Segments[0].Commands) == 1 {
+		got := topo.Segments[0].Commands[0].Name
+		if got == "rm" {
+			t.Errorf(`\\rm was over-unescaped to %q; expected %q or similar`, got, `\rm`)
+		}
+	}
+}
+
 func TestBuildTopologyFuncDeclIsDeny(t *testing.T) {
 	topo, err := BuildTopology(`myfn() { rm x; }`)
 	if err != nil {

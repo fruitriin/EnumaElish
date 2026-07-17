@@ -25,8 +25,19 @@ const (
 // DefaultTTL is the approval lifetime when the caller does not override it.
 const DefaultTTL = 15 * time.Minute
 
-// storeEnvVar is the test hook to point the store at a temporary directory.
-const storeEnvVar = "CCCHAIN_APPROVE_STORE"
+// testDirOverride, when non-empty, is returned by DefaultDir. Set only by
+// tests via SetDefaultDirForTest — no production code path assigns it.
+// Security H2: a previous env-var seam (`CCCHAIN_APPROVE_STORE`) could be
+// weaponised by anyone able to influence the hook's environment (rc files,
+// hook wrapper scripts) to redirect the approval store to an attacker-owned
+// directory. Restricting the override to a compile-time test seam eliminates
+// the injection surface without complicating the production code path.
+var testDirOverride string
+
+// SetDefaultDirForTest overrides the directory returned by DefaultDir. Test
+// helpers must reset it to the empty string with t.Cleanup. Not thread-safe;
+// only for serial tests. Do not call from production code.
+func SetDefaultDirForTest(dir string) { testDirOverride = dir }
 
 // PendingEntry records a deny that occurred because an ask degraded under a
 // non-interactive mode. Written by the hook; read by `ccchain approve`.
@@ -73,11 +84,12 @@ type Store struct {
 }
 
 // DefaultDir resolves the store directory using CLAUDE_CONFIG_DIR (if set to
-// an absolute path) with a home-directory fallback. Test callers may override
-// via the CCCHAIN_APPROVE_STORE env var — used only in tests, so it wins.
+// an absolute path) with a home-directory fallback. Test callers must use
+// SetDefaultDirForTest — production has no environment-variable override
+// (Security H2).
 func DefaultDir() (string, error) {
-	if v := strings.TrimSpace(os.Getenv(storeEnvVar)); v != "" {
-		return v, nil
+	if testDirOverride != "" {
+		return testDirOverride, nil
 	}
 	if cd := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); cd != "" && filepath.IsAbs(cd) {
 		return filepath.Join(cd, "ccchain"), nil
@@ -127,8 +139,25 @@ func (s *Store) ensureDir() error {
 	return nil
 }
 
+// lockMetadata is written to the lockfile so a subsequent attempt can detect
+// a stale lock (owning process died, or a stray `touch <lockpath>` DoS —
+// Security H3).
+type lockMetadata struct {
+	PID       int   `json:"pid"`
+	Timestamp int64 `json:"timestamp"` // unix seconds
+}
+
+// staleLockMaxAge bounds how long a lockfile can survive without proof of an
+// owning process. Any lock older than this whose PID is not currently running
+// (or whose metadata is unparseable, or whose file is empty) is forcibly
+// removed and re-attempted. Chosen conservatively: legitimate lock holders
+// hold the lock for milliseconds; 30s is roughly 3 orders of magnitude of
+// headroom.
+const staleLockMaxAge = 30 * time.Second
+
 // withLock acquires the store lock, runs fn, and releases. Retries a few
-// times with short backoff on contention rather than waiting forever.
+// times with short backoff on contention rather than waiting forever. Detects
+// stale locks (dead PID or older than staleLockMaxAge) and forcibly steals.
 func (s *Store) withLock(fn func() error) error {
 	if err := s.ensureDir(); err != nil {
 		return err
@@ -141,6 +170,12 @@ func (s *Store) withLock(fn func() error) error {
 		f, err := os.OpenFile(s.lockPath(),
 			os.O_CREATE|os.O_EXCL|os.O_WRONLY|syscall.O_NOFOLLOW, 0o600)
 		if err == nil {
+			// Record owner metadata for the next contender's stale-check.
+			meta := lockMetadata{PID: os.Getpid(), Timestamp: s.now().Unix()}
+			if buf, jerr := json.Marshal(meta); jerr == nil {
+				_, _ = f.Write(buf)
+				_ = f.Sync()
+			}
 			lockFile = f
 			lockErr = nil
 			break
@@ -148,6 +183,12 @@ func (s *Store) withLock(fn func() error) error {
 		lockErr = err
 		if !errors.Is(err, os.ErrExist) {
 			return fmt.Errorf("acquire lock: %w", err)
+		}
+		// Security H3: detect and reap stale locks. `touch <lock>` would
+		// otherwise DoS the entire approve store; a crashed owner would
+		// wedge every future call.
+		if s.reapStaleLock() {
+			continue
 		}
 		time.Sleep(backoff)
 	}
@@ -159,6 +200,74 @@ func (s *Store) withLock(fn func() error) error {
 		_ = os.Remove(s.lockPath())
 	}()
 	return fn()
+}
+
+// reapStaleLock inspects the lockfile and removes it when the recorded owner
+// is no longer alive OR the record is older than staleLockMaxAge OR the file
+// is empty/unparseable AND its mtime is older than staleLockMaxAge (the
+// `touch <lock>` DoS shape). Returns true when the lockfile was removed.
+//
+// The mtime gate closes a subtle race: legitimate owners open the file with
+// O_EXCL, then write metadata a moment later. A concurrent contender that
+// reads the file during that gap would see zero bytes; treating that as
+// "stale, safe to reap" would let two goroutines both hold the lock.
+// Requiring the file to be older than staleLockMaxAge before reaping without
+// metadata makes the reap safe for concurrent contention (mtime is close to
+// now) while still catching the DoS case (touch leaves the file untouched
+// for well over 30s once the attacker walks away).
+func (s *Store) reapStaleLock() bool {
+	info, err := os.Stat(s.lockPath())
+	if err != nil {
+		return false
+	}
+	fileAge := s.now().Sub(info.ModTime())
+
+	data, err := os.ReadFile(s.lockPath())
+	if err != nil {
+		return false
+	}
+	if len(data) == 0 {
+		if fileAge > staleLockMaxAge {
+			_ = os.Remove(s.lockPath())
+			return true
+		}
+		return false
+	}
+	var meta lockMetadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		if fileAge > staleLockMaxAge {
+			_ = os.Remove(s.lockPath())
+			return true
+		}
+		return false
+	}
+	now := s.now().Unix()
+	age := time.Duration(now-meta.Timestamp) * time.Second
+	if age > staleLockMaxAge {
+		_ = os.Remove(s.lockPath())
+		return true
+	}
+	if meta.PID > 0 && !processAlive(meta.PID) {
+		_ = os.Remove(s.lockPath())
+		return true
+	}
+	return false
+}
+
+// processAlive is a portable liveness check: on POSIX, signal 0 raises no
+// signal but returns ESRCH when the process is gone. Windows would need
+// different logic but ccchain is currently POSIX-only.
+func processAlive(pid int) bool {
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	if err := p.Signal(syscall.Signal(0)); err != nil {
+		// ESRCH → gone; EPERM → alive but foreign owner (still alive from
+		// the DoS perspective).
+		return errors.Is(err, syscall.EPERM)
+	}
+	return true
 }
 
 // appendJSONL appends a single JSON-encoded entry as a line to path. The file

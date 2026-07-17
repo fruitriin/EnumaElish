@@ -39,13 +39,35 @@ var ErrEmptyCommand = errors.New("empty command")
 // unambiguous single-shot command signature.
 var ErrUnsupported = errors.New("command shape unsupported for approval")
 
+// argSep separates argv elements in the canonical form. Chosen as ASCII Unit
+// Separator (U+001F, control character): argv strings never contain it in
+// practice (POSIX permits any non-NUL byte, but no real shell tool uses U+001F
+// as data). This preserves argv boundaries under hashing so that quoted vs
+// unquoted whitespace-carrying arguments do NOT collide:
+//
+//	echo "a b"   → hash H1  (1 arg: "a b")
+//	echo a b     → hash H2  (2 args: "a", "b")
+//
+// The previous space-joined form ("echo a b" for both) let a caller approve
+// `echo a b` and then successfully redeem the token against `echo "a b"` (an
+// argv-shape-different command). See skeptic C2 in Plan 0022/0025 review.
+const argSep = "\x1f"
+const stmtSep = "\x1e" // ASCII Record Separator — between top-level statements.
+
 // Normalize returns the SHA-256 hex hash of the canonically-serialized
 // command together with the canonical form itself.
 //
 // Canonicalization: the command is parsed with mvdan.cc/sh (bash mode) and
-// re-serialized with quote-stripping and whitespace collapsing so that
-// `echo hi`, `echo 'hi'`, `echo "hi"`, and `echo  hi` all hash identically
-// while `rm -rf /` and `rm -rf /tmp` do not.
+// re-serialized with quote-stripping so that `echo hi`, `echo 'hi'`,
+// `echo "hi"`, and `echo  hi` (single argument, varying quotes/whitespace
+// around it) all hash identically, while argv-shape-different commands like
+// `echo "a b"` (1 arg) vs `echo a b` (2 args) hash distinctly.
+//
+// The distinctness of argv shape is preserved by joining argv elements with an
+// ASCII Unit Separator (U+001F) that argv strings never contain in practice.
+// The human-readable canonical form (returned as `canonical`) uses spaces so
+// it remains legible in list/audit output; the hash is computed from the
+// unit-separated form.
 //
 // Dynamic content aborts normalization: variable expansion ($VAR), command
 // substitution ($(...) or backticks), process substitution (<(...)) and
@@ -67,17 +89,21 @@ func Normalize(command string) (hash string, canonical string, err error) {
 	var sb strings.Builder
 	for i, stmt := range file.Stmts {
 		if i > 0 {
-			sb.WriteString(" ; ")
+			sb.WriteString(stmtSep)
 		}
 		if err := canonicalStmt(&sb, stmt); err != nil {
 			return "", "", err
 		}
 	}
-	canonical = sb.String()
-	if canonical == "" {
+	hashSrc := sb.String()
+	if hashSrc == "" {
 		return "", "", ErrUnsupported
 	}
-	sum := sha256.Sum256([]byte(canonical))
+	sum := sha256.Sum256([]byte(hashSrc))
+	// Produce a human-readable form for list/audit output. Argv separators
+	// become spaces; statement separators become " ; ".
+	displayer := strings.NewReplacer(argSep, " ", stmtSep, " ; ")
+	canonical = displayer.Replace(hashSrc)
 	return hex.EncodeToString(sum[:]), canonical, nil
 }
 
@@ -108,26 +134,33 @@ func containsDynamic(node syntax.Node) bool {
 // canonicalStmt serializes a single statement, including its background /
 // negation flags and any redirects. Only shapes we intend to support for
 // approval are handled — otherwise ErrUnsupported.
+//
+// Redirects and the redir target are also joined via argSep so that
+// `cat foo >x` and `cat "foo >x"` cannot be conflated (the latter has argSep
+// between "foo" and ">x" as a single Word; the former has argSep-Op-argSep-x
+// as separate tokens).
 func canonicalStmt(sb *strings.Builder, s *syntax.Stmt) error {
 	if s == nil {
 		return ErrUnsupported
 	}
 	if s.Negated {
-		sb.WriteString("! ")
+		sb.WriteString("!")
+		sb.WriteString(argSep)
 	}
 	if err := canonicalCommand(sb, s.Cmd); err != nil {
 		return err
 	}
 	for _, r := range s.Redirs {
-		sb.WriteByte(' ')
+		sb.WriteString(argSep)
 		sb.WriteString(r.Op.String())
-		sb.WriteByte(' ')
+		sb.WriteString(argSep)
 		if err := canonicalWord(sb, r.Word); err != nil {
 			return err
 		}
 	}
 	if s.Background {
-		sb.WriteString(" &")
+		sb.WriteString(argSep)
+		sb.WriteByte('&')
 	}
 	return nil
 }
@@ -141,7 +174,7 @@ func canonicalCommand(sb *strings.Builder, c syntax.Command) error {
 			// FOO=bar cmd — assigns are treated as literal-only lit=word pairs.
 			for i, a := range v.Assigns {
 				if i > 0 {
-					sb.WriteByte(' ')
+					sb.WriteString(argSep)
 				}
 				sb.WriteString(a.Name.Value)
 				sb.WriteByte('=')
@@ -152,12 +185,12 @@ func canonicalCommand(sb *strings.Builder, c syntax.Command) error {
 				}
 			}
 			if len(v.Args) > 0 {
-				sb.WriteByte(' ')
+				sb.WriteString(argSep)
 			}
 		}
 		for i, w := range v.Args {
 			if i > 0 {
-				sb.WriteByte(' ')
+				sb.WriteString(argSep)
 			}
 			if err := canonicalWord(sb, w); err != nil {
 				return err
@@ -168,15 +201,15 @@ func canonicalCommand(sb *strings.Builder, c syntax.Command) error {
 		if err := canonicalStmt(sb, v.X); err != nil {
 			return err
 		}
-		sb.WriteByte(' ')
+		sb.WriteString(argSep)
 		sb.WriteString(v.Op.String())
-		sb.WriteByte(' ')
+		sb.WriteString(argSep)
 		return canonicalStmt(sb, v.Y)
 	case *syntax.Subshell:
 		sb.WriteByte('(')
 		for i, s := range v.Stmts {
 			if i > 0 {
-				sb.WriteString(" ; ")
+				sb.WriteString(stmtSep)
 			}
 			if err := canonicalStmt(sb, s); err != nil {
 				return err
@@ -186,17 +219,33 @@ func canonicalCommand(sb *strings.Builder, c syntax.Command) error {
 		return nil
 	case *syntax.Block:
 		sb.WriteByte('{')
-		sb.WriteByte(' ')
+		sb.WriteString(argSep)
 		for i, s := range v.Stmts {
 			if i > 0 {
-				sb.WriteString(" ; ")
+				sb.WriteString(stmtSep)
 			}
 			if err := canonicalStmt(sb, s); err != nil {
 				return err
 			}
 		}
-		sb.WriteString(" ; }")
+		sb.WriteString(stmtSep)
+		sb.WriteByte('}')
 		return nil
+	// ForClause / WhileClause / IfClause / CaseClause / FuncDecl are explicitly
+	// listed to make the "unsupported" answer intentional. When Plan 0025
+	// expanded for-loops into per-iteration segments at the evaluate layer, the
+	// approval-side normalizer was still receiving the original ForClause AST
+	// and silently reporting ErrUnsupported from the default: below — the
+	// caller (recordPendingApproval) then dropped the deny message on the
+	// floor. Listing them here makes future audits notice that any AST
+	// coverage change needs a matching normalizer update. See skeptic C1 in
+	// Plan 0022/0025 review.
+	case *syntax.ForClause,
+		*syntax.WhileClause,
+		*syntax.IfClause,
+		*syntax.CaseClause,
+		*syntax.FuncDecl:
+		return ErrUnsupported
 	default:
 		return ErrUnsupported
 	}

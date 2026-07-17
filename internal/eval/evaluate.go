@@ -354,6 +354,12 @@ func applyScopeToCommand(cmd *shell.Command, rule *dsl.Rule, config *dsl.Config,
 				Action:  act.Action,
 				Message: firstNonEmpty(act.Message, "workspace scope: "+scopeDescription(info.scope, info.kind)),
 				Context: baseResult.Context,
+				// Skeptic C3: scope: sub-rules cannot declare `unattended:`
+				// (see ScopeAction struct), so fall back to the parent rule's
+				// setting. Without this, a scope violation on a rule with
+				// `unattended: deny` loses the direction and ResolveAsk picks
+				// settings.ask_degrade_default instead.
+				Unattended: baseResult.Unattended,
 			}
 			if isMoreRestrictive(candidate, worst) {
 				worst = candidate
@@ -387,6 +393,8 @@ func applyScopeToCommand(cmd *shell.Command, rule *dsl.Rule, config *dsl.Config,
 				Action:  scopeViolationAction(config),
 				Message: "workspace scope: command accesses path outside workspace",
 				Context: baseResult.Context,
+				// Skeptic C3: preserve parent's Unattended on scope escalation.
+				Unattended: baseResult.Unattended,
 			}
 		}
 	}
@@ -702,6 +710,10 @@ func argsTooLongResult(rule *dsl.Rule, baseResult *Result) *Result {
 		Action:  strictest,
 		Message: "args: rules skipped: argument string exceeds max length, escalating to strictest args: action",
 		Context: baseResult.Context,
+		// Skeptic C3: preserve the parent rule's Unattended so a rule like
+		// `ask docker` `unattended: deny` retains its degrade direction even
+		// when args-length escalation replaces the Result.
+		Unattended: baseResult.Unattended,
 	}
 }
 
@@ -739,6 +751,13 @@ func applyArgsRules(cmd *shell.Command, rule *dsl.Rule, baseResult *Result) *Res
 	}
 
 	if lastMatch != nil {
+		// Skeptic C3: args: / scope: sub-rules cannot declare their own
+		// `unattended:` in the current DSL — the property is defined on the
+		// parent rule. Without this copy, the args-matched Result loses the
+		// parent's degrade direction and ResolveAsk falls back to
+		// settings.ask_degrade_default (which for auto mode leaks the default
+		// deny instead of the rule-declared deny/allow).
+		lastMatch.Unattended = baseResult.Unattended
 		return lastMatch
 	}
 	return baseResult

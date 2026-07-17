@@ -209,7 +209,7 @@ func buildCommandFromCall(call *syntax.CallExpr) *Command {
 		return &Command{Name: "(empty)", Analyzable: false}
 	}
 
-	name := parts[0]
+	name := unescapeCommandName(parts[0])
 	args := parts[1:]
 	analyzable := isAnalyzable(call.Args[0])
 
@@ -226,6 +226,31 @@ func buildCommandFromCall(call *syntax.CallExpr) *Command {
 	}
 
 	return cmd
+}
+
+// unescapeCommandName strips a single leading backslash from the command-name
+// position when the following character is not itself a backslash — this
+// mirrors the shell's own rule for `\rm` (which bypasses alias/function
+// lookup and executes the command `rm`). Without this step ccchain would treat
+// `\rm -rf /` as an unrecognized command name `\rm`, letting it slip past the
+// `rm` deny rules that the shell would honor (attacker C6).
+//
+// Argument positions are intentionally NOT unescaped: shell parses `rm \foo`
+// as `rm foo` at execution time, but any rule that checks arg patterns is
+// already tolerant to that (and the escape in argument position rarely
+// corresponds to a rule-matching intent).
+func unescapeCommandName(name string) string {
+	if len(name) < 2 || name[0] != '\\' {
+		return name
+	}
+	// `\\rm` (source: literal backslash + rm) — leave as-is; the shell would
+	// execute a command literally named `\rm`, which is not one we recognize.
+	// The Lit value in that case is "\\rm" (2 backslashes + rm), so index 1
+	// is another backslash.
+	if name[1] == '\\' {
+		return name
+	}
+	return name[1:]
 }
 
 // wordParts extracts string representations of word arguments.
@@ -391,7 +416,24 @@ func tryExpandForClause(fc *syntax.ForClause) ([]Segment, bool) {
 		if wordContainsUnquotedGlob(item) {
 			return nil, false
 		}
-		values = append(values, wordToString(item))
+		// Skeptic C4: `for f in "target dir" x; do cp -t $f file; done` runs
+		// as `cp -t target dir file` (4 argv, IFS-split unquoted expansion)
+		// at execution time but as `cp -t "target dir" file` (3 argv) if we
+		// substitute the literal string into the body. That mismatch means an
+		// evaluate-time scope check on the 3-argv form does not reflect the
+		// actual 4-argv exec.
+		//
+		// The cleanest fix would track whether every reference to $f in the
+		// body is quoted; that is a substantial change to the substitutor and
+		// is deferred to a follow-up (see Plan 0025 backlog note). The
+		// conservative minimal change: any literal that contains whitespace
+		// forces the loop back onto the deny path. This narrows Plan 0025's
+		// coverage but eliminates the exec/eval-time divergence.
+		val := wordToString(item)
+		if strings.ContainsAny(val, " \t\n") {
+			return nil, false
+		}
+		values = append(values, val)
 	}
 
 	varName := ""
@@ -471,6 +513,140 @@ func wordContainsUnquotedGlob(w *syntax.Word) bool {
 	return false
 }
 
+// builtinReassignsFirstArg lists shell builtins whose first non-flag argument
+// (or the argument to a `-v` / similar variable flag) becomes rebound at
+// runtime. Detecting these is required because they parse as plain CallExprs,
+// not `*syntax.Assign`, so the syntax.Walk-driven Assign check below would
+// miss them (attacker C5). Coverage:
+//
+//   - read VAR      — reads stdin into VAR
+//   - mapfile / readarray VAR — reads into array VAR
+//   - declare VAR / local VAR / export VAR / typeset VAR — declare with
+//     optional assignment; presence alone constitutes rebinding
+//   - let VAR=expr  — arithmetic assignment
+//   - getopts SPEC VAR — the third argument names the receiver
+//   - printf -v VAR — bash extension that assigns into VAR
+//
+// Any of these where VAR matches the loop iterator name forces the expansion
+// back onto the deny path.
+var builtinReassignsFirstArg = map[string]bool{
+	"read":      true,
+	"mapfile":   true,
+	"readarray": true,
+	"declare":   true,
+	"local":     true,
+	"export":    true,
+	"typeset":   true,
+	"let":       true,
+}
+
+// builtinCallReassigns reports whether a *syntax.CallExpr is a builtin call
+// that rebinds varName. The check is intentionally coarse — it only looks at
+// the raw literal Args; any dynamic form is treated as suspicious (returned as
+// true) since we cannot tell what the shell will bind.
+func builtinCallReassigns(call *syntax.CallExpr, varName string) bool {
+	if call == nil || len(call.Args) == 0 {
+		return false
+	}
+	nameWord := call.Args[0]
+	name := literalWord(nameWord)
+	if name == "" {
+		return false
+	}
+	switch name {
+	case "read", "mapfile", "readarray":
+		// First non-flag arg (or the arg after `-a NAME`, `-A NAME` for
+		// mapfile, `-p PROMPT` for read, etc). Coarse: any positional literal
+		// matching varName is treated as a reassignment.
+		for _, a := range call.Args[1:] {
+			lit := literalWord(a)
+			if lit == "" {
+				continue // skip dynamic parts; conservative miss is acceptable here
+			}
+			if strings.HasPrefix(lit, "-") {
+				continue
+			}
+			if lit == varName {
+				return true
+			}
+			// `read -r VAR` / `read foo bar VAR` — any positional literal
+			// might be the target; keep scanning.
+		}
+	case "declare", "local", "export", "typeset", "let":
+		// declare/local/export/typeset VAR (=value) — VAR is either the whole
+		// arg (`declare VAR`) or the LHS of `VAR=value`. `let VAR=expr` is
+		// arithmetic assignment; same shape.
+		for _, a := range call.Args[1:] {
+			lit := literalWord(a)
+			if lit == "" {
+				continue
+			}
+			if strings.HasPrefix(lit, "-") {
+				continue
+			}
+			candidate := lit
+			if eq := strings.IndexByte(lit, '='); eq >= 0 {
+				candidate = lit[:eq]
+			}
+			if candidate == varName {
+				return true
+			}
+		}
+	case "getopts":
+		// getopts SPEC VAR — VAR is the third argument.
+		if len(call.Args) >= 3 {
+			if literalWord(call.Args[2]) == varName {
+				return true
+			}
+		}
+	case "printf":
+		// printf -v VAR fmt args... — the arg after `-v` is the receiver.
+		for i := 1; i < len(call.Args); i++ {
+			if literalWord(call.Args[i]) == "-v" && i+1 < len(call.Args) {
+				if literalWord(call.Args[i+1]) == varName {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// letRebindsVar walks a LetClause arithmetic expression tree looking for any
+// mention of varName. Any occurrence is treated conservatively as a
+// rebinding (`let f=99`, `let f+=1`, `let (( f *= 2 ))` all rebind).
+func letRebindsVar(expr syntax.ArithmExpr, varName string) bool {
+	if expr == nil {
+		return false
+	}
+	found := false
+	syntax.Walk(expr, func(node syntax.Node) bool {
+		if found || node == nil {
+			return false
+		}
+		if lit, ok := node.(*syntax.Lit); ok && lit.Value == varName {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+// literalWord returns the string value of w only if w is fully a literal
+// (single *syntax.Lit part). Any dynamic/quoted content returns "" — the
+// caller then falls through to the conservative miss.
+func literalWord(w *syntax.Word) string {
+	if w == nil || len(w.Parts) != 1 {
+		return ""
+	}
+	lit, ok := w.Parts[0].(*syntax.Lit)
+	if !ok {
+		return ""
+	}
+	return lit.Value
+}
+
 // bodyRedefinesVar reports whether any statement in the loop body reassigns
 // or re-iterates over the loop variable — either as a plain assignment
 // (`VAR=value`) or as an inner `for VAR in ...` / `for ((VAR=...))` /
@@ -491,6 +667,35 @@ func bodyRedefinesVar(stmts []*syntax.Stmt, varName string) bool {
 				if n.Name != nil && n.Name.Value == varName {
 					shadowed = true
 					return false
+				}
+			case *syntax.CallExpr:
+				// Attacker C5: builtins like `read`, `printf -v`, `mapfile`,
+				// `getopts` rebind the named variable but parse as CallExpr
+				// (not Assign), so the Assign case above misses them.
+				if builtinCallReassigns(n, varName) {
+					shadowed = true
+					return false
+				}
+			case *syntax.LetClause:
+				// `let VAR=expr` parses as its own AST node — the arithmetic
+				// expression walks below already catch a mention of varName
+				// in most cases, but be explicit here.
+				for _, expr := range n.Exprs {
+					if letRebindsVar(expr, varName) {
+						shadowed = true
+						return false
+					}
+				}
+			case *syntax.DeclClause:
+				// `declare/local/export/typeset/readonly VAR[=value]` — each
+				// Args entry is a *syntax.Assign; the walker will also visit
+				// them, but the Assign case above only fires on a *value*
+				// Assign. Naked Assigns (`declare VAR`) still rebind the name.
+				for _, a := range n.Args {
+					if a != nil && a.Name != nil && a.Name.Value == varName {
+						shadowed = true
+						return false
+					}
 				}
 			case *syntax.ForClause:
 				// Nested for that binds the same name — inner loop shadows

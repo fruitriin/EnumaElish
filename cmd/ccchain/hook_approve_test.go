@@ -14,7 +14,8 @@ import (
 // lookupApproval consumes it.
 func TestLookupAndRecord_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("CCCHAIN_APPROVE_STORE", dir)
+	approve.SetDefaultDirForTest(dir)
+	t.Cleanup(func() { approve.SetDefaultDirForTest("") })
 
 	// Simulate the hook recording a pending downgrade deny.
 	deny := &eval.Result{Action: dsl.ActionDeny, Message: "please confirm push"}
@@ -44,7 +45,8 @@ func TestLookupAndRecord_RoundTrip(t *testing.T) {
 // the agent understands why `ccchain approve` is not an option.
 func TestRecordPending_DynamicAnnotatesReason(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("CCCHAIN_APPROVE_STORE", dir)
+	approve.SetDefaultDirForTest(dir)
+	t.Cleanup(func() { approve.SetDefaultDirForTest("") })
 
 	deny := &eval.Result{Action: dsl.ActionDeny, Message: "please confirm push"}
 	recordPendingApproval("git push origin $BRANCH", "/w", "sess-1", deny)

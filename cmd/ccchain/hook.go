@@ -140,29 +140,36 @@ func runHookPre(configPath string, defaultAction string) {
 		os.Exit(0)
 	}
 
-	// Phase 3 approval-token: for Bash commands whose ask *would* degrade to
-	// deny, consult the approve store first. A live matching approval turns
-	// the result into an allow-with-warn (one-shot consumed). Approve is
-	// only meaningful when the mode is non-interactive AND the evaluation
-	// produced an ask; in every other case the approve lookup is a no-op.
+	// Phase 3 approval-token: for Bash commands whose ask degrades to deny,
+	// consult the approve store first. A live matching approval turns the
+	// result into an allow-with-warn (one-shot consumed).
+	//
+	// Skeptic C1: the gate is "preAskAction == ask AND ResolveAsk turned it
+	// into deny", NOT "mode is non-interactive". `ask_strategy: deny-all`
+	// degrades ask to deny in every mode (including interactive), and the
+	// deny message promises `ccchain approve --last` as the human path — so
+	// the gate must fire whenever that promise appears in the outgoing
+	// message, i.e. whenever ResolveAsk actually converted ask → deny.
 	preAskAction := result.Action
-	if bashCommand != "" && preAskAction == dsl.ActionAsk &&
-		eval.ClassifyMode(ti.PermissionMode) == eval.ModeNonInteractive {
+
+	// Resolve ask against the runtime permission mode (Plan 0022 Phase 2):
+	// in modes where a dialog cannot reach a human, ask degrades to deny+hint
+	// (default) or warn per rule `unattended:` / settings. `deny-all` strategy
+	// degrades regardless of mode.
+	result = eval.ResolveAsk(result, ti.PermissionMode, cfg.Settings)
+
+	if bashCommand != "" && preAskAction == dsl.ActionAsk && result.Action == dsl.ActionDeny {
 		if consumed, entry := lookupApproval(bashCommand, ti.CWD, ti.SessionID); consumed {
-			result = approvalAllowResult(entry)
-			emitResponse(buildHookResponse(result))
+			approved := approvalAllowResult(entry)
+			emitResponse(buildHookResponse(approved))
 			return
 		}
 	}
 
-	// Resolve ask against the runtime permission mode (Plan 0022 Phase 2):
-	// in modes where a dialog cannot reach a human, ask degrades to deny+hint
-	// (default) or warn per rule `unattended:` / settings.
-	result = eval.ResolveAsk(result, ti.PermissionMode, cfg.Settings)
-
-	// If the ask degraded to deny (i.e. a non-interactive block that a human
-	// could still approve), record the request so `ccchain approve --last`
-	// has something to grant. Interactive ask stays ask — no pending entry.
+	// If the ask degraded to deny (i.e. a block that a human could still
+	// approve), record the request so `ccchain approve --last` has something
+	// to grant. Interactive ask that did NOT degrade stays ask — no pending
+	// entry.
 	if bashCommand != "" && preAskAction == dsl.ActionAsk && result.Action == dsl.ActionDeny {
 		recordPendingApproval(bashCommand, ti.CWD, ti.SessionID, result)
 	}
@@ -198,9 +205,20 @@ func lookupApproval(command, cwd, sessionID string) (bool, *approve.ApprovedEntr
 func recordPendingApproval(command, cwd, sessionID string, result *eval.Result) {
 	hash, canonical, err := approve.Normalize(command)
 	if err != nil {
-		if err == approve.ErrDynamicCommand {
+		// Normalize() has three deliberate error taxa. Silently swallowing any
+		// of them would produce a broken-promise deny message ("run `ccchain
+		// approve --last`") because no pending record actually exists — the
+		// human path would misfire against an unrelated pending entry.
+		// Skeptic C1: for-loops (and other control-flow AST that Plan 0025
+		// expands at the evaluate layer) hit ErrUnsupported here and used to
+		// slip through silently.
+		switch err {
+		case approve.ErrDynamicCommand:
 			result.Message = joinDenyMessage(result.Message,
 				"ccchain: this command contains dynamic expansion ($VAR, $(...), backticks) and is not eligible for `ccchain approve`. Rewrite it with literal arguments, or run it in an interactive session.")
+		case approve.ErrUnsupported:
+			result.Message = joinDenyMessage(result.Message,
+				"ccchain: this command uses a control structure (for/while/if/case/function) that the current approval mechanism cannot represent. Run each inner command individually, or execute this interactively.")
 		}
 		return
 	}
@@ -267,13 +285,30 @@ func buildHookResponse(result *eval.Result) *hookResponse {
 	}
 }
 
-// emitResponse writes the hook JSON to stdout and exits 0. Per the hooks
-// spec, JSON output requires exit 0 (Claude Code ignores JSON on exit 2).
+// emitResponse writes the hook JSON to stdout and exits.
+//
+// For allow/ask/warn, we exit 0 — modern Claude Code honors the JSON
+// permissionDecision. For deny, we ALSO write the reason to stderr and exit 2
+// (Security C2): older Claude Code versions and future regressions ignore the
+// JSON body and only look at the exit code, so a hook that always exits 0
+// would silently fail-open on a `deny`. Modern Claude Code prioritizes the
+// JSON on exit 0 but also handles exit 2 as "block with stderr as reason";
+// combining both is a belt-and-suspenders that keeps the deny path effective
+// across versions.
 func emitResponse(resp *hookResponse) {
-	if resp != nil {
-		if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
-			fmt.Fprintf(os.Stderr, "ccchain: json encode error: %v\n", err)
+	if resp == nil {
+		os.Exit(0)
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: json encode error: %v\n", err)
+	}
+	if resp.HookSpecificOutput.PermissionDecision == "deny" {
+		reason := resp.HookSpecificOutput.PermissionDecisionReason
+		if reason == "" {
+			reason = "blocked by ccchain"
 		}
+		fmt.Fprintln(os.Stderr, reason)
+		os.Exit(2)
 	}
 	os.Exit(0)
 }

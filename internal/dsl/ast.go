@@ -76,6 +76,11 @@ type ScopeRule struct {
 }
 
 // ScopeAction is a scope-clause action + optional message.
+//
+// scope: / args: sub-rules cannot declare their own `unattended:` in the
+// current DSL — the property is defined on the parent rule. The eval layer
+// falls back to the parent rule's Unattended when a sub-rule match produces
+// a new Result. See skeptic C3 in the Plan 0022/0025 review.
 type ScopeAction struct {
 	Action  Action
 	Message string
@@ -83,6 +88,9 @@ type ScopeAction struct {
 }
 
 // ArgsRule represents a pattern-based argument rule.
+//
+// Like ScopeAction, ArgsRule inherits the parent rule's `unattended:`
+// declaration — it is not overridable at the args: sub-rule level.
 type ArgsRule struct {
 	Pattern  string // regex pattern
 	Action   Action
