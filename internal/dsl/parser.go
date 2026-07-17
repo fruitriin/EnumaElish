@@ -492,6 +492,15 @@ func (p *parser) parseSettings() (*Settings, error) {
 			}
 			settings.AskDegradeDefault = Action(val)
 			settings.Explicit["ask_degrade_default"] = true
+		case "unanalyzable_action":
+			// Plan 0025 Phase 2: only ask|deny allowed. Permitting allow
+			// would let this single setting disable the safety net that
+			// covers control-flow, subshells, dynamic commands, etc.
+			if val != string(ActionAsk) && val != string(ActionDeny) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid unanalyzable_action action: %q (must be \"ask\" or \"deny\")", val)}
+			}
+			settings.UnanalyzableAction = Action(val)
+			settings.Explicit["unanalyzable_action"] = true
 		case "strict_config_error":
 			switch val {
 			case "true":

@@ -208,6 +208,63 @@ func TestParseScopeViolationInvalid(t *testing.T) {
 	}
 }
 
+// Plan 0025 Phase 2: unanalyzable_action
+
+func TestParseUnanalyzableActionAsk(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+settings:
+  unanalyzable_action: ask
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "unanalyzable_action", string(cfg.Settings.UnanalyzableAction), "ask")
+	assertEqual(t, "explicit", cfg.Settings.Explicit["unanalyzable_action"], true)
+}
+
+func TestParseUnanalyzableActionDeny(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+settings:
+  unanalyzable_action: deny
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "unanalyzable_action", string(cfg.Settings.UnanalyzableAction), "deny")
+}
+
+func TestParseUnanalyzableActionDefault(t *testing.T) {
+	// No settings block: default is deny (existing behavior preserved).
+	cfg, err := Parse(strings.NewReader(""))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "unanalyzable_action default", string(cfg.Settings.UnanalyzableAction), "deny")
+
+	// Explicit settings: block that doesn't set unanalyzable_action still
+	// defaults to deny.
+	cfg2, err := Parse(strings.NewReader(`
+settings:
+  fallback: ask
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "unanalyzable_action default (with other settings)", string(cfg2.Settings.UnanalyzableAction), "deny")
+}
+
+func TestParseUnanalyzableActionInvalid(t *testing.T) {
+	for _, val := range []string{"warn", "allow", "hint", "block"} {
+		_, err := Parse(strings.NewReader("settings:\n  unanalyzable_action: " + val + "\n"))
+		if err == nil {
+			t.Fatalf("expected parse error for unanalyzable_action: %s", val)
+		}
+		if !strings.Contains(err.Error(), "unanalyzable_action") {
+			t.Fatalf("error should mention unanalyzable_action, got: %v", err)
+		}
+	}
+}
+
 func TestParseArgsRules(t *testing.T) {
 	f, err := os.Open("../../testdata/dsl/args_rules.conf")
 	if err != nil {

@@ -112,15 +112,16 @@ type Template struct {
 // Settings field should override the base. Without it, an overlay `settings:`
 // block that touches one field silently blanks all the others (Plan 0006 C5).
 type Settings struct {
-	MaxContextDepth   int
-	MaxRulesPerCmd    int
-	Fallback          Action
-	WorkspacePaths    []string // scope: workspace paths
-	ScopeViolation    Action   // scope_violation: action when a path outside workspace is detected (ask|deny)
-	StrictConfigError bool     // if true, hook denies when config load fails
-	AskStrategy       string   // ask_strategy: how ask resolves at the hook layer (degrade|passthrough|deny-all)
-	AskDegradeDefault Action   // ask_degrade_default: which way ask degrades in non-interactive modes (deny|allow)
-	Line              int
+	MaxContextDepth    int
+	MaxRulesPerCmd     int
+	Fallback           Action
+	WorkspacePaths     []string // scope: workspace paths
+	ScopeViolation     Action   // scope_violation: action when a path outside workspace is detected (ask|deny)
+	UnanalyzableAction Action   // unanalyzable_action: action for structurally unanalyzable commands (ask|deny). Default: deny (Plan 0025 Phase 2).
+	StrictConfigError  bool     // if true, hook denies when config load fails
+	AskStrategy        string   // ask_strategy: how ask resolves at the hook layer (degrade|passthrough|deny-all)
+	AskDegradeDefault  Action   // ask_degrade_default: which way ask degrades in non-interactive modes (deny|allow)
+	Line               int
 
 	// Explicit fields set by the parser (keyed by DSL key name).
 	Explicit map[string]bool
@@ -142,12 +143,16 @@ const (
 // DefaultSettings returns settings with default values.
 func DefaultSettings() *Settings {
 	return &Settings{
-		MaxContextDepth:   2,
-		MaxRulesPerCmd:    5,
-		Fallback:          ActionAsk,
-		ScopeViolation:    ActionAsk,
-		AskStrategy:       AskStrategyDegrade,
-		AskDegradeDefault: ActionDeny,
-		Explicit:          map[string]bool{},
+		MaxContextDepth: 2,
+		MaxRulesPerCmd:  5,
+		Fallback:        ActionAsk,
+		ScopeViolation:  ActionAsk,
+		// Plan 0025 Phase 2: default deny keeps existing behavior for
+		// structurally unanalyzable commands. Set to ask via
+		// `unanalyzable_action: ask` to opt into softer prompting.
+		UnanalyzableAction: ActionDeny,
+		AskStrategy:        AskStrategyDegrade,
+		AskDegradeDefault:  ActionDeny,
+		Explicit:           map[string]bool{},
 	}
 }

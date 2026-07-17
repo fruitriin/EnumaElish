@@ -10,7 +10,13 @@ func TestControlFlowDetected(t *testing.T) {
 		name string
 		cmd  string
 	}{
-		{"for loop", "for f in /etc/shadow; do cat $f; done"},
+		// Plan 0025 Phase 1: literal-word-list `for` loops are now
+		// statically expanded, so the historical `for f in /etc/shadow; do
+		// cat $f; done` case no longer stays on the control-flow deny path
+		// — it expands to `cat /etc/shadow` which is analyzable (and any
+		// deny rule targeting /etc/shadow still fires). Use a dynamic
+		// word list here to keep the deny-side regression coverage.
+		{"for loop (dynamic word list)", "for f in $(ls); do cat $f; done"},
 		{"while loop", "while read line; do eval $line; done < /dev/stdin"},
 		{"if statement", "if true; then rm -rf /; fi"},
 		{"case statement", "case $x in *) rm -rf /;; esac"},

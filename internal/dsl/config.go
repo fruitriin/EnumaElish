@@ -154,6 +154,10 @@ func mergeSettings(base, overlay *Settings) *Settings {
 		out.ScopeViolation = overlay.ScopeViolation
 		out.Explicit["scope_violation"] = true
 	}
+	if overlay.Explicit["unanalyzable_action"] {
+		out.UnanalyzableAction = overlay.UnanalyzableAction
+		out.Explicit["unanalyzable_action"] = true
+	}
 	if overlay.Explicit["strict_config_error"] {
 		out.StrictConfigError = overlay.StrictConfigError
 		out.Explicit["strict_config_error"] = true

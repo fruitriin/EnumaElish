@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -241,4 +242,398 @@ func assertEqual[T comparable](t *testing.T, name string, got, expected T) {
 	if got != expected {
 		t.Errorf("%s: expected %v, got %v", name, expected, got)
 	}
+}
+
+// --- Plan 0025 Phase 1: literal `for` loop static expansion ---
+
+// TestBuildTopologyForLoopLiteralWordIter verifies the base case: a fully
+// static `for f in a.txt b.txt; do cat "$f"; done` expands into per-iteration
+// segments with the loop variable substituted.
+func TestBuildTopologyForLoopLiteralWordIter(t *testing.T) {
+	topo, err := BuildTopology(`for f in a.txt b.txt; do cat "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 segments (one per iteration), got %d: %+v", len(topo.Segments), topo.Segments)
+	}
+	for _, seg := range topo.Segments {
+		if seg.Type != SegmentTypeSingle {
+			t.Errorf("expected single segment type, got %v", seg.Type)
+		}
+		if len(seg.Commands) != 1 || seg.Commands[0].Name != "cat" {
+			t.Errorf("expected cmd 'cat', got %+v", seg.Commands)
+		}
+		if !seg.Commands[0].Analyzable {
+			t.Errorf("expected analyzable=true after substitution, got false for %+v", seg.Commands[0])
+		}
+	}
+	assertEqual(t, "seg[0].arg", topo.Segments[0].Commands[0].Args[0], "a.txt")
+	assertEqual(t, "seg[1].arg", topo.Segments[1].Commands[0].Args[0], "b.txt")
+}
+
+// TestBuildTopologyForLoopBracedVar verifies that `${VAR}` (braced form) is
+// substituted correctly, distinct from `$VAR`.
+func TestBuildTopologyForLoopBracedVar(t *testing.T) {
+	topo, err := BuildTopology(`for f in x y; do rm "${f}"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 segments, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "seg[0].name", topo.Segments[0].Commands[0].Name, "rm")
+	assertEqual(t, "seg[0].arg", topo.Segments[0].Commands[0].Args[0], "x")
+	assertEqual(t, "seg[1].arg", topo.Segments[1].Commands[0].Args[0], "y")
+	assertEqual(t, "seg[0].analyzable", topo.Segments[0].Commands[0].Analyzable, true)
+}
+
+// TestBuildTopologyForLoopDynamicWordList verifies that a for-loop whose word
+// list contains a command substitution stays non-analyzable — the previous
+// deny-side behavior must not regress.
+func TestBuildTopologyForLoopDynamicWordList(t *testing.T) {
+	topo, err := BuildTopology(`for f in $(ls); do rm "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (control-flow), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopPartiallyDynamicWordList verifies that a for-loop
+// whose word list mixes literals and dynamic elements stays non-analyzable.
+func TestBuildTopologyForLoopPartiallyDynamicWordList(t *testing.T) {
+	topo, err := BuildTopology(`for f in a "$X" b; do rm "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (control-flow), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopPositionalParams verifies that `for f; do ...; done`
+// (in clause omitted → iterates over $1 $2 ...) stays non-analyzable even
+// though Items is an empty slice. This is the critical test called out in the
+// Plan: without the InPos check, `len(Items) > 0` would be false but the
+// "all items analyzable" check would vacuously pass an empty slice.
+func TestBuildTopologyForLoopPositionalParams(t *testing.T) {
+	topo, err := BuildTopology(`for f; do echo "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (control-flow), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopEmptyWordList verifies that `for f in; do ...; done`
+// (explicit `in` with no items) falls back to the deny path rather than
+// silently emit zero segments.
+func TestBuildTopologyForLoopEmptyWordList(t *testing.T) {
+	topo, err := BuildTopology(`for f in; do echo "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopIterationCap verifies the iteration cap: loops with
+// more than maxForLoopIterations items fall back to the deny path.
+func TestBuildTopologyForLoopIterationCap(t *testing.T) {
+	// Build a for-loop with maxForLoopIterations+1 items.
+	var items []string
+	for i := 0; i <= maxForLoopIterations; i++ {
+		items = append(items, "item")
+	}
+	cmd := "for f in " + strings.Join(items, " ") + "; do echo \"$f\"; done"
+	topo, err := BuildTopology(cmd)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (over-cap → deny), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+
+	// At the cap exactly, expansion should still succeed.
+	items = items[:maxForLoopIterations]
+	cmd = "for f in " + strings.Join(items, " ") + "; do echo \"$f\"; done"
+	topo, err = BuildTopology(cmd)
+	if err != nil {
+		t.Fatalf("at-cap BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != maxForLoopIterations {
+		t.Fatalf("at-cap: expected %d segments, got %d", maxForLoopIterations, len(topo.Segments))
+	}
+}
+
+// TestBuildTopologyForLoopBodyReassign verifies that a body reassigning the
+// loop variable falls back to the deny path (safety: static expansion is only
+// sound when the binding is stable across the whole body).
+func TestBuildTopologyForLoopBodyReassign(t *testing.T) {
+	topo, err := BuildTopology(`for f in a b; do f=/etc; rm "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (shadowed → deny), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopInnerForShadow verifies that a nested for-loop
+// re-iterating the same name is treated as shadowing.
+func TestBuildTopologyForLoopInnerForShadow(t *testing.T) {
+	topo, err := BuildTopology(`for f in a b; do for f in x y; do rm "$f"; done; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (inner shadow → deny), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+// TestBuildTopologyForLoopMultiStmtBody verifies expansion of a body with
+// multiple statements — each iteration should emit all body segments.
+func TestBuildTopologyForLoopMultiStmtBody(t *testing.T) {
+	topo, err := BuildTopology(`for f in a b; do echo "$f"; cat "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	// 2 iterations × 2 statements = 4 segments
+	if len(topo.Segments) != 4 {
+		t.Fatalf("expected 4 segments, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "seg[0].name", topo.Segments[0].Commands[0].Name, "echo")
+	assertEqual(t, "seg[0].arg", topo.Segments[0].Commands[0].Args[0], "a")
+	assertEqual(t, "seg[1].name", topo.Segments[1].Commands[0].Name, "cat")
+	assertEqual(t, "seg[1].arg", topo.Segments[1].Commands[0].Args[0], "a")
+	assertEqual(t, "seg[2].name", topo.Segments[2].Commands[0].Name, "echo")
+	assertEqual(t, "seg[2].arg", topo.Segments[2].Commands[0].Args[0], "b")
+	assertEqual(t, "seg[3].arg", topo.Segments[3].Commands[0].Args[0], "b")
+}
+
+// TestBuildTopologyForLoopUnquotedGlob verifies that an unquoted shell glob
+// in the word list keeps the loop on the deny path. `for f in *.log` at
+// runtime iterates over matching files, so treating it as a literal-N=1
+// would silently rewrite semantics.
+func TestBuildTopologyForLoopUnquotedGlob(t *testing.T) {
+	cases := []string{
+		`for f in *.log; do cat "$f"; done`,
+		`for f in *; do rm "$f"; done`,
+		`for f in ?.txt; do rm "$f"; done`,
+		`for f in [ab]; do rm "$f"; done`,
+	}
+	for _, c := range cases {
+		topo, err := BuildTopology(c)
+		if err != nil {
+			t.Fatalf("%q: BuildTopology error: %v", c, err)
+		}
+		if len(topo.Segments) != 1 {
+			t.Fatalf("%q: expected 1 segment (glob → deny), got %d", c, len(topo.Segments))
+		}
+		if topo.Segments[0].Commands[0].Analyzable {
+			t.Errorf("%q: expected analyzable=false (glob is runtime-dynamic)", c)
+		}
+	}
+}
+
+// TestBuildTopologyForLoopQuotedGlobIsLiteral verifies that a quoted glob
+// (`"*.log"` / `'*.log'`) is treated as a literal — the shell does not
+// perform pathname expansion inside quotes, so we can safely expand.
+func TestBuildTopologyForLoopQuotedGlobIsLiteral(t *testing.T) {
+	topo, err := BuildTopology(`for f in "*.log" 'other.log'; do rm "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 iteration segments (quoted → literal), got %d", len(topo.Segments))
+	}
+	assertEqual(t, "seg[0].arg", topo.Segments[0].Commands[0].Args[0], "*.log")
+	assertEqual(t, "seg[1].arg", topo.Segments[1].Commands[0].Args[0], "other.log")
+}
+
+// TestBuildTopologyForLoopBoundaryPrefix ensures that `$f` inside `$file` is
+// not substituted (word boundary check). The command name here is `echo`
+// (static, always analyzable in this codebase's semantics — Command.Analyzable
+// tracks only the first-word dynamism), but the argument must retain its
+// leading `$file` unchanged so that downstream args:/scope handling still
+// sees the dynamic marker.
+func TestBuildTopologyForLoopBoundaryPrefix(t *testing.T) {
+	topo, err := BuildTopology(`for f in x y; do echo "$file"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 iteration segments, got %d", len(topo.Segments))
+	}
+	for i, seg := range topo.Segments {
+		if seg.Commands[0].Name != "echo" {
+			t.Errorf("seg[%d] expected name 'echo', got %q", i, seg.Commands[0].Name)
+		}
+		if len(seg.Commands[0].Args) < 1 || seg.Commands[0].Args[0] != "$file" {
+			t.Errorf("seg[%d] boundary: expected arg '$file' preserved, got %v", i, seg.Commands[0].Args)
+		}
+	}
+}
+
+// TestBuildTopologyForLoopMixedVars ensures that the loop variable is
+// substituted while other dynamic references stay intact. The command name
+// `echo` is static so Analyzable=true either way — the invariant we're
+// testing is that `$f` becomes the iteration value while `$OTHER` is
+// preserved verbatim for downstream dynamic-args handling.
+func TestBuildTopologyForLoopMixedVars(t *testing.T) {
+	topo, err := BuildTopology(`for f in a b; do echo "$f" "$OTHER"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 iteration segments, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "seg[0].args[0]", topo.Segments[0].Commands[0].Args[0], "a")
+	assertEqual(t, "seg[0].args[1]", topo.Segments[0].Commands[0].Args[1], "$OTHER")
+	assertEqual(t, "seg[1].args[0]", topo.Segments[1].Commands[0].Args[0], "b")
+	assertEqual(t, "seg[1].args[1]", topo.Segments[1].Commands[0].Args[1], "$OTHER")
+}
+
+// TestBuildTopologyForLoopWithinPipeline verifies that a for-loop nested in a
+// pipeline stays on the deny path — pipelines aren't affected by our
+// expansion, only single-statement for-loops are.
+// (`x | for f in a; do ...; done` — for is on the right of a pipe.)
+func TestBuildTopologyForLoopWithinPipeline(t *testing.T) {
+	// The pipeline path calls buildCommandFromStmt directly, which doesn't
+	// know about expansion. We just verify it doesn't crash and stays safe.
+	topo, err := BuildTopology(`echo hi | for f in a b; do echo "$f"; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment (pipeline), got %d", len(topo.Segments))
+	}
+	if len(topo.Segments[0].Commands) != 2 {
+		t.Fatalf("expected 2 cmds in pipeline, got %d", len(topo.Segments[0].Commands))
+	}
+	// The for-side stays on the deny path — buildCommandFromStmt is only
+	// called for the pipe children, and it does not expand.
+	forCmd := topo.Segments[0].Commands[1]
+	assertEqual(t, "analyzable", forCmd.Analyzable, false)
+	assertEqual(t, "name", forCmd.Name, "(control-flow)")
+}
+
+// TestBuildTopologyForLoopWithRedirect verifies that a body containing a
+// write redirect with the loop variable in the target expands correctly.
+func TestBuildTopologyForLoopWithRedirect(t *testing.T) {
+	topo, err := BuildTopology(`for f in a b; do echo hi > "$f".log; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 2 {
+		t.Fatalf("expected 2 segments, got %d", len(topo.Segments))
+	}
+	for i, seg := range topo.Segments {
+		if len(seg.Commands) < 1 {
+			t.Fatalf("seg[%d] has no commands", i)
+		}
+		cmd := seg.Commands[0]
+		if !cmd.Analyzable {
+			t.Errorf("seg[%d] should be analyzable after substitution, got false", i)
+		}
+		if len(cmd.Redirs) != 1 {
+			t.Fatalf("seg[%d] expected 1 redir, got %d", i, len(cmd.Redirs))
+		}
+		if !cmd.Redirs[0].Analyzable {
+			t.Errorf("seg[%d].redir should be analyzable after substitution, got false", i)
+		}
+	}
+	// Redir paths should reflect substitution.
+	assertEqual(t, "seg[0].redir", topo.Segments[0].Commands[0].Redirs[0].Path, "a.log")
+	assertEqual(t, "seg[1].redir", topo.Segments[1].Commands[0].Redirs[0].Path, "b.log")
+}
+
+// --- Plan 0025 Phase 1: control-flow regression tests ---
+// Prior to this Plan the codebase had zero tests pinning the "control-flow
+// stays deny" behavior. Add regressions so that any future change that leaks
+// a while/if/case/subshell/func-decl into the analyzable path is caught.
+
+func TestBuildTopologyWhileClauseIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`while true; do rm x; done`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+func TestBuildTopologyIfClauseIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`if [ -f x ]; then rm x; fi`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+func TestBuildTopologyCaseClauseIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`case $X in a) rm a;; b) rm b;; esac`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+func TestBuildTopologyBlockIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`{ rm a; rm b; }`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(control-flow)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+func TestBuildTopologySubshellIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`(rm a; rm b)`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(subshell)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
+}
+
+func TestBuildTopologyFuncDeclIsDeny(t *testing.T) {
+	topo, err := BuildTopology(`myfn() { rm x; }`)
+	if err != nil {
+		t.Fatalf("BuildTopology error: %v", err)
+	}
+	if len(topo.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(topo.Segments))
+	}
+	assertEqual(t, "name", topo.Segments[0].Commands[0].Name, "(func-decl)")
+	assertEqual(t, "analyzable", topo.Segments[0].Commands[0].Analyzable, false)
 }

@@ -181,3 +181,39 @@ func TestMergeConfigsFieldWise_DefaultUntouched(t *testing.T) {
 	}
 }
 
+// TestMergeConfigsFieldWise_UnanalyzableActionOverlay verifies that
+// unanalyzable_action from the overlay wins, and that overlaying with a
+// config that doesn't touch it leaves the base value intact.
+// (Plan 0025 Phase 2)
+func TestMergeConfigsFieldWise_UnanalyzableActionOverlay(t *testing.T) {
+	base, err := Parse(strings.NewReader("settings:\n  unanalyzable_action: ask\n"))
+	if err != nil {
+		t.Fatalf("parse base: %v", err)
+	}
+	overlay, err := Parse(strings.NewReader("settings:\n  unanalyzable_action: deny\n"))
+	if err != nil {
+		t.Fatalf("parse overlay: %v", err)
+	}
+	merged := mergeConfigs(base, overlay)
+	if merged.Settings.UnanalyzableAction != ActionDeny {
+		t.Errorf("UnanalyzableAction: got %v, want deny (overlay wins)", merged.Settings.UnanalyzableAction)
+	}
+	if !merged.Settings.Explicit["unanalyzable_action"] {
+		t.Errorf("Explicit[unanalyzable_action] must remain true after overlay")
+	}
+
+	// Overlay does NOT set unanalyzable_action → base value preserved.
+	base, err = Parse(strings.NewReader("settings:\n  unanalyzable_action: ask\n"))
+	if err != nil {
+		t.Fatalf("parse base: %v", err)
+	}
+	overlay, err = Parse(strings.NewReader("settings:\n  fallback: deny\n"))
+	if err != nil {
+		t.Fatalf("parse overlay: %v", err)
+	}
+	merged = mergeConfigs(base, overlay)
+	if merged.Settings.UnanalyzableAction != ActionAsk {
+		t.Errorf("UnanalyzableAction: got %v, want ask (base preserved)", merged.Settings.UnanalyzableAction)
+	}
+}
+

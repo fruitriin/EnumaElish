@@ -112,7 +112,7 @@ func evaluateSegment(seg *shell.Segment, rules []*dsl.Rule, config *dsl.Config) 
 	// Check analyzability
 	if !cmd.Analyzable {
 		return &Result{
-			Action:  dsl.ActionDeny,
+			Action:  unanalyzableAction(config),
 			Message: "dynamic command detected: static analysis not possible",
 			Context: []string{cmd.Name},
 		}
@@ -144,7 +144,7 @@ func evaluatePipeline(cmds []shell.Command, rules []*dsl.Rule, config *dsl.Confi
 	firstCmd := &cmds[0]
 	if !firstCmd.Analyzable {
 		return &Result{
-			Action:  dsl.ActionDeny,
+			Action:  unanalyzableAction(config),
 			Message: "dynamic command detected: static analysis not possible",
 			Context: []string{firstCmd.Name},
 		}
@@ -165,7 +165,7 @@ func evaluatePipeline(cmds []shell.Command, rules []*dsl.Rule, config *dsl.Confi
 
 		if !cmd.Analyzable {
 			result := &Result{
-				Action:  dsl.ActionDeny,
+				Action:  unanalyzableAction(config),
 				Message: "dynamic command detected in pipeline: static analysis not possible",
 				Context: append(context, cmd.Name),
 			}
@@ -200,6 +200,21 @@ func evaluatePipeline(cmds []shell.Command, rules []*dsl.Rule, config *dsl.Confi
 	return worstResult
 }
 
+// unanalyzableAction returns the configured action for structurally
+// unanalyzable commands (Plan 0025 Phase 2). Defaults to deny — matching
+// the pre-Plan-0025 hardcoded behavior — when Settings is nil or the field
+// is unset.
+func unanalyzableAction(config *dsl.Config) dsl.Action {
+	if config == nil || config.Settings == nil {
+		return dsl.ActionDeny
+	}
+	act := config.Settings.UnanalyzableAction
+	if act == "" {
+		return dsl.ActionDeny
+	}
+	return act
+}
+
 // evaluateNested evaluates nested commands (find -exec, bash -c, etc.)
 func evaluateNested(parent *shell.Command, rules []*dsl.Rule, config *dsl.Config) *Result {
 	return evaluateNestedWithDepth(parent, rules, config, 0)
@@ -229,8 +244,13 @@ func evaluateNestedWithDepth(parent *shell.Command, rules []*dsl.Rule, config *d
 	for _, seg := range parent.Nested.Segments {
 		for _, cmd := range seg.Commands {
 			if !cmd.Analyzable {
+				// Plan 0025 Phase 2: nested unanalyzable commands (find
+				// -exec, bash -c dynamic scripts, ...) share the same
+				// setting as the top-level path — a project that opted
+				// into `unanalyzable_action: ask` gets consistent
+				// behavior at all depths.
 				result := &Result{
-					Action:  dsl.ActionDeny,
+					Action:  unanalyzableAction(config),
 					Message: "dynamic command in " + parent.Name + " context",
 					Context: []string{parent.Name, "exec:", cmd.Name},
 				}

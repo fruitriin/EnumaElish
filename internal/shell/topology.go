@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"regexp"
 	"strings"
+	"sync"
 
 	"mvdan.cc/sh/v3/syntax"
 )
@@ -75,6 +77,19 @@ func extractSegments(stmt *syntax.Stmt) []Segment {
 	switch cmd := stmt.Cmd.(type) {
 	case *syntax.BinaryCmd:
 		return extractBinarySegments(cmd)
+	case *syntax.ForClause:
+		// Attempt to expand a fully-literal `for VAR in a b c; do BODY; done`
+		// into per-iteration segments. Falls through to the default deny-side
+		// path when the loop is dynamic (CStyleLoop, Select, positional-param
+		// loop, non-literal word list, over the iteration cap, ...).
+		if segs, ok := tryExpandForClause(cmd); ok {
+			return segs
+		}
+		seg := buildSegmentFromStmt(stmt)
+		if seg != nil {
+			return []Segment{*seg}
+		}
+		return nil
 	default:
 		seg := buildSegmentFromStmt(stmt)
 		if seg != nil {
@@ -294,6 +309,386 @@ func extractWriteRedirs(redirs []*syntax.Redirect) []RedirTarget {
 		})
 	}
 	return out
+}
+
+// maxForLoopIterations bounds the number of iterations we will statically
+// expand for a literal `for VAR in ...` loop. Loops with more items than this
+// fall back to the non-analyzable path (Analyzable: false). Matches the
+// max_context_depth / max_rules_per_cmd style of safety valve — bounds the
+// per-command work and keeps evaluation output reviewable.
+const maxForLoopIterations = 50
+
+// tryExpandForClause attempts to statically expand a fully-literal
+// `for VAR in a b c; do BODY; done` into concrete per-iteration segments.
+//
+// Returns (segments, true) when the loop is expandable: WordIter with an
+// explicit `in` clause, all items statically analyzable, iteration count at or
+// under maxForLoopIterations, and no reassignment / inner shadowing of VAR
+// inside the body. Returns (nil, false) otherwise — the caller then falls back
+// to the existing deny-side path (Command{Name: "(control-flow)",
+// Analyzable: false}).
+//
+// The expansion works at the string level: after extractSegments produces the
+// body's Commands (with `$VAR` rendered verbatim by wordToString), each
+// iteration substitutes the loop variable in Command.Name / .Args / .Redirs
+// paths and re-checks analyzability from the resulting strings. This is
+// substantially simpler than mutating the AST — see Plan 0025 Phase 1
+// "既存の文字列描画（wordToString）の出力に対する文字列置換で実現する".
+func tryExpandForClause(fc *syntax.ForClause) ([]Segment, bool) {
+	if fc == nil {
+		return nil, false
+	}
+
+	// Only WordIter form (`for VAR in a b c`) is supported. CStyleLoop
+	// (`for ((i=0;...))`) is intentionally out of scope. Some builds of
+	// mvdan.cc/sh expose Select via WordIter with a different SelectPos, but
+	// SelectPos is unrelated to our concerns here — we only care that Loop
+	// is a WordIter with an explicit `in`.
+	wi, ok := fc.Loop.(*syntax.WordIter)
+	if !ok {
+		return nil, false
+	}
+
+	// `for f; do ...; done` (no `in`) iterates over the shell's positional
+	// parameters ($1 $2 ...). Items is an empty slice in this form, which
+	// would vacuously satisfy the "all items analyzable" check below and let
+	// us bypass safety by treating the body as if the loop ran zero times.
+	// The InPos check keeps this dynamic case on the deny path.
+	if !wi.InPos.IsValid() {
+		return nil, false
+	}
+
+	if fc.Select {
+		// `select VAR in ...` reads from stdin — dynamic by nature.
+		return nil, false
+	}
+
+	// An explicit `for VAR in; do BODY; done` (empty word list) executes the
+	// body zero times. Rather than emit zero segments — which would collapse
+	// silently to an empty topology and hide the loop from the reviewer — we
+	// fall back to the deny path so the caller sees "(control-flow)" and can
+	// react. If a legitimate reason to allow the zero-iteration form arises,
+	// this can be revisited (e.g. return an empty-but-valid segment slice).
+	if len(wi.Items) == 0 {
+		return nil, false
+	}
+
+	if len(wi.Items) > maxForLoopIterations {
+		return nil, false
+	}
+
+	// All items must be static literals — no $x, $(cmd), <(cmd), etc., and
+	// no unquoted shell glob metacharacters (`*`, `?`, `[`). Globs are
+	// runtime FS-dependent, so treating them as literals would silently
+	// diverge from the shell: `for f in *.log; do rm $f; done` would evaluate
+	// as `rm *.log` (a single cat/rm call the parser sees) rather than the
+	// N-file loop the shell actually runs. Keep such loops on the deny path.
+	values := make([]string, 0, len(wi.Items))
+	for _, item := range wi.Items {
+		if !isAnalyzable(item) {
+			return nil, false
+		}
+		if wordContainsUnquotedGlob(item) {
+			return nil, false
+		}
+		values = append(values, wordToString(item))
+	}
+
+	varName := ""
+	if wi.Name != nil {
+		varName = wi.Name.Value
+	}
+	if varName == "" {
+		return nil, false
+	}
+
+	// Reject any reassignment / shadowing of VAR inside the body. This keeps
+	// the expansion sound: without this check, `for f in a b; do f=/etc; rm
+	// $f; done` would be expanded as if `$f` still referred to the outer
+	// iterator, and the second iteration would look like `rm b` when in fact
+	// the shell would run `rm /etc`.
+	if bodyRedefinesVar(fc.Do, varName) {
+		return nil, false
+	}
+
+	// Extract body segments once — they contain wordToString'd Command
+	// strings with `$VAR` / `${VAR}` rendered verbatim. Each iteration then
+	// gets a substituted copy.
+	var bodySegs []Segment
+	for _, stmt := range fc.Do {
+		bodySegs = append(bodySegs, extractSegments(stmt)...)
+	}
+	if len(bodySegs) == 0 {
+		// Body is empty (e.g. `for f in a b; do :; done`? — colon is a
+		// builtin, but bodySegs would not be empty then). Rather than
+		// return an empty topology, fall back to the deny path.
+		return nil, false
+	}
+
+	// Guard: cap the total number of expanded segments as a defense in
+	// depth against pathological body sizes (small iteration count × huge
+	// body). maxForLoopIterations already caps iterations; the body size
+	// is bounded by the parser input length.
+	totalCap := maxForLoopIterations * 100
+	if len(values)*len(bodySegs) > totalCap {
+		return nil, false
+	}
+
+	out := make([]Segment, 0, len(values)*len(bodySegs))
+	for _, val := range values {
+		for _, seg := range bodySegs {
+			expanded := seg
+			expanded.Commands = make([]Command, len(seg.Commands))
+			for i := range seg.Commands {
+				expanded.Commands[i] = substituteInCommand(seg.Commands[i], varName, val)
+			}
+			out = append(out, expanded)
+		}
+	}
+	return out, true
+}
+
+// wordContainsUnquotedGlob reports whether w contains a shell glob
+// metacharacter (`*`, `?`, `[`) as an unquoted Lit — i.e. a character that
+// the shell would perform pathname expansion on. Quoted forms (`"*.log"`,
+// `'*.log'`) are literal by design and do not trip this check.
+//
+// Only Lit parts that appear at the top level of the Word are inspected;
+// SglQuoted / DblQuoted parts are treated as safely literal per shell rules.
+func wordContainsUnquotedGlob(w *syntax.Word) bool {
+	if w == nil {
+		return false
+	}
+	for _, part := range w.Parts {
+		lit, ok := part.(*syntax.Lit)
+		if !ok {
+			continue
+		}
+		if strings.ContainsAny(lit.Value, "*?[") {
+			return true
+		}
+	}
+	return false
+}
+
+// bodyRedefinesVar reports whether any statement in the loop body reassigns
+// or re-iterates over the loop variable — either as a plain assignment
+// (`VAR=value`) or as an inner `for VAR in ...` / `for ((VAR=...))` /
+// `for VAR;` etc. Detecting this is a safety check: static expansion is only
+// sound if the loop variable's binding is stable across the whole body.
+func bodyRedefinesVar(stmts []*syntax.Stmt, varName string) bool {
+	shadowed := false
+	for _, stmt := range stmts {
+		if stmt == nil {
+			continue
+		}
+		syntax.Walk(stmt, func(node syntax.Node) bool {
+			if shadowed || node == nil {
+				return false
+			}
+			switch n := node.(type) {
+			case *syntax.Assign:
+				if n.Name != nil && n.Name.Value == varName {
+					shadowed = true
+					return false
+				}
+			case *syntax.ForClause:
+				// Nested for that binds the same name — inner loop shadows
+				// the outer binding. Cover both WordIter and CStyleLoop.
+				switch inner := n.Loop.(type) {
+				case *syntax.WordIter:
+					if inner != nil && inner.Name != nil && inner.Name.Value == varName {
+						shadowed = true
+						return false
+					}
+				case *syntax.CStyleLoop:
+					// Arithmetic loop headers can rebind the variable via
+					// the Init clause. Rather than analyze the arithmetic
+					// expression, walk it and look for an Assign / ParamExp
+					// naming varName in a way that suggests rebinding.
+					// Conservative: any mention counts as shadowing.
+					mentions := false
+					syntax.Walk(inner, func(w syntax.Node) bool {
+						if id, ok := w.(*syntax.Lit); ok && id != nil && id.Value == varName {
+							mentions = true
+							return false
+						}
+						return !mentions
+					})
+					if mentions {
+						shadowed = true
+						return false
+					}
+				}
+			}
+			return true
+		})
+		if shadowed {
+			return true
+		}
+	}
+	return shadowed
+}
+
+// substituteInCommand returns a deep-enough copy of cmd with the loop variable
+// substituted in every string-valued field. Args are copied (the caller
+// preallocates .Commands but reuses .Args backing arrays); Redirs are copied;
+// Nested is recursed into so `find -exec grep $f {} \;` bodies also see the
+// substitution.
+//
+// Post-substitution, Analyzable is recomputed from the resulting strings:
+// if no unresolved shell markers ($ or `) remain, we mark the command
+// analyzable so it can be matched by rules. Any remaining marker keeps the
+// command on the deny path — the substitution only rescues loop-variable
+// references, not other dynamic content.
+func substituteInCommand(cmd Command, varName, value string) Command {
+	out := cmd
+	out.Name = substituteLoopVar(cmd.Name, varName, value)
+
+	if len(cmd.Args) > 0 {
+		args := make([]string, len(cmd.Args))
+		for i, a := range cmd.Args {
+			args[i] = substituteLoopVar(a, varName, value)
+		}
+		out.Args = args
+	}
+
+	if len(cmd.Redirs) > 0 {
+		redirs := make([]RedirTarget, len(cmd.Redirs))
+		for i, r := range cmd.Redirs {
+			redirs[i] = RedirTarget{
+				Path:       substituteLoopVar(r.Path, varName, value),
+				Analyzable: r.Analyzable,
+			}
+			// Recompute per-redir analyzability from the substituted path
+			// so a `> $f` that becomes `> /tmp/x` no longer looks dynamic
+			// to applyScopeToCommand.
+			if !r.Analyzable && !containsUnresolvedExpansion(redirs[i].Path) {
+				redirs[i].Analyzable = true
+			}
+		}
+		out.Redirs = redirs
+	}
+
+	if cmd.Nested != nil {
+		out.Nested = substituteInTopology(cmd.Nested, varName, value)
+	}
+
+	// Recompute overall analyzability. If the original was already
+	// analyzable (unusual — it means the loop var did not appear in this
+	// particular sub-command), keep it. Otherwise, we can rescue it only if
+	// no unresolved marker remains anywhere.
+	if !cmd.Analyzable {
+		if !stringsContainUnresolved(out.Name, out.Args) {
+			out.Analyzable = true
+		}
+	}
+	return out
+}
+
+func substituteInTopology(topo *Topology, varName, value string) *Topology {
+	if topo == nil {
+		return nil
+	}
+	out := &Topology{}
+	out.Segments = make([]Segment, 0, len(topo.Segments))
+	for _, seg := range topo.Segments {
+		newSeg := seg
+		newSeg.Commands = make([]Command, len(seg.Commands))
+		for i, c := range seg.Commands {
+			newSeg.Commands[i] = substituteInCommand(c, varName, value)
+		}
+		out.Segments = append(out.Segments, newSeg)
+	}
+	return out
+}
+
+// containsUnresolvedExpansion is a syntactic heuristic: any remaining `$` or
+// backtick indicates a shell expansion the substitution did not consume.
+// Errs on the safe side — false positives here just keep a command on the
+// deny path, they never unsafely mark a dynamic command as analyzable.
+func containsUnresolvedExpansion(s string) bool {
+	return strings.ContainsAny(s, "$`")
+}
+
+func stringsContainUnresolved(name string, args []string) bool {
+	if containsUnresolvedExpansion(name) {
+		return true
+	}
+	for _, a := range args {
+		if containsUnresolvedExpansion(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// loopVarRegexCache memoizes the per-variable-name regex used for
+// word-boundary-aware `$VAR` substitution. `${VAR}` is handled by plain
+// literal ReplaceAll, so no regex is needed for that form.
+var (
+	loopVarRegexCache sync.Map // map[string]*regexp.Regexp
+)
+
+func loopVarRegex(varName string) *regexp.Regexp {
+	if v, ok := loopVarRegexCache.Load(varName); ok {
+		return v.(*regexp.Regexp)
+	}
+	// `\$` followed by exactly the variable name, terminated by end of
+	// string OR any non-word character (so `$f` does not match `$file`).
+	// We intentionally do not accept `\$$varName` (escaped) — that is a
+	// literal `$` in shell, which the parser would represent differently
+	// anyway (Lit token, not ParamExp), and after wordToString we wouldn't
+	// see it as `\$`.
+	pattern := `\$` + regexp.QuoteMeta(varName) + `([^A-Za-z0-9_]|$)`
+	re := regexp.MustCompile(pattern)
+	loopVarRegexCache.Store(varName, re)
+	return re
+}
+
+// substituteLoopVar returns s with occurrences of `$VAR` and `${VAR}` replaced
+// by value. Word-boundary rules: `$f` matches `$f` at end of string or before
+// any non-`[A-Za-z0-9_]` character but never inside a longer identifier like
+// `$file`. `${VAR}` is exact literal.
+//
+// Note: this operates on the wordToString output, which has already applied
+// static quote removal. Shell quoting rules for the substituted value are
+// NOT re-applied — see Plan 0025 Phase 1 caveat: "この方式の限界は
+// 「置換後に再度シェル引用規則を考慮する必要がある位置」だが、単純な引数展開の
+// 範囲では影響が小さいと判断". Downstream analyzability re-check catches the
+// obvious cases (remaining `$` / `` ` `` after substitution).
+func substituteLoopVar(s, varName, value string) string {
+	if s == "" || varName == "" {
+		return s
+	}
+	// Fast path: no `$` in the string means no substitution work at all.
+	if !strings.Contains(s, "$") {
+		return s
+	}
+
+	// ${VAR}: literal replace.
+	braced := "${" + varName + "}"
+	if strings.Contains(s, braced) {
+		s = strings.ReplaceAll(s, braced, value)
+	}
+
+	if !strings.Contains(s, "$") {
+		return s
+	}
+
+	// $VAR with word-boundary check via regex. The pattern captures the
+	// terminator character (if any) so it can be preserved on replacement.
+	re := loopVarRegex(varName)
+	return re.ReplaceAllStringFunc(s, func(match string) string {
+		// match is `$VAR` + terminator (1 char, unless matched at end of
+		// string where the terminator group is empty).
+		prefix := "$" + varName
+		if len(match) == len(prefix) {
+			// End-of-string match — no terminator to preserve.
+			return value
+		}
+		return value + match[len(prefix):]
+	})
 }
 
 // isAnalyzable checks if a word can be statically analyzed.
