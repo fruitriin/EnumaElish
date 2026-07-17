@@ -186,3 +186,14 @@
 **今の見立て**: Critical 全10件 + High 4件はほぼ全部主題内。C1 security（HMAC 認証）は Plan 記載の「依存追加最小」原則との相性判断があり、暗号鍵管理を hook 経路に持ち込むと運用が複雑化 — 現実的な代替は「ストアディレクトリへの書き込みを sentinel と DSL で厚く守る + init --sentinel 時に settings.json permissions.deny を追記案内」。C2 security（exit 2 追記）はコストゼロで多重化できる小修正。それ以外の修正は概ね小規模〜中規模。attacker と docs の結果を早めに待って、集約後に修正エージェント1体に委譲する。
 **次の自分へ**: attacker と docs 到着後、(1) 主題内修正を1体の実装エージェントに委譲、(2) HMAC/認証は「Plan 0022 完了後の後続 Plan（Phase 3 強化）」として起票、(3) 修正後に全テスト + E2E 実機、(4) Phase 5 docs マージ、(5) 完了処理。scratch ファイル（`internal/{approve,eval,shell}/zz_skeptic_*_test.go` 等）は skeptic#2 の残骸で untracked。テスト影響なし、承認消費節約のため保留、修正エージェントに削除依頼。
 **気になっていること**: コンテキスト 280k で目安 200k 大幅超過。修正エージェント委譲時のプロンプトは長くなるがそれで進むしかない。compaction が来ても、この日記から主要 Critical/High が復元できるように詳述した。
+
+##### 2026-07-17 — attacker 到着（Critical/High 独立新規指摘）、修正エージェントに追加指示検討
+**やったこと**: attacker レビューが完了。skeptic#2 C1 と重複する canonical hash 衝突（`rm -- "-rf /tmp"` vs `rm -- -rf /tmp` の実 E2E 攻撃実証つき）に加え、**新規の Critical/High** を独立検出。
+**attacker 新規指摘**:
+- **C2**: Plan 0025 の bodyRedefinesVar が `*syntax.Assign` と入れ子 for しか検出せず、`read f <<< "/"; rm -rf $f` のようなビルトイン再代入が完全にすり抜ける → 静的評価とシェル実行の argv 乖離、sentinel の強い警告が出ない。実機再現あり
+- **H1**: `.ccchain.conf` / `.ccchain.local.conf` 自体を守る Edit/Write ルールが default にも sentinel にも一切ない → 1ファイル編集で `ask_strategy: passthrough` を注入して降格を無効化できる（`ccchain approve` deny は self-fence があるが、DSL 側のフェンスがない）
+- **H2**: `\rm -rf /` がコマンド名マッチをすり抜ける → sentinel の rm 保護ルール全てを迂回。既存の topology.go の Lit 保持（Plan 0009 由来）だが Phase 4 の保護主張に直結
+- **H3**: acceptEdits × Read/Edit/Write の hook ask 挙動が未検証 → acceptEdits で Edit/Write の ask が届く保証は Phase 0 でも Bash しか確認していない
+- **M1**: TTL が壁時計依存でモノトニック時計未使用（time.Now、date 迂回時）
+**判断**: attacker の C2/H1/H2/H3 は主題内だが、既発注の修正エージェント（fix-critical）の指示に含めていなかった。C2 は Plan 0025 の主題内なのでフォローアップ指示を追加すべき。H1（conf 保護）と H2（backslash escape）は Plan 0026（承認ストア強化）に含めるより、fix-critical に追加した方が同じフェーズで解決できる。H3 は Phase 0 の再検証が要る（別 Plan 候補）。M1 も別 Plan。
+**次の自分へ**: fix-critical エージェントに SendMessage で追加指示（C2/H1/H2 追加）を送るか、完了報告を待って追加サイクルで対応するか判断する。SendMessage が最小変更で確実。指示送付後、fix-critical 完了 → 全 E2E 確認 → Phase 5 docs 統合 → 完了処理。
