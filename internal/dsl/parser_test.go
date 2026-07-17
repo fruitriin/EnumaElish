@@ -281,3 +281,91 @@ func TestParseSettings_StrictConfigError(t *testing.T) {
 		})
 	}
 }
+
+func TestParseUnattended(t *testing.T) {
+	cfg, err := Parse(strings.NewReader(`
+preToolUse:
+  ask docker "container op"
+    unattended: allow
+  ask git "branch delete"
+    unattended: deny
+  ask kubectl "cluster op"
+`))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(cfg.PreRules) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(cfg.PreRules))
+	}
+	assertEqual(t, "docker unattended", string(cfg.PreRules[0].Unattended), "allow")
+	assertEqual(t, "git unattended", string(cfg.PreRules[1].Unattended), "deny")
+	assertEqual(t, "kubectl unattended (unset)", string(cfg.PreRules[2].Unattended), "")
+}
+
+func TestParseUnattendedInvalidValue(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+preToolUse:
+  ask docker
+    unattended: warn
+`))
+	if err == nil {
+		t.Fatal("expected error for unattended: warn")
+	}
+}
+
+func TestParseUnattendedOnNonAskRule(t *testing.T) {
+	_, err := Parse(strings.NewReader(`
+preToolUse:
+  deny curl
+    unattended: allow
+`))
+	if err == nil {
+		t.Fatal("expected error: unattended: is only valid on ask rules")
+	}
+}
+
+func TestParseAskStrategy(t *testing.T) {
+	for _, v := range []string{"degrade", "passthrough", "deny-all"} {
+		cfg, err := Parse(strings.NewReader("settings:\n  ask_strategy: " + v + "\n"))
+		if err != nil {
+			t.Fatalf("ask_strategy %s: parse error: %v", v, err)
+		}
+		assertEqual(t, "ask_strategy "+v, cfg.Settings.AskStrategy, v)
+		if !cfg.Settings.Explicit["ask_strategy"] {
+			t.Errorf("ask_strategy %s: Explicit flag not set", v)
+		}
+	}
+}
+
+func TestParseAskStrategyInvalid(t *testing.T) {
+	_, err := Parse(strings.NewReader("settings:\n  ask_strategy: yolo\n"))
+	if err == nil {
+		t.Fatal("expected error for invalid ask_strategy")
+	}
+}
+
+func TestParseAskDegradeDefault(t *testing.T) {
+	for _, v := range []string{"deny", "allow"} {
+		cfg, err := Parse(strings.NewReader("settings:\n  ask_degrade_default: " + v + "\n"))
+		if err != nil {
+			t.Fatalf("ask_degrade_default %s: parse error: %v", v, err)
+		}
+		assertEqual(t, "ask_degrade_default "+v, string(cfg.Settings.AskDegradeDefault), v)
+	}
+}
+
+func TestParseAskDegradeDefaultInvalid(t *testing.T) {
+	_, err := Parse(strings.NewReader("settings:\n  ask_degrade_default: warn\n"))
+	if err == nil {
+		t.Fatal("expected error for invalid ask_degrade_default")
+	}
+}
+
+func TestParseSettingsDefaultAskStrategy(t *testing.T) {
+	cfg, err := Parse(strings.NewReader("allow ls\n"))
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	assertEqual(t, "default ask_strategy", cfg.Settings.AskStrategy, AskStrategyDegrade)
+	assertEqual(t, "default ask_degrade_default", string(cfg.Settings.AskDegradeDefault), "deny")
+}

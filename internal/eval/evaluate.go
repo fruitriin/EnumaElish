@@ -18,6 +18,11 @@ type Result struct {
 	MatchedRule string     `json:"matched_rule,omitempty"`
 	Template    string     `json:"template,omitempty"`
 	Context     []string   `json:"context,omitempty"`
+
+	// Unattended carries the matched ask rule's `unattended:` declaration to
+	// the hook layer, where ResolveAsk decides the degrade direction
+	// (Plan 0022 Phase 2). Empty means "use settings.ask_degrade_default".
+	Unattended dsl.Action `json:"unattended,omitempty"`
 }
 
 // Evaluate evaluates a shell command string against a DSL config.
@@ -267,9 +272,10 @@ func matchCommand(cmd *shell.Command, context []string, rules []*dsl.Rule, confi
 	for _, rule := range rules {
 		if matchesRule(cmd.Name, rule) {
 			lastMatch = &Result{
-				Action:  rule.Action,
-				Message: rule.Message,
-				Context: appendContext(context, cmd.Name),
+				Action:     rule.Action,
+				Message:    rule.Message,
+				Context:    appendContext(context, cmd.Name),
+				Unattended: rule.Unattended,
 			}
 			lastMatchRule = rule
 		}
@@ -509,10 +515,11 @@ func matchInPipeContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 				tmplName = parentRule.Next
 			}
 			lastMatch = &Result{
-				Action:   rule.Action,
-				Message:  rule.Message,
-				Template: tmplName,
-				Context:  append(context, "|", cmd.Name),
+				Action:     rule.Action,
+				Message:    rule.Message,
+				Template:   tmplName,
+				Context:    append(context, "|", cmd.Name),
+				Unattended: rule.Unattended,
 			}
 			lastMatchRule = rule
 		}
@@ -550,10 +557,11 @@ func matchInExecContext(cmd *shell.Command, parentRule *dsl.Rule, context []stri
 				tmplName = parentRule.Next
 			}
 			lastMatch = &Result{
-				Action:   rule.Action,
-				Message:  rule.Message,
-				Template: tmplName,
-				Context:  append(context, cmd.Name),
+				Action:     rule.Action,
+				Message:    rule.Message,
+				Template:   tmplName,
+				Context:    append(context, cmd.Name),
+				Unattended: rule.Unattended,
 			}
 			lastMatchRule = rule
 		}

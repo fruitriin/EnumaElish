@@ -3,6 +3,7 @@ package eval
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestExpandMessageBasic(t *testing.T) {
@@ -43,10 +44,22 @@ func TestExpandMessageSanitize(t *testing.T) {
 }
 
 func TestExpandMessageTruncate(t *testing.T) {
-	longCmd := strings.Repeat("a", 300)
+	longCmd := strings.Repeat("a", 700)
 	msg := ExpandMessage("{command}", "cmd", nil, longCmd)
-	if len(msg) > 210 { // 200 + "..."
+	if len(msg) > 610 { // maxSanitizedLen(600) + "..."
 		t.Errorf("message not truncated: len=%d", len(msg))
+	}
+	if !strings.HasSuffix(msg, "...") {
+		t.Error("expected truncated message to end with ...")
+	}
+}
+
+func TestExpandMessageTruncateUTF8Boundary(t *testing.T) {
+	// Multi-byte runes straddling the cut point must not yield broken UTF-8.
+	longCmd := strings.Repeat("あ", 300) // 900 bytes of 3-byte runes
+	msg := ExpandMessage("{command}", "cmd", nil, longCmd)
+	if !utf8.ValidString(msg) {
+		t.Error("truncated message is not valid UTF-8")
 	}
 	if !strings.HasSuffix(msg, "...") {
 		t.Error("expected truncated message to end with ...")

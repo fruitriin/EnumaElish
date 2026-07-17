@@ -270,6 +270,20 @@ func (p *parser) parseRule(parentIndent int) (*Rule, error) {
 			rule.Message = val
 			p.advance()
 
+		case tok.Type == TokenKeyword && tok.Value == "unattended":
+			val, err := p.parseKeyValue(childLine)
+			if err != nil {
+				return nil, err
+			}
+			if val != string(ActionDeny) && val != string(ActionAllow) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid unattended value: %q (must be \"deny\" or \"allow\")", val)}
+			}
+			if rule.Action != ActionAsk {
+				return nil, &ParseError{Line: childLine.LineNo, Message: "unattended: is only valid on ask rules"}
+			}
+			rule.Unattended = Action(val)
+			p.advance()
+
 		case tok.Type == TokenKeyword && tok.Value == "scope":
 			p.advance()
 			sr, err := p.parseScopeBlock(childLine.Indent)
@@ -464,6 +478,20 @@ func (p *parser) parseSettings() (*Settings, error) {
 			}
 			settings.ScopeViolation = Action(val)
 			settings.Explicit["scope_violation"] = true
+		case "ask_strategy":
+			switch val {
+			case AskStrategyDegrade, AskStrategyPassthrough, AskStrategyDenyAll:
+				settings.AskStrategy = val
+			default:
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid ask_strategy: %q (must be degrade, passthrough, or deny-all)", val)}
+			}
+			settings.Explicit["ask_strategy"] = true
+		case "ask_degrade_default":
+			if val != string(ActionDeny) && val != string(ActionAllow) {
+				return nil, &ParseError{Line: childLine.LineNo, Message: fmt.Sprintf("invalid ask_degrade_default: %q (must be \"deny\" or \"allow\")", val)}
+			}
+			settings.AskDegradeDefault = Action(val)
+			settings.Explicit["ask_degrade_default"] = true
 		case "strict_config_error":
 			switch val {
 			case "true":

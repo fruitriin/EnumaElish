@@ -158,6 +158,14 @@ func mergeSettings(base, overlay *Settings) *Settings {
 		out.StrictConfigError = overlay.StrictConfigError
 		out.Explicit["strict_config_error"] = true
 	}
+	if overlay.Explicit["ask_strategy"] {
+		out.AskStrategy = overlay.AskStrategy
+		out.Explicit["ask_strategy"] = true
+	}
+	if overlay.Explicit["ask_degrade_default"] {
+		out.AskDegradeDefault = overlay.AskDegradeDefault
+		out.Explicit["ask_degrade_default"] = true
+	}
 	if len(overlay.Explicit) > 0 {
 		out.Line = overlay.Line
 	}

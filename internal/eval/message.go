@@ -6,11 +6,12 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ExpandMessage expands template variables in a deny/warn message.
 // Supported variables:
-//   - {command} — the full command string (sanitized, max 200 chars)
+//   - {command} — the full command string (sanitized, max 600 chars)
 //   - {cmd} — the command name only
 //   - {args} — the arguments (space-joined)
 //   - {id} — unique ID (for temp file naming)
@@ -33,6 +34,12 @@ func ExpandMessage(msg string, cmdName string, cmdArgs []string, fullCommand str
 	return replacer.Replace(msg)
 }
 
+// maxSanitizedLen bounds interpolated values in deny/warn messages. 600 bytes
+// leaves room for the degrade notice's approval procedure to remain readable
+// after the user's own message (Plan 0022: the official docs state no limit
+// on permissionDecisionReason, so this is a self-imposed sanity bound).
+const maxSanitizedLen = 600
+
 // sanitizeForMessage removes control characters and truncates long strings.
 // Prevents prompt injection via command strings in deny messages.
 func sanitizeForMessage(s string) string {
@@ -45,9 +52,13 @@ func sanitizeForMessage(s string) string {
 		}
 	}
 	result := b.String()
-	const maxLen = 200
-	if len(result) > maxLen {
-		result = result[:maxLen] + "..."
+	if len(result) > maxSanitizedLen {
+		// Cut on a rune boundary so multi-byte text can't produce broken UTF-8.
+		cut := maxSanitizedLen
+		for cut > 0 && !utf8.RuneStart(result[cut]) {
+			cut--
+		}
+		result = result[:cut] + "..."
 	}
 	return result
 }

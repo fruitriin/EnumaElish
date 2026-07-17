@@ -136,3 +136,9 @@
 **今の見立て**: Phase 1 が全ての前提なのでメインで実装し、Phase 2+3 と Phase 4 は worktree 並列委譲が Plan の依存図に合う。Phase 0 の結果次第で classifyMode の区分数と hook_output オプションの要否が変わる。
 **次の自分へ**: Phase 0 エージェントの結果を Plan 0022 の「### 検証結果」セクションに追記してから Phase 1 に入ること。0022 完了後に Plan 0025 が控えている（goal に含まれる）。
 **気になっていること**: リリースについて Plan は v1.0.0 提案だが、既に v0.1.0 タグ運用が始まっており（2026-07-06 リリース済み）、日記では「0022 が入ったら 0.2.0」がオーナー合意。Plan 記載より日記の合意が新しいので 0.2.0 側で進める。
+
+##### 2026-07-17 — Phase 1・2 完了（hook I/O 現代化 + ask_strategy）
+**やったこと**: Phase 1（hookSpecificOutput 4値 JSON、permission_mode/session_id/cwd 読取、ClassifyMode 2区分、outputResult の純関数化）と Phase 2（ask_strategy 3値 + ask_degrade_default + unattended: ルール子ブロック + ResolveAsk 降格解決 + 切詰め 600 字化）を実装、それぞれコミット済み。E2E 実機確認: auto で ask→deny+承認手順 hint、default で ask 維持、unattended: allow で warn 降格、permission_mode 欠落時は保守的に deny。
+**今の見立て**: allow は意図的に中立（無出力）にした — ccchain の allow は「他の権限レイヤーを迂回しない」。降格メッセージは既存コードとの一貫性から英語にした（Plan の例文は日本語だが組込みメッセージは全て英語のため）。
+**次の自分へ**: Phase 3（approve、Phase 2 の降格 hint が言及する `ccchain approve --last` の実体）と Phase 4（sentinel プリセット）は独立性が高いので worktree 並列委譲する。Phase 3 の脅威モデル（hint にトークン不掲載・approve 自体を deny）を委譲プロンプトに必ず含めること。
+**気になっていること**: fallback ask も auto では deny 降格される（安全側だが、既存 conf なしユーザーの auto 運用では体感が変わる）。CHANGELOG と README に明記が必要（Phase 5）。

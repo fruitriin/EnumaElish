@@ -49,6 +49,11 @@ type Rule struct {
 	Mode string // "block", "warn", "hint"
 	Next string // template delegation
 
+	// Unattended declares which way this rule's ask degrades when the
+	// permission mode cannot show a dialog (Plan 0022 Phase 2).
+	// ActionDeny | ActionAllow; empty means "use settings.ask_degrade_default".
+	Unattended Action
+
 	// Source location for error reporting
 	Line int
 }
@@ -113,19 +118,36 @@ type Settings struct {
 	WorkspacePaths    []string // scope: workspace paths
 	ScopeViolation    Action   // scope_violation: action when a path outside workspace is detected (ask|deny)
 	StrictConfigError bool     // if true, hook denies when config load fails
+	AskStrategy       string   // ask_strategy: how ask resolves at the hook layer (degrade|passthrough|deny-all)
+	AskDegradeDefault Action   // ask_degrade_default: which way ask degrades in non-interactive modes (deny|allow)
 	Line              int
 
 	// Explicit fields set by the parser (keyed by DSL key name).
 	Explicit map[string]bool
 }
 
+// AskStrategy values (Plan 0022 Phase 2).
+const (
+	// AskStrategyDegrade (default): in modes where an ask dialog cannot reach
+	// a human (auto, dontAsk, unknown), degrade ask to deny+hint or allow+hint
+	// per rule `unattended:` → `ask_degrade_default` → built-in deny.
+	AskStrategyDegrade = "degrade"
+	// AskStrategyPassthrough: always emit ask as-is (pre-0022 behavior).
+	AskStrategyPassthrough = "passthrough"
+	// AskStrategyDenyAll: escalate ask to deny+hint in every mode, overriding
+	// `unattended: allow` (most conservative; CI use).
+	AskStrategyDenyAll = "deny-all"
+)
+
 // DefaultSettings returns settings with default values.
 func DefaultSettings() *Settings {
 	return &Settings{
-		MaxContextDepth: 2,
-		MaxRulesPerCmd:  5,
-		Fallback:        ActionAsk,
-		ScopeViolation:  ActionAsk,
-		Explicit:        map[string]bool{},
+		MaxContextDepth:   2,
+		MaxRulesPerCmd:    5,
+		Fallback:          ActionAsk,
+		ScopeViolation:    ActionAsk,
+		AskStrategy:       AskStrategyDegrade,
+		AskDegradeDefault: ActionDeny,
+		Explicit:          map[string]bool{},
 	}
 }

@@ -134,6 +134,11 @@ func runHookPre(configPath string, defaultAction string) {
 		os.Exit(0)
 	}
 
+	// Resolve ask against the runtime permission mode (Plan 0022 Phase 2):
+	// in modes where a dialog cannot reach a human, ask degrades to deny+hint
+	// (default) or warn per rule `unattended:` / settings.
+	result = eval.ResolveAsk(result, ti.PermissionMode, cfg.Settings)
+
 	emitResponse(buildHookResponse(result))
 }
 
