@@ -143,7 +143,19 @@
       "Bash(npm view *)",
       "Bash(pip3 *)",
       "Bash(bash .claude/addf/tests/run-all.sh *)",
-      "Bash(uv run --python 3.11 .claude/addf/addfTools/lint *)"
+      "Bash(uv run --python 3.11 .claude/addf/addfTools/lint *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh release view *)",
+      "Bash(gh release list *)",
+      "Bash(./ccchain check*)",
+      "Bash(./ccchain eval *)",
+      "Bash(./ccchain audit *)",
+      "Bash(./ccchain hook pre *)",
+      "Bash(gofmt *)",
+      "Bash(find . *)",
+      "Bash(sleep *)",
+      "Bash(rsync -a --*)"
     ],
     "ask": [
       "Bash(git push *)",
@@ -153,7 +165,12 @@
       "Bash(git checkout -- *)",
       "Bash(git restore .)",
       "Bash(git restore -- *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(gh release create *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh pr create *)",
+      "Bash(git tag *)",
+      "Bash(./ccchain approve *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
