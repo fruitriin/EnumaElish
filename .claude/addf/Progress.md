@@ -164,3 +164,25 @@
 **今の見立て**: C1/C2 は主題内（Plan 0022 と 0025 の縫い目そのもの）で必修正。他3体（attacker/security/docs）の結果を待って集約し、まとめて修正エージェントに委譲する。C2 の修正は canonicalCommand に ForClause を明示 unsupported として理由付きメッセージを返させるのが最小変更で安全側。
 **次の自分へ**: 全レビュー到着後 → 集約 → 主題内修正 → 再テスト → Plan 反映 → knowhow → Feedback → アーカイブ → コミット。C1 の修正は degrade.go の分岐でも hook.go の分岐でもよいが、hook.go 側で「preAskAction==ask && (ResolveAsk 後が deny になる) なら lookupApproval を試す」に統一するのが自然（deny-all 戦略の interactive も自動的にカバーされる）。
 **気になっていること**: コンテキスト 280k、実効目安 200k。もし compaction が来ても、この日記と skeptic の主要 Critical/Warning 記録があれば復帰可能。
+
+##### 2026-07-17 — 全レビュー到着（skeptic×2 + security）、Critical 集約
+**やったこと**: 3体のレビューが完了（attacker と phase5-docs はまだ実行中）。skeptic は2セッション分投入されて集約結果に厚みが出た。
+**Critical 集約（主題内、フェーズ内対応必須）**:
+- **skeptic#1 C1**: hook.go の lookupApproval が ClassifyMode==NonInteractive ゲートで、`ask_strategy: deny-all` の interactive モードで承認消費が発火しない → 承認案内が壊れた約束になる
+- **skeptic#1 C2**: Plan 0025 の for ループ由来 ask/deny を hook が pending 記録する時、canonical serializer が ForClause 未対応で ErrUnsupported を無言で握りつぶす → 案内は出るが pending は無く、approve --last が別 pending を誤消費
+- **skeptic#2 C1**: canonical hash が引数境界を消失（`echo "a b"` と `echo a b` が同一 hash）→ `find "-name x"` の承認で `find -name x` を通せる。実機再現あり
+- **skeptic#2 C2**: `unattended:` 指定が args:/scope: サブルール発火時に消失（applyArgsRules で lastMatch を作り直すとき Unattended 未コピー）→ 実機再現あり、ask_degrade_default が滲出
+- **skeptic#2 C3**: for ループ展開が word splitting 未適用（`for f in "target dir" x; do cp -t $f file` で argv 個数が実行時と乖離）
+- **security C1**: 承認ストア（pending/approved.jsonl）が平文で HMAC 等の認証なし。sentinel は `ccchain approve` サブコマンドを deny するのみで、ストアファイルへの `echo >>` 系書き込みは無防備（workspace_paths 未設定時は scope 判定完全スキップ） → agent が承認を偽造可能
+- **security C2**: deny の exit 2 経路を完全撤去 → 新 JSON を解釈しない旧 CC バージョンや将来のリグレッションで全 deny がサイレント fail-open
+- **security H1**: approve --list / 確定表示にサニタイズ未適用 → ANSI エスケープ注入で人間の承認判断を欺ける
+- **security H2**: CCCHAIN_APPROVE_STORE 環境変数がテスト用の分岐なしに本番で有効 → hook 起動コマンドや .bashrc を書ける状況でストア差し替え
+- **security H3**: ロックファイルにステイル検知なし → `touch ~/.claude/ccchain/store.lock` で承認導線を DoS
+- **security H4**: init --sentinel の Next steps に settings.json permissions.deny の推奨を書いていない
+**Warning 集約**:
+- skeptic#2 W: plan モードの Phase 0 検証未クローズ、args:/scope: の Unattended 未対応が Plan 内で判断根拠なし
+- security M1: git config 保護が knowhow 既知の findings（core.fsmonitor / filter.*/diff.external / credential.helper）を反映しきれていない
+- security M2: pending.jsonl の巨大行で bufio.Scanner が破壊される
+**今の見立て**: Critical 全10件 + High 4件はほぼ全部主題内。C1 security（HMAC 認証）は Plan 記載の「依存追加最小」原則との相性判断があり、暗号鍵管理を hook 経路に持ち込むと運用が複雑化 — 現実的な代替は「ストアディレクトリへの書き込みを sentinel と DSL で厚く守る + init --sentinel 時に settings.json permissions.deny を追記案内」。C2 security（exit 2 追記）はコストゼロで多重化できる小修正。それ以外の修正は概ね小規模〜中規模。attacker と docs の結果を早めに待って、集約後に修正エージェント1体に委譲する。
+**次の自分へ**: attacker と docs 到着後、(1) 主題内修正を1体の実装エージェントに委譲、(2) HMAC/認証は「Plan 0022 完了後の後続 Plan（Phase 3 強化）」として起票、(3) 修正後に全テスト + E2E 実機、(4) Phase 5 docs マージ、(5) 完了処理。scratch ファイル（`internal/{approve,eval,shell}/zz_skeptic_*_test.go` 等）は skeptic#2 の残骸で untracked。テスト影響なし、承認消費節約のため保留、修正エージェントに削除依頼。
+**気になっていること**: コンテキスト 280k で目安 200k 大幅超過。修正エージェント委譲時のプロンプトは長くなるがそれで進むしかない。compaction が来ても、この日記から主要 Critical/High が復元できるように詳述した。
