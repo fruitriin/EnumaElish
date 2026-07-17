@@ -154,3 +154,13 @@
 **今の見立て**: Plan 0025 の実装エージェントが glob 検出（for f in *.log の誤展開防止）を独自に追加していたのは良い判断。Phase 4（sentinel）はまだ実行中。
 **次の自分へ**: (1) Phase 4 完了通知 → 統合（sentinel の approve deny ルールと Phase 3 の整合確認、init_cmd.go/main.go の衝突可能性）、(2) Phase 5 ドキュメント: README 互換表 + sentinel クイックスタート + docs/reference（ask_strategy/approve/sentinel/unanalyzable_action、en+ja）+ CHANGELOG に Phase 3/4 と 0025 追記 + roadmap 更新、(3) 品質ゲート Stage 2: ペルソナ並列 + security + doc レビュー（0022 と 0025 まとめて）、(4) 完了処理: knowhow（エージェント報告に候補7件）、Plan status 反映、Feedback、アーカイブ。
 **気になっていること**: 既存スメル4件（symlink テストの条件スキップ）は主題外 — 品質ゲート後の観察として Feedback か新 Plan 判断。バージョンは 0.2.0 で進める（v1.0.0 ではなく）。
+
+##### 2026-07-17 — skeptic レビュー到着、Critical 2件を検出
+**やったこと**: Stage 1 完了（Go テスト・vet・ビルド全 pass、ADDF テストは既知の downstream 失敗のみ）。Phase 5 docs + skeptic/attacker/security の4体を並列起動。skeptic が Critical 2件を検出。
+**skeptic Critical 集約**:
+- C1: hook.go の lookupApproval が `ClassifyMode==NonInteractive` でゲートされているため、`ask_strategy: deny-all` で interactive モードでも deny になるケースで承認消費が発火しない → 承認案内が壊れた約束になる。修正: lookupApproval のゲートを ResolveAsk の実際の deny 降格判定と一致させる
+- C2: Plan 0025 の for ループ展開由来の ask/deny を hook.go が pending 記録する際、canonical serializer が ForClause 未対応で ErrUnsupported を無言で握りつぶす。案内は出るが pending は無く、`ccchain approve --last` が別の pending を誤消費する。修正: canonicalCommand に ForClause 対応追加、または recordPendingApproval で ErrUnsupported にもユーザー向けメッセージを追加
+- Warning: unattended: が args:/scope: に未対応（意図判断のコメントすらない）、for 展開時にクオート情報が失われる（unquoted 空白リテラルで単語分割の乖離）
+**今の見立て**: C1/C2 は主題内（Plan 0022 と 0025 の縫い目そのもの）で必修正。他3体（attacker/security/docs）の結果を待って集約し、まとめて修正エージェントに委譲する。C2 の修正は canonicalCommand に ForClause を明示 unsupported として理由付きメッセージを返させるのが最小変更で安全側。
+**次の自分へ**: 全レビュー到着後 → 集約 → 主題内修正 → 再テスト → Plan 反映 → knowhow → Feedback → アーカイブ → コミット。C1 の修正は degrade.go の分岐でも hook.go の分岐でもよいが、hook.go 側で「preAskAction==ask && (ResolveAsk 後が deny になる) なら lookupApproval を試す」に統一するのが自然（deny-all 戦略の interactive も自動的にカバーされる）。
+**気になっていること**: コンテキスト 280k、実効目安 200k。もし compaction が来ても、この日記と skeptic の主要 Critical/Warning 記録があれば復帰可能。
