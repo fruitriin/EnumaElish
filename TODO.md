@@ -36,7 +36,7 @@
 | 23 | 24 | `.claude/addf/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
 | 24 | 25 | `.claude/addf/plans/0025-loop-body-static-analysis.md` | 完了 | リテラル `for` ループの部分解析・`unanalyzable_action` 設定・ADDF 実地確認済み。2026-07-17 完了 |
 | 25 | 26 | `.claude/addf/plans/0026-approve-store-hardening.md` | 未着手 | Plan 0022/0025 レビューで検出された主題外 7 項目（承認ストア HMAC・Scope 型安全化・Phase 0 再検証・git config 保護補完 等）。0022 とは独立 |
-| 26 | 27 | `.claude/addf/plans/0027-v020-semantics-regression.md` | 未着手 | **最優先（v0.2.1 パッチ候補）**。Issue #15 v0.2.0 でユーザー conf の基本コマンドが no matching rule に落ちる。check 通過 ≠ セマンティクス互換 |
+| 26 | 27 | `.claude/addf/plans/0027-v020-semantics-regression.md` | 完了 | Issue #15。v0.2.1 リリースで対応（check 警告 + default preset 拡張 + マイグレーションガイド）。2026-07-17 |
 | 27 | 28 | `.claude/addf/plans/0028-ask-strategy-visibility.md` | 未着手 | Issue #16。ask_strategy / unattended: の可視化・docs 導線強化。実装は既存（Plan 0022 Phase 2）、主にドキュメント |
 | 28 | 29 | `.claude/addf/plans/0029-hook-eval-log-and-stats.md` | 未着手 | Issue #17。hook 評価結果の JSONL 永続化と ccchain stats 集計。conf チューニングのループを速くする |
 
