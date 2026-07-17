@@ -1,6 +1,12 @@
 # Plan 0025: リテラル `for` ループの部分解析 と `unanalyzable_action` 設定
 
-## 実装状況: 未着手
+## 実装状況: 完了（2026-07-17）
+
+Phase 1（WordIter 形式 for ループの部分解析）・Phase 2（unanalyzable_action 設定）
+とも実装完了。ADDF 実 conf での実地確認済み（ドッグフーディング元の for ループ問題が
+解消）。Stage 2 レビューで検出された空白リテラルの word splitting 乖離（C4）と
+ビルトインによるループ変数再代入検出漏れ（C5: read/mapfile/declare/local/let/getopts/
+printf -v）は主題内として修正済み。
 
 ## 背景
 

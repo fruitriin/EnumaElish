@@ -1,6 +1,12 @@
 # Plan 0022: ccchain 再起動 — auto モード時代の deny-first 安全網
 
-## 実装状況: 未着手
+## 実装状況: 完了（2026-07-17）
+
+Phase 0（仕様再裏取り）〜 Phase 5（ドキュメント刷新）まで全実装完了、Stage 2 レビュー
+（skeptic×2 + attacker + security）で検出された主題内 Critical 8 件 + High 4 件 +
+attacker 追加 Critical/High 3 件を同一フェーズで修正済み。主題外 7 項目（承認ストア
+HMAC、Scope 型安全化、Phase 0 再検証、git config 保護補完、pending.jsonl 寛容化、
+TTL 時計後戻り防御、sentinel ドキュメント）は Plan 0026 に切り出し。
 
 ## 背景
 

@@ -3,7 +3,7 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: Phase 22（ccchain 再起動 — auto モード時代の deny-first 安全網）
+## 現在のフェーズ: Phase 22 / 25 完了 — 次は Plan 0026（承認ストア強化）または Plan 0019 残り（REPL / stats）
 
 ## バックログ
 
@@ -29,12 +29,12 @@
 | 16 | 12 | `.claude/addf/plans/0012-deny-message-templates.md` | 完了 | 基盤が固まってから最後に実装 |
 | 17 | 18 | `.claude/addf/plans/0018-doc-sync-and-security-fixes.md` | 完了 | ドキュメント同期 Critical 4件 + セキュリティ Medium 4件 |
 | 18 | 17 | `.claude/addf/plans/0017-bash-args-scope.md` | 完了 | Bash コマンド引数にもワークスペーススコープ適用 |
-| 19 | 22 | `.claude/addf/plans/0022-ask-strategy-and-deny-first-sentinel.md` | 未着手 | **最優先**。auto/dontAsk/headless で ask が人間に届かない穴を deny+hint で塞ぐ。hook I/O 現代化を含む |
+| 19 | 22 | `.claude/addf/plans/0022-ask-strategy-and-deny-first-sentinel.md` | 完了 | auto/dontAsk/headless の ask 降格・ccchain approve・sentinel プリセット・hook I/O 現代化。2026-07-17 完了、Stage 2 レビュー主題外は Plan 0026 に切り出し |
 | 20 | 20 | `.claude/addf/plans/0020-ci-pipeline.md` | 完了 | CI パイプライン（Go テスト + ドキュメントビルド）。PR #12（2026-07-06） |
 | 21 | 19 | `.claude/addf/plans/0019-eval-repl-and-dx.md` | 一部完了 | diff は PR #11 で実装済み（2026-07-06）。REPL / stats が残り |
 | 22 | 23 | `.claude/addf/plans/0023-addf-hook-integration.md` | 未着手（スタブ） | 0022 依存。/addf-init での hook 自動設営 |
 | 23 | 24 | `.claude/addf/plans/0024-remote-approval.md` | 未着手（スタブ） | 0022 Phase 3 依存。Slack/リモート承認連携 |
-| 24 | 25 | `.claude/addf/plans/0025-loop-body-static-analysis.md` | 未着手 | ADDF ドッグフーディング（Plan 0040）由来。リテラル `for` ループの部分解析＋`unanalyzable_action` 設定。0022 とは独立 |
+| 24 | 25 | `.claude/addf/plans/0025-loop-body-static-analysis.md` | 完了 | リテラル `for` ループの部分解析・`unanalyzable_action` 設定・ADDF 実地確認済み。2026-07-17 完了 |
 | 25 | 26 | `.claude/addf/plans/0026-approve-store-hardening.md` | 未着手 | Plan 0022/0025 レビューで検出された主題外 7 項目（承認ストア HMAC・Scope 型安全化・Phase 0 再検証・git config 保護補完 等）。0022 とは独立 |
 
 ## 割り込み対応

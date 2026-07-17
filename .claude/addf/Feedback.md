@@ -14,6 +14,13 @@
 
 ## 改善アクション
 
+### 2026-07-17 — Plan 0022/0025 完了サイクルからのプロセス知見
+
+- **worktree 並列委譲時の base 経過差問題**: 3体を並列 worktree で立ち上げた後、Phase 0/1/2 が main に反映されるタイミングと、Phase 3/4/0025 の worktree base（v0.1.0 直後）の間で時差が発生し、統合時に手動衝突解消が3件必要になった。Plan 実装エージェントの委譲プロンプトに「実装済み前提は grep で確認する」を明記すると安全（実際 Phase 4 エージェントは grep で気づき、unattended: の直接記述を deny に切り替えて回避した）
+- **レビュー scratch ファイルの残置**: skeptic/attacker のレビューエージェントが実 E2E 再現のため一時テストファイル (`zz_*_test.go`, `attackerscratch/`) をリポジトリ内に作成したが、リポジトリ自身の ccchain hook が `rm` を拒否するため掃除できず未追跡ファイルとして残った。委譲プロンプトに「scratch は `t.TempDir()` を使い、リポジトリファイルは作らない」を明記する
+- **修正エージェント集約運用**: Stage 2 レビュー 4 体を並列起動した後、Critical 8 + High 4 + attacker 追加 3 を 1 体の修正エージェントにまとめて委譲した。SendMessage で追加指示（attacker 分）を送る運用は機能したが、初回プロンプトが長大化した。次回は「初回プロンプトで既知の Critical 群 → 別レビュー到着時に SendMessage で追加」のプロンプトテンプレを作ると再現性が上がる
+- **自己ホスト環境の hook が rm を deny する副作用**: リポジトリ自身が dogfooding で ccchain hook を有効化しており、レビュー・修正エージェントが自分の scratch を掃除できないケースが頻発した。auto モード下の rm は sentinel の unattended: deny で降格されるのが仕様通り = 保護機構が動いている証拠だが、開発者体験としてはノイズ。エージェント委譲時に「.claude/settings.local.json で hook を一時無効にした worktree で作業する」オプションを検討する
+
 ## 完了済み
 
 ### 2026-07-05 — CLAUDE.repo.md のテストセクションに Go テスト明記
