@@ -77,3 +77,22 @@ func TestInitFlagPassthroughContract(t *testing.T) {
 		t.Fatal("init must be in flagPassthroughCommands so its own flags reach runInitDispatch")
 	}
 }
+
+// TestDefaultConfigCoversReadOnlyUtilities verifies that the v0.2.1 default
+// preset lists the common read-only utilities added in response to Issue #15.
+// Without these, `settings: fallback: ask` + ask degrade combined with the
+// auto permission mode silently blocks everyday commands.
+func TestDefaultConfigCoversReadOnlyUtilities(t *testing.T) {
+	must := []string{
+		"allow sed", "allow awk", "allow cut", "allow tr",
+		"allow tee", "allow basename", "allow dirname",
+		"allow date", "allow env", "allow printf", "allow seq",
+		"allow test", "allow file", "allow stat", "allow tree",
+		"allow readlink", "allow uniq",
+	}
+	for _, line := range must {
+		if !strings.Contains(defaultConfig, line) {
+			t.Errorf("defaultConfig missing %q — v0.2.1 default preset must cover it (Issue #15)", line)
+		}
+	}
+}

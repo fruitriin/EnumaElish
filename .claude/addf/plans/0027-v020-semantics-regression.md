@@ -1,6 +1,30 @@
 # Plan 0027: v0.2.0 セマンティクス回帰の切り分けと修正（Issue #15）
 
-## 実装状況: 未着手
+## 実装状況: Phase 0 診断完了（2026-07-17）→ Phase 1 実装中
+
+## 診断結果（2026-07-17）
+
+**原因は仕様どおりの挙動**であり、Plan 0022 Phase 2 の設計そのもの:
+
+- ADDF conf は `settings: fallback: ask` を明示（31 rules に `sed`/`awk`/`cut`/`tr` 等の read-only ユーティリティは未列挙）
+- v0.1.0 では `sed -n '60,80p' file` → `fallback: ask` → Claude Code 側で ask ダイアログ or classifier 判定 → 結果的に allow で通っていた
+- v0.2.0 では `fallback: ask` → Phase 2 の ask 降格が auto モードで deny に落とす → **仕様どおりに実質全ブロック化**
+
+つまり「回帰」ではなく **`fallback: ask` + `ask_strategy: degrade`（既定）+ auto モード** の3つ組が
+利用者の想定を超えて広域 deny 化する構造。CHANGELOG には Phase 2 の破壊的変更として明記済みだが、
+利用者は運用停止まで気づけなかった。
+
+**対応方針を再定義**:
+
+1. **`ccchain check` に事前警告**: `settings.fallback == ask` かつ `settings.ask_strategy == degrade`（既定）を検出したら、「auto/dontAsk モードで明示ルール未カバーのコマンドが deny 降格される」旨の警告を出す
+2. **default preset の allow セット拡張**: `ccchain init` が生成する `defaultConfig` に、実運用でよく使う read-only ユーティリティ（`sed`, `awk`, `cut`, `uniq`, `tr`, `tee`, `basename`, `dirname`, `date`, `env`, `less`, `more`, `seq`, `test`, `printf`, `wc` 等の一部）を追加
+3. **CHANGELOG v0.2.1 節にマイグレーションノート**: `fallback: ask` を使っている conf の運用者向けに、
+   - `ask_strategy: passthrough`（v0.1 相当）で暫定回避
+   - `fallback: allow` に切替
+   - または明示的にルール列挙、の3択を提示
+4. **README に auto モード運用時の注意**: 「auto モードで運用する場合、明示ルール未カバーのコマンドは deny 降格される。実運用前に `ccchain check --verbose` で settings を確認、または `ccchain init` の default preset を土台にする」旨を1節追加
+
+これらは Phase 1 として同一パッチ v0.2.1 で決着させる。
 
 ## 背景
 

@@ -180,6 +180,23 @@ func runCheck(configPath string, verbose, quiet bool) {
 		ruleCount := len(cfg.Rules) + len(cfg.PreRules) + len(cfg.PostRules)
 		fmt.Printf("config OK: %d templates, %d rules\n", len(cfg.Templates), ruleCount)
 
+		// v0.2.1: warn about the fallback:ask + ask_strategy:degrade combo that
+		// silently turns unlisted commands into deny in auto/dontAsk modes
+		// (Issue #15). This is a legitimate behavior of the ask degrade
+		// framework, but it needs to be surfaced at check time so users can
+		// choose to opt out (ask_strategy: passthrough) or list more allow
+		// rules instead of hitting it at runtime.
+		if cfg.Settings != nil &&
+			cfg.Settings.Fallback == dsl.ActionAsk &&
+			(cfg.Settings.AskStrategy == "" || cfg.Settings.AskStrategy == dsl.AskStrategyDegrade) {
+			fmt.Fprintln(os.Stderr, "warning: settings.fallback: ask + ask_strategy: degrade (default)")
+			fmt.Fprintln(os.Stderr, "  In auto / dontAsk permission modes, every command not explicitly")
+			fmt.Fprintln(os.Stderr, "  covered by a rule will degrade to deny (Plan 0022 Phase 2).")
+			fmt.Fprintln(os.Stderr, "  To opt out: set settings.ask_strategy: passthrough (v0.1 behavior)")
+			fmt.Fprintln(os.Stderr, "  or add allow rules for the utilities you rely on (sed, awk, cut, ...).")
+			fmt.Fprintln(os.Stderr, "  Docs: https://github.com/fruitriin/EnumaElish/blob/main/docs/reference/dsl.md")
+		}
+
 		if verbose {
 			for _, t := range cfg.Templates {
 				fmt.Printf("  template: %s", t.Name)

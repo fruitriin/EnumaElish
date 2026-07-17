@@ -7,7 +7,27 @@ v1.0.0 までは 0.x 帯で破壊的変更を許容する（後方互換の保�
 
 ## [Unreleased]
 
-（次リリース分の変更をここに記録）
+## [0.2.1] - 2026-07-17
+
+Issue [#15](https://github.com/fruitriin/EnumaElish/issues/15) 対応。v0.2.0 の Phase 2（非対話モードでの `ask` 降格）と `fallback: ask` の組み合わせが、明示ルール未カバーのコマンドを auto/dontAsk モードで広域 deny 化する問題への緩和策。仕様変更ではなく、事前警告と default preset 拡張。
+
+### 追加
+
+- `ccchain check` に警告追加: `settings.fallback: ask` かつ `settings.ask_strategy: degrade`（既定）の場合、auto/dontAsk モードで意図しない広域 deny が起きる旨と対処法（`ask_strategy: passthrough` / allow ルール追加）を stderr に表示
+- `ccchain init` の default preset に read-only ユーティリティの allow を追加: `uniq`, `sed`, `awk`, `cut`, `tr`, `tee`, `basename`, `dirname`, `date`, `env`, `printf`, `seq`, `test`, `file`, `stat`, `tree`, `readlink`
+
+### マイグレーションガイド（v0.1.x → v0.2.x）
+
+`settings: fallback: ask` を使っている既存 conf は、v0.2.0 以降の auto / dontAsk モードで明示ルール
+未カバーのコマンドが実質 deny になる（Phase 2 仕様どおり）。以下のいずれかで回避:
+
+1. **旧挙動維持（推奨せず）**: `settings: ask_strategy: passthrough` を追加 → ask が降格されず v0.1 相当の挙動に戻る
+2. **read-only ユーティリティを allow に列挙**: v0.2.1 の default preset を参考に、自身の conf に `allow sed`, `allow awk`, `allow cut` などを追記
+3. **fallback: allow に切替**: 未カバーコマンドを許可し、危険なものは deny/ask で個別に列挙する反転設計
+
+いずれの選択でも、`ccchain check` 実行時の警告メッセージに従うのが最短。
+
+[0.2.1]: https://github.com/fruitriin/EnumaElish/releases/tag/v0.2.1
 
 ## [0.2.0] - 2026-07-17
 

@@ -40,6 +40,9 @@ template bulkExec
 preToolUse
 
 # --- Safe Utilities (no side effects) ---
+# v0.2.1: expanded to cover common read-only utilities so that fallback: ask
+# (which degrades to deny in auto/dontAsk modes) does not silently block
+# everyday commands. Add or remove entries to match your workflow.
 allow cat
   next: primitive
 allow echo
@@ -49,8 +52,25 @@ allow which
 allow mkdir
 allow wc
 allow sort
+allow uniq
 allow head
 allow tail
+allow sed
+allow awk
+allow cut
+allow tr
+allow tee
+allow basename
+allow dirname
+allow date
+allow env
+allow printf
+allow seq
+allow test
+allow file
+allow stat
+allow tree
+allow readlink
 allow cp
 allow chmod
   args:
