@@ -142,3 +142,9 @@
 **今の見立て**: allow は意図的に中立（無出力）にした — ccchain の allow は「他の権限レイヤーを迂回しない」。降格メッセージは既存コードとの一貫性から英語にした（Plan の例文は日本語だが組込みメッセージは全て英語のため）。
 **次の自分へ**: Phase 3（approve、Phase 2 の降格 hint が言及する `ccchain approve --last` の実体）と Phase 4（sentinel プリセット）は独立性が高いので worktree 並列委譲する。Phase 3 の脅威モデル（hint にトークン不掲載・approve 自体を deny）を委譲プロンプトに必ず含めること。
 **気になっていること**: fallback ask も auto では deny 降格される（安全側だが、既存 conf なしユーザーの auto 運用では体感が変わる）。CHANGELOG と README に明記が必要（Phase 5）。
+
+##### 2026-07-17 — Phase 3 完了報告受領、統合開始（コンテキスト 220k 超）
+**やったこと**: Phase 3（approve）の worktree エージェントが完遂。internal/approve 新設（独自 canonical serializer + SHA-256、JSONL ストア、O_EXCL ロック、O_NOFOLLOW、0600/0700、ワンショット消費、並行テスト済み）、hook 統合は「approved 照合 → ResolveAsk → 降格 deny なら pending 記録」の順序。E2E 5 ステップ全通過。Phase 4（sentinel）と Plan 0025（for ループ）はまだ worktree で実行中。
+**今の見立て**: Phase 3 の設計判断は妥当（import cycle 回避で hook.go がオーケストレータ、承認消費は warn 経路で可視化）。ADDF テスト 2 スイート失敗は既知の downstream 文脈問題で無関係。
+**次の自分へ**: (1) Phase 3 worktree でコミット → main に squash マージ → 全テスト再実行、(2) Phase 4 / 0025 の完了通知を待って同様に統合（Phase 4 は sentinel に ccchain approve の deny ルールを含むはず — Phase 3 との整合を確認）、(3) Phase 5 ドキュメント（CHANGELOG は Phase 1/2 分まで記載済み、Phase 3/4 分の追記必要）、(4) 品質ゲート Stage 2 はペルソナ並列（unattended 自走時ルール）+ セキュリティレビュー + doc レビュー。knowhow 候補4件はエージェント報告に記録済み（syntax.Printer の quote 保持、JSONL lock パターン、hook 統合順序、outer ccchain 下のテスト実行注意）— 完了処理でまとめて記録する。
+**気になっていること**: コンテキスト 222k。compaction が来たらこの日記と Progress のチェックリスト、TODO の Agent 3体の状態（Phase3 完了/Phase4 実行中/0025 実行中）から再構築する。worktree パスは .claude/worktrees/agent-*。
