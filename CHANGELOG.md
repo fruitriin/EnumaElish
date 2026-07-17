@@ -7,6 +7,26 @@ v1.0.0 までは 0.x 帯で破壊的変更を許容する（後方互換の保�
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-17
+
+Plan 0028（Issue #16）と Plan 0029（Issue #17）を投入。実装追加と可視化改善が中心の追加バージョン。
+
+### 追加
+
+- **hook 評価ログの永続化**（Plan 0029、Issue #17）: `settings: log: <path>` オプトインで hook 評価結果を JSONL 追記。`internal/evallog/` 新設（O_APPEND による atomic write、fail-open、Command 200B 切り詰め、パーミッション 0600/0700）
+- **`ccchain stats` サブコマンド**（Plan 0029）: `--since <duration>` / `--group-by action|rule|command` / `--top N` / `--json` / `--log` / `--config`。conf チューニングのフィードバックループを速くする
+- **`ccchain check --verbose` に settings ダイジェスト表示**（Plan 0028、Issue #16）: fallback / ask_strategy / ask_degrade_default / unanalyzable_action / scope_violation / strict_config_error / max_context_depth / max_rules_per_cmd / workspace を stdout に一覧表示
+- **降格 hint に docs URL 追記**（Plan 0028）: `degradeDenyNotice` / `degradeAllowNotice` 末尾に `docs: <URL>` を追加（URL のみ、トークン非掲載を維持）
+- **README（ja/en）に「auto モードで運用する場合」の章を追加**: ask 降格の3つのつまみ・典型 conf 例・複合コマンド deny 注記・check -v 使用例
+- **docs/reference/stats.md**（ja/en 新規）: settings.log: オプトインと ccchain stats の使い方リファレンス
+- **`ccchain init` の Next steps に stats オプトイン案内**: settings.log: と .gitignore 推奨
+
+### 既知の観察（別 Plan 候補）
+
+- `Result.MatchedRule` が eval 実装で未設定のため、`ccchain stats --group-by rule` は現状すべて `(none)` に集約される。ルール識別子の Result 伝播を別 Plan で対応予定
+
+[0.2.2]: https://github.com/fruitriin/EnumaElish/releases/tag/v0.2.2
+
 ## [0.2.1] - 2026-07-17
 
 Issue [#15](https://github.com/fruitriin/EnumaElish/issues/15) 対応。v0.2.0 の Phase 2（非対話モードでの `ask` 降格）と `fallback: ask` の組み合わせが、明示ルール未カバーのコマンドを auto/dontAsk モードで広域 deny 化する問題への緩和策。仕様変更ではなく、事前警告と default preset 拡張。

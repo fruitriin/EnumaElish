@@ -3,7 +3,7 @@
 `.claude/addf/plans/` の完了状態・優先度をトラックする。
 `.claude/addf/plans/` と TODO が一致しなければ TODO を編集する。
 
-## 現在のフェーズ: v0.2.0 リリース後の緊急対応 — Plan 0027（Issue #15 セマンティクス回帰）を最優先
+## 現在のフェーズ: v0.2.2 リリース完了 — 次は Plan 0026（承認ストア強化）または MatchedRule 未設定バグ（Plan 0029 観察）
 
 ## バックログ
 
@@ -37,8 +37,8 @@
 | 24 | 25 | `.claude/addf/plans/0025-loop-body-static-analysis.md` | 完了 | リテラル `for` ループの部分解析・`unanalyzable_action` 設定・ADDF 実地確認済み。2026-07-17 完了 |
 | 25 | 26 | `.claude/addf/plans/0026-approve-store-hardening.md` | 未着手 | Plan 0022/0025 レビューで検出された主題外 7 項目（承認ストア HMAC・Scope 型安全化・Phase 0 再検証・git config 保護補完 等）。0022 とは独立 |
 | 26 | 27 | `.claude/addf/plans/0027-v020-semantics-regression.md` | 完了 | Issue #15。v0.2.1 リリースで対応（check 警告 + default preset 拡張 + マイグレーションガイド）。2026-07-17 |
-| 27 | 28 | `.claude/addf/plans/0028-ask-strategy-visibility.md` | 未着手 | Issue #16。ask_strategy / unattended: の可視化・docs 導線強化。実装は既存（Plan 0022 Phase 2）、主にドキュメント |
-| 28 | 29 | `.claude/addf/plans/0029-hook-eval-log-and-stats.md` | 未着手 | Issue #17。hook 評価結果の JSONL 永続化と ccchain stats 集計。conf チューニングのループを速くする |
+| 27 | 28 | `.claude/addf/plans/0028-ask-strategy-visibility.md` | 完了 | Issue #16。v0.2.2 で対応済み（README auto 運用章 + check -v settings ダイジェスト + hint docs URL）。2026-07-17 |
+| 28 | 29 | `.claude/addf/plans/0029-hook-eval-log-and-stats.md` | 完了 | Issue #17。v0.2.2 で対応済み（internal/evallog/ + ccchain stats + settings.log: オプトイン）。2026-07-17 |
 
 ## 割り込み対応
 
