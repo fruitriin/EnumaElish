@@ -7,6 +7,22 @@ v1.0.0 までは 0.x 帯で破壊的変更を許容する（後方互換の保�
 
 ## [Unreleased]
 
+### 破壊的変更
+
+- **PreToolUse hook の出力形式を現代化**（Plan 0022 Phase 1）: 全アクションを exit 0 + `hookSpecificOutput.permissionDecision` JSON（allow / deny / ask）に統一。deny の旧形式（exit code 2 + stderr）は廃止。Claude Code は両形式をサポートするが混在は不可のため、新 JSON 形式のみを出力する
+- **非対話モードで `ask` が既定で deny に降格**（Plan 0022 Phase 2）: `permission_mode` が auto / dontAsk / 未知の環境では ask ダイアログが人間に届かないため、`ask` 評価結果は deny + 承認手順ヒントに降格する（安全側への変更）。旧挙動に戻すには `settings: ask_strategy: passthrough` を指定する
+
+### 追加
+
+- hook 入力から `permission_mode` / `session_id` / `cwd` を読取（Claude Code hooks 仕様準拠）
+- `settings: ask_strategy:`（degrade | passthrough | deny-all、既定 degrade）と `ask_degrade_default:`（deny | allow、既定 deny）
+- ask ルールの子ブロック `unattended: deny|allow` — 非対話時にルール単位で降格方向を指定
+- `hint` アクションの hook 出力を実装（permissionDecision allow + reason。従来は出力されず無言で通過していた）
+
+### 変更
+
+- deny/warn メッセージのサニタイズ切詰めを 200 → 600 バイトに拡大（承認手順の埋め込み対応）、UTF-8 境界セーフ化
+
 ## [0.1.0] - 2026-07-06
 
 初回リリース。
