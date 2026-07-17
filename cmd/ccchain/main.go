@@ -20,6 +20,7 @@ const repoURL = "https://github.com/fruitriin/EnumaElish"
 var flagPassthroughCommands = map[string]bool{
 	"diff":    true,
 	"approve": true,
+	"init":    true,
 }
 
 // cliArgs holds the parsed global CLI state.
@@ -144,7 +145,7 @@ func main() {
 	case "audit":
 		runAudit(c.configPath)
 	case "init":
-		runInit()
+		runInitDispatch(c.cmdArgs)
 	case "suggest":
 		runSuggest(c.configPath, c.cmdArgs)
 	case "generate-rules":
@@ -222,7 +223,7 @@ Commands:
   generate-rules   Generate rules from built-in semantics table
   audit            Display flat expansion of all rules
   approve          Approve a deny that degraded from an ask (human-side)
-  init             Generate default .ccchain.conf
+  init [--sentinel] Generate .ccchain.conf (default preset; --sentinel: deny-first)
   version          Print version
 
 Flags:
@@ -231,5 +232,31 @@ Flags:
   -v, --verbose              Verbose output
   -q, --quiet                Quiet output (errors only)
   --version                  Print version
-  -h, --help                 Show help`)
+  -h, --help                 Show help
+
+init subcommand flags:
+  --sentinel                 Emit the deny-first sentinel preset instead of
+                             the default one (curated for auto/dontAsk/headless
+                             modes where ask is not routed to a human).`)
+}
+
+// runInitDispatch parses ` + "`" + `ccchain init [--sentinel]` + "`" + ` arguments and delegates
+// to the matching preset writer. Unknown flags/positional args are rejected
+// so a typo in a security-sensitive flag never falls back to a lax default.
+func runInitDispatch(cmdArgs []string) {
+	sentinel := false
+	for _, a := range cmdArgs {
+		switch a {
+		case "--sentinel":
+			sentinel = true
+		default:
+			fmt.Fprintf(os.Stderr, "error: unknown argument for init: %q (only --sentinel is accepted)\n", a)
+			os.Exit(1)
+		}
+	}
+	if sentinel {
+		runInitSentinel()
+		return
+	}
+	runInit()
 }

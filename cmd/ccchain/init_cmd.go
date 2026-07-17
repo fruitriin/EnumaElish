@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/fruitriin/EnumaElish/internal/preset"
 )
 
 const defaultConfig = `# === ccchain Default Rules ===
@@ -130,23 +132,46 @@ allow Write
     node_modules/: deny  "Don't write to node_modules. Modify package.json"
 `
 
-func runInit() {
-	path := ".ccchain.conf"
+// sentinelConfig is the deny-first curated preset delivered by
+// `ccchain init --sentinel`. The canonical source lives in
+// internal/preset/sentinel.conf (embedded via go:embed) so the shipped
+// config and the config exercised by fixture tests are guaranteed to be
+// the same bytes — avoiding drift between the two.
+//
+// Rule provenance and the escape-hatch guidance are covered in
+// docs/knowhow/dsl-rule-design.md (args: regex pitfalls) and
+// Plan 0022 Phase 4 (the collection).
+var sentinelConfig = preset.Sentinel()
 
+
+// runInit writes the default (non-sentinel) preset to .ccchain.conf.
+// Preserved as-is for backward compatibility with existing docs and users
+// who rely on the untouched behavior of ` + "`ccchain init`" + `.
+func runInit() {
+	writePreset(".ccchain.conf", defaultConfig, "default")
+}
+
+// runInitSentinel writes the sentinel (deny-first) preset. See
+// sentinelConfig for the rule collection and rationale.
+func runInitSentinel() {
+	writePreset(".ccchain.conf", sentinelConfig, "sentinel")
+}
+
+func writePreset(path, content, presetName string) {
 	if _, err := os.Stat(path); err == nil {
 		fmt.Fprintf(os.Stderr, "%s already exists. Remove it first to reinitialize.\n", path)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(path, []byte(defaultConfig), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "error writing %s: %v\n", path, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("created %s\n", path)
+	fmt.Printf("created %s (%s preset)\n", path, presetName)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println("  1. Review and customize .ccchain.conf")
+	fmt.Printf("  1. Review and customize %s\n", path)
 	fmt.Println("  2. Add to .claude/settings.json:")
 	fmt.Println(`     "hooks": {`)
 	fmt.Println(`       "PreToolUse": [{`)
@@ -156,4 +181,10 @@ func runInit() {
 	fmt.Println(`     }`)
 	fmt.Println("  3. Run 'ccchain check' to validate")
 	fmt.Println("  4. Run 'ccchain audit' to see expanded rules")
+	if presetName == "sentinel" {
+		fmt.Println()
+		fmt.Println("The sentinel preset is deny-first: destructive patterns produce a deny")
+		fmt.Println("with an explanatory message (why + how to accomplish safely). Approvals")
+		fmt.Println("must come from the human owner running the command interactively.")
+	}
 }
