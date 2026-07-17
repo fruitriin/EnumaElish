@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fruitriin/EnumaElish/internal/approve"
 	"github.com/fruitriin/EnumaElish/internal/dsl"
 	"github.com/fruitriin/EnumaElish/internal/eval"
 )
@@ -92,6 +93,10 @@ func runHookPre(configPath string, defaultAction string) {
 	}
 
 	var result *eval.Result
+	// bashCommand carries the raw Bash command through the evaluate → resolve
+	// flow so that the approval-token bookkeeping (Phase 3) can be run against
+	// exactly what the agent submitted, not a partially-normalized string.
+	var bashCommand string
 
 	switch {
 	case ti.ToolName == "Bash":
@@ -103,6 +108,7 @@ func runHookPre(configPath string, defaultAction string) {
 		if bi.Command == "" {
 			os.Exit(0)
 		}
+		bashCommand = bi.Command
 		r, err := eval.Evaluate(bi.Command, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ccchain: parse warning (allowing): %v\n", err)
@@ -134,12 +140,102 @@ func runHookPre(configPath string, defaultAction string) {
 		os.Exit(0)
 	}
 
+	// Phase 3 approval-token: for Bash commands whose ask *would* degrade to
+	// deny, consult the approve store first. A live matching approval turns
+	// the result into an allow-with-warn (one-shot consumed). Approve is
+	// only meaningful when the mode is non-interactive AND the evaluation
+	// produced an ask; in every other case the approve lookup is a no-op.
+	preAskAction := result.Action
+	if bashCommand != "" && preAskAction == dsl.ActionAsk &&
+		eval.ClassifyMode(ti.PermissionMode) == eval.ModeNonInteractive {
+		if consumed, entry := lookupApproval(bashCommand, ti.CWD, ti.SessionID); consumed {
+			result = approvalAllowResult(entry)
+			emitResponse(buildHookResponse(result))
+			return
+		}
+	}
+
 	// Resolve ask against the runtime permission mode (Plan 0022 Phase 2):
 	// in modes where a dialog cannot reach a human, ask degrades to deny+hint
 	// (default) or warn per rule `unattended:` / settings.
 	result = eval.ResolveAsk(result, ti.PermissionMode, cfg.Settings)
 
+	// If the ask degraded to deny (i.e. a non-interactive block that a human
+	// could still approve), record the request so `ccchain approve --last`
+	// has something to grant. Interactive ask stays ask — no pending entry.
+	if bashCommand != "" && preAskAction == dsl.ActionAsk && result.Action == dsl.ActionDeny {
+		recordPendingApproval(bashCommand, ti.CWD, ti.SessionID, result)
+	}
+
 	emitResponse(buildHookResponse(result))
+}
+
+// lookupApproval consults the store for a live, matching approval and
+// consumes it. Store failures are logged and treated as "no approval" — the
+// approve store is best-effort; a broken store must never open a hole in the
+// deny path (the caller falls through to normal degradation).
+func lookupApproval(command, cwd, sessionID string) (bool, *approve.ApprovedEntry) {
+	dir, err := approve.DefaultDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: approve store dir error (skipping): %v\n", err)
+		return false, nil
+	}
+	store := approve.NewStore(dir)
+	ok, entry, err := store.CheckApproved(command, cwd, sessionID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: approve check error (skipping): %v\n", err)
+		return false, nil
+	}
+	return ok, entry
+}
+
+// recordPendingApproval appends a pending entry for a downgrade-deny. Any
+// error is logged; the deny itself has already been decided so a store
+// failure must not change the outcome for the agent.
+//
+// When the command is not eligible for approval (dynamic expansion), the
+// deny message is amended to explain why the human path is unavailable.
+func recordPendingApproval(command, cwd, sessionID string, result *eval.Result) {
+	hash, canonical, err := approve.Normalize(command)
+	if err != nil {
+		if err == approve.ErrDynamicCommand {
+			result.Message = joinDenyMessage(result.Message,
+				"ccchain: this command contains dynamic expansion ($VAR, $(...), backticks) and is not eligible for `ccchain approve`. Rewrite it with literal arguments, or run it in an interactive session.")
+		}
+		return
+	}
+	dir, derr := approve.DefaultDir()
+	if derr != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: approve store dir error (skipping pending record): %v\n", derr)
+		return
+	}
+	store := approve.NewStore(dir)
+	if err := store.RecordPending(approve.PendingEntry{
+		Hash:      hash,
+		Command:   canonical,
+		CWD:       cwd,
+		SessionID: sessionID,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "ccchain: approve pending record error: %v\n", err)
+	}
+}
+
+// approvalAllowResult builds the eval result used when an approval was
+// consumed. It surfaces as `permissionDecision: "allow"` with a reason,
+// matching the way warn/hint land caution text in the agent's context.
+func approvalAllowResult(entry *approve.ApprovedEntry) *eval.Result {
+	reason := "ccchain: approved via `ccchain approve` (one-shot consumed)"
+	if entry != nil && entry.Hash != "" {
+		reason = fmt.Sprintf("ccchain: approved via `ccchain approve` (one-shot consumed, hash %s)", entry.Hash[:min(8, len(entry.Hash))])
+	}
+	return &eval.Result{Action: dsl.ActionWarn, Message: reason}
+}
+
+func joinDenyMessage(orig, extra string) string {
+	if orig == "" {
+		return extra
+	}
+	return orig + "\n" + extra
 }
 
 // buildHookResponse maps an evaluation result to the hook JSON response.

@@ -18,7 +18,8 @@ const repoURL = "https://github.com/fruitriin/EnumaElish"
 // fail loudly instead of being silently ignored (a mistyped security flag
 // must never degrade into a false safety signal).
 var flagPassthroughCommands = map[string]bool{
-	"diff": true,
+	"diff":    true,
+	"approve": true,
 }
 
 // cliArgs holds the parsed global CLI state.
@@ -109,10 +110,13 @@ func main() {
 	}
 	if c.showHelp {
 		// After a subcommand, --help shows the subcommand-specific usage
-		// (currently only diff has one).
-		if c.command == "diff" {
+		// (diff and approve have their own).
+		switch c.command {
+		case "diff":
 			printDiffUsage()
-		} else {
+		case "approve":
+			printApproveUsage()
+		default:
 			printUsage()
 		}
 		os.Exit(0)
@@ -151,6 +155,8 @@ func main() {
 		runTest(c.configPath, c.defaultAction, c.cmdArgs)
 	case "diff":
 		runDiff(c.defaultAction, c.cmdArgs)
+	case "approve":
+		runApprove(c.cmdArgs)
 	case "version":
 		fmt.Printf("ccchain %s — Claude Code Chain (%s)\n", version, repoURL)
 	case "":
@@ -215,6 +221,7 @@ Commands:
   detect           Auto-detect project type and suggest rules
   generate-rules   Generate rules from built-in semantics table
   audit            Display flat expansion of all rules
+  approve          Approve a deny that degraded from an ask (human-side)
   init             Generate default .ccchain.conf
   version          Print version
 
