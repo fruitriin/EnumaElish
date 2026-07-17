@@ -148,3 +148,9 @@
 **今の見立て**: Phase 3 の設計判断は妥当（import cycle 回避で hook.go がオーケストレータ、承認消費は warn 経路で可視化）。ADDF テスト 2 スイート失敗は既知の downstream 文脈問題で無関係。
 **次の自分へ**: (1) Phase 3 worktree でコミット → main に squash マージ → 全テスト再実行、(2) Phase 4 / 0025 の完了通知を待って同様に統合（Phase 4 は sentinel に ccchain approve の deny ルールを含むはず — Phase 3 との整合を確認）、(3) Phase 5 ドキュメント（CHANGELOG は Phase 1/2 分まで記載済み、Phase 3/4 分の追記必要）、(4) 品質ゲート Stage 2 はペルソナ並列（unattended 自走時ルール）+ セキュリティレビュー + doc レビュー。knowhow 候補4件はエージェント報告に記録済み（syntax.Printer の quote 保持、JSONL lock パターン、hook 統合順序、outer ccchain 下のテスト実行注意）— 完了処理でまとめて記録する。
 **気になっていること**: コンテキスト 222k。compaction が来たらこの日記と Progress のチェックリスト、TODO の Agent 3体の状態（Phase3 完了/Phase4 実行中/0025 実行中）から再構築する。worktree パスは .claude/worktrees/agent-*。
+
+##### 2026-07-17 — Plan 0025 統合完了、残るは Phase 4 のみ
+**やったこと**: Phase 3（approve）と Plan 0025（for ループ部分解析 + unanalyzable_action）を main に squash マージ。0025 は worktree base が古く（v0.1.0 直後）、ast.go / parser.go で Phase 2 との衝突を手動解消（Settings に AskStrategy/AskDegradeDefault と UnanalyzableAction を併存、パーサー分岐は3ケース並べた）。全テスト・vet 通過。ADDF 実 conf での実地確認も完了（literal for ループが head ルールに従い allow — ドッグフーディングのフィードバックループが閉じた）。make smell は既存4件（scope_test.go の Ignored Test）のみで新規スメルなし。
+**今の見立て**: Plan 0025 の実装エージェントが glob 検出（for f in *.log の誤展開防止）を独自に追加していたのは良い判断。Phase 4（sentinel）はまだ実行中。
+**次の自分へ**: (1) Phase 4 完了通知 → 統合（sentinel の approve deny ルールと Phase 3 の整合確認、init_cmd.go/main.go の衝突可能性）、(2) Phase 5 ドキュメント: README 互換表 + sentinel クイックスタート + docs/reference（ask_strategy/approve/sentinel/unanalyzable_action、en+ja）+ CHANGELOG に Phase 3/4 と 0025 追記 + roadmap 更新、(3) 品質ゲート Stage 2: ペルソナ並列 + security + doc レビュー（0022 と 0025 まとめて）、(4) 完了処理: knowhow（エージェント報告に候補7件）、Plan status 反映、Feedback、アーカイブ。
+**気になっていること**: 既存スメル4件（symlink テストの条件スキップ）は主題外 — 品質ゲート後の観察として Feedback か新 Plan 判断。バージョンは 0.2.0 で進める（v1.0.0 ではなく）。
