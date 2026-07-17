@@ -402,6 +402,11 @@ ask git-branch-delete
 - 未指定の場合、方向は [`ask_degrade_default`](#ask_degrade_default) →
   組込みの `deny` の順でフォールバック
 
+> **`warn` について**: `unattended: allow` は `warn` に降格します
+> （`permissionDecision: allow` + Claude のコンテキストに残る理由文）。これは
+> 「オーナーに警告を出しつつ実行させる」挙動そのものです。ccchain は
+> `unattended: warn` という別キーワードを導入しません — 意味論が同じだからです。
+
 ## 複数コマンドの一行記法
 
 カンマ区切りで同じルールを共有:

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/fruitriin/EnumaElish/internal/dsl"
@@ -170,55 +171,126 @@ func main() {
 }
 
 func runCheck(configPath string, verbose, quiet bool) {
-	cfg, err := dsl.LoadConfig(configPath)
-	if err != nil {
+	if err := runCheckWithWriters(os.Stdout, os.Stderr, configPath, verbose, quiet); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	if !quiet {
-		ruleCount := len(cfg.Rules) + len(cfg.PreRules) + len(cfg.PostRules)
-		fmt.Printf("config OK: %d templates, %d rules\n", len(cfg.Templates), ruleCount)
+// runCheckWithWriters is the testable core of runCheck: it accepts explicit
+// writers for stdout/stderr so unit tests can capture output without touching
+// process-global state, and returns errors instead of calling os.Exit.
+func runCheckWithWriters(stdout, stderr io.Writer, configPath string, verbose, quiet bool) error {
+	cfg, err := dsl.LoadConfig(configPath)
+	if err != nil {
+		return err
+	}
 
-		// v0.2.1: warn about the fallback:ask + ask_strategy:degrade combo that
-		// silently turns unlisted commands into deny in auto/dontAsk modes
-		// (Issue #15). This is a legitimate behavior of the ask degrade
-		// framework, but it needs to be surfaced at check time so users can
-		// choose to opt out (ask_strategy: passthrough) or list more allow
-		// rules instead of hitting it at runtime.
-		if cfg.Settings != nil &&
-			cfg.Settings.Fallback == dsl.ActionAsk &&
-			(cfg.Settings.AskStrategy == "" || cfg.Settings.AskStrategy == dsl.AskStrategyDegrade) {
-			fmt.Fprintln(os.Stderr, "warning: settings.fallback: ask + ask_strategy: degrade (default)")
-			fmt.Fprintln(os.Stderr, "  In auto / dontAsk permission modes, every command not explicitly")
-			fmt.Fprintln(os.Stderr, "  covered by a rule will degrade to deny (Plan 0022 Phase 2).")
-			fmt.Fprintln(os.Stderr, "  To opt out: set settings.ask_strategy: passthrough (v0.1 behavior)")
-			fmt.Fprintln(os.Stderr, "  or add allow rules for the utilities you rely on (sed, awk, cut, ...).")
-			fmt.Fprintln(os.Stderr, "  Docs: https://github.com/fruitriin/EnumaElish/blob/main/docs/reference/dsl.md")
+	if quiet {
+		return nil
+	}
+
+	ruleCount := len(cfg.Rules) + len(cfg.PreRules) + len(cfg.PostRules)
+	fmt.Fprintf(stdout, "config OK: %d templates, %d rules\n", len(cfg.Templates), ruleCount)
+
+	// v0.2.1: warn about the fallback:ask + ask_strategy:degrade combo that
+	// silently turns unlisted commands into deny in auto/dontAsk modes
+	// (Issue #15). This is a legitimate behavior of the ask degrade
+	// framework, but it needs to be surfaced at check time so users can
+	// choose to opt out (ask_strategy: passthrough) or list more allow
+	// rules instead of hitting it at runtime.
+	if cfg.Settings != nil &&
+		cfg.Settings.Fallback == dsl.ActionAsk &&
+		(cfg.Settings.AskStrategy == "" || cfg.Settings.AskStrategy == dsl.AskStrategyDegrade) {
+		fmt.Fprintln(stderr, "warning: settings.fallback: ask + ask_strategy: degrade (default)")
+		fmt.Fprintln(stderr, "  In auto / dontAsk permission modes, every command not explicitly")
+		fmt.Fprintln(stderr, "  covered by a rule will degrade to deny (Plan 0022 Phase 2).")
+		fmt.Fprintln(stderr, "  To opt out: set settings.ask_strategy: passthrough (v0.1 behavior)")
+		fmt.Fprintln(stderr, "  or add allow rules for the utilities you rely on (sed, awk, cut, ...).")
+		fmt.Fprintln(stderr, "  Docs: https://github.com/fruitriin/EnumaElish/blob/main/docs/reference/dsl.md")
+	}
+
+	if verbose {
+		// Plan 0028: show the currently-effective settings block so operators
+		// can see at a glance which knobs are set (fallback / ask_strategy /
+		// ask_degrade_default / unanalyzable_action / scope_violation / ...).
+		// Written to stdout — verbose is an explicit opt-in, and stdout keeps
+		// the digest greppable alongside the "config OK" line above.
+		writeSettingsDigest(stdout, cfg)
+
+		for _, t := range cfg.Templates {
+			fmt.Fprintf(stdout, "  template: %s", t.Name)
+			if t.Extends != "" {
+				fmt.Fprintf(stdout, " (extends %s)", t.Extends)
+			}
+			if t.Next != "" {
+				fmt.Fprintf(stdout, " (next: %s)", t.Next)
+			}
+			fmt.Fprintln(stdout)
 		}
-
-		if verbose {
-			for _, t := range cfg.Templates {
-				fmt.Printf("  template: %s", t.Name)
-				if t.Extends != "" {
-					fmt.Printf(" (extends %s)", t.Extends)
-				}
-				if t.Next != "" {
-					fmt.Printf(" (next: %s)", t.Next)
-				}
-				fmt.Println()
-			}
-			for _, r := range cfg.PreRules {
-				fmt.Printf("  [pre]  %s %v\n", r.Action, r.Commands)
-			}
-			for _, r := range cfg.PostRules {
-				fmt.Printf("  [post] %s %v\n", r.Action, r.Commands)
-			}
-			for _, r := range cfg.Rules {
-				fmt.Printf("  [rule] %s %v\n", r.Action, r.Commands)
-			}
+		for _, r := range cfg.PreRules {
+			fmt.Fprintf(stdout, "  [pre]  %s %v\n", r.Action, r.Commands)
+		}
+		for _, r := range cfg.PostRules {
+			fmt.Fprintf(stdout, "  [post] %s %v\n", r.Action, r.Commands)
+		}
+		for _, r := range cfg.Rules {
+			fmt.Fprintf(stdout, "  [rule] %s %v\n", r.Action, r.Commands)
 		}
 	}
+	return nil
+}
+
+// writeSettingsDigest renders the effective settings for `ccchain check -v`.
+// The digest is intentionally exhaustive — every knob that changes hook
+// behaviour (fallback / ask_strategy / ask_degrade_default /
+// unanalyzable_action / scope_violation / strict_config_error /
+// max_context_depth / max_rules_per_cmd / workspace) is listed so a operator
+// diagnosing why an ask degraded (or why a config is stricter than they
+// expected) can find the answer in one screen instead of hunting through
+// multiple .conf files.
+//
+// The digest sources values from cfg.Settings (which the parser has already
+// merged with DefaultSettings via mergeConfigs); we never fall back to
+// DefaultSettings() here because the parser is authoritative and a nil
+// Settings block on a loaded config would be a bug worth surfacing loudly.
+func writeSettingsDigest(w io.Writer, cfg *dsl.Config) {
+	fmt.Fprintln(w, "  settings:")
+	if cfg == nil || cfg.Settings == nil {
+		fmt.Fprintln(w, "    (no settings block; effective defaults not resolved)")
+		return
+	}
+	s := cfg.Settings
+	fmt.Fprintf(w, "    fallback:            %s\n", displayAction(s.Fallback))
+	fmt.Fprintf(w, "    ask_strategy:        %s\n", displayString(s.AskStrategy, dsl.AskStrategyDegrade))
+	fmt.Fprintf(w, "    ask_degrade_default: %s\n", displayAction(s.AskDegradeDefault))
+	fmt.Fprintf(w, "    unanalyzable_action: %s\n", displayAction(s.UnanalyzableAction))
+	fmt.Fprintf(w, "    scope_violation:     %s\n", displayAction(s.ScopeViolation))
+	fmt.Fprintf(w, "    strict_config_error: %t\n", s.StrictConfigError)
+	fmt.Fprintf(w, "    max_context_depth:   %d\n", s.MaxContextDepth)
+	fmt.Fprintf(w, "    max_rules_per_cmd:   %d\n", s.MaxRulesPerCmd)
+	if len(s.WorkspacePaths) == 0 {
+		fmt.Fprintln(w, "    workspace:           (unset)")
+	} else {
+		fmt.Fprintf(w, "    workspace:           %v\n", s.WorkspacePaths)
+	}
+}
+
+func displayAction(a dsl.Action) string {
+	if a == "" {
+		return "(unset)"
+	}
+	return string(a)
+}
+
+func displayString(v, fallback string) string {
+	if v == "" {
+		if fallback == "" {
+			return "(unset)"
+		}
+		return fallback + " (default)"
+	}
+	return v
 }
 
 func printUsage() {

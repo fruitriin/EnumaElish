@@ -425,6 +425,12 @@ Rules:
 - When omitted, the direction falls back to [`ask_degrade_default`](#ask_degrade_default)
   → built-in `deny`
 
+> **Note on `warn`.** `unattended: allow` degrades to `warn` (`permissionDecision:
+> allow` + a reason string that lands in Claude's context). That is exactly the
+> "warn the operator but let it through" behaviour some users ask for; ccchain
+> does not introduce a separate `unattended: warn` keyword because the
+> semantics are identical.
+
 ## Multiple Commands Per Rule
 
 Comma-separated commands share the same rule:

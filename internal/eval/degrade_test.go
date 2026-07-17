@@ -140,6 +140,49 @@ func TestResolveAsk_UnattendedSurvivesArgsMatch(t *testing.T) {
 	}
 }
 
+// TestDegradeNoticesIncludeDocsURL guards Plan 0028 Phase 3: both degrade
+// hints must carry the ask_strategy docs URL so an operator seeing the notice
+// for the first time has a one-hop path to the full reference. If someone
+// removes the URL as "noise", the missing docs pointer would silently make
+// the ask degrade feel more opaque than it needs to be.
+func TestDegradeNoticesIncludeDocsURL(t *testing.T) {
+	// Deny direction — the built-in default under ask_strategy: degrade.
+	in := &Result{Action: dsl.ActionAsk, Message: "container op"}
+	got := ResolveAsk(in, "auto", dsl.DefaultSettings())
+	if got.Action != dsl.ActionDeny {
+		t.Fatalf("expected deny degrade, got %s", got.Action)
+	}
+	if !strings.Contains(got.Message, askStrategyDocsURL) {
+		t.Errorf("deny degrade notice missing docs URL %q: got %q", askStrategyDocsURL, got.Message)
+	}
+
+	// Allow direction — degrades to warn via rule-level unattended: allow.
+	in2 := &Result{Action: dsl.ActionAsk, Message: "docker op", Unattended: dsl.ActionAllow}
+	got2 := ResolveAsk(in2, "auto", dsl.DefaultSettings())
+	if got2.Action != dsl.ActionWarn {
+		t.Fatalf("expected warn degrade, got %s", got2.Action)
+	}
+	if !strings.Contains(got2.Message, askStrategyDocsURL) {
+		t.Errorf("allow degrade notice missing docs URL %q: got %q", askStrategyDocsURL, got2.Message)
+	}
+}
+
+// TestDegradeNoticeCarriesNoToken guards Plan 0022 Phase 3's threat model:
+// the hint lands in the agent's context, so it must never contain approval
+// tokens or hashes. The URL addition in Plan 0028 must not accidentally
+// break that invariant.
+func TestDegradeNoticeCarriesNoToken(t *testing.T) {
+	in := &Result{Action: dsl.ActionAsk}
+	got := ResolveAsk(in, "auto", dsl.DefaultSettings())
+	// A token would look like a hex string or a query param; the hint should
+	// only contain the URL path, the approve command name, and prose.
+	for _, forbidden := range []string{"?token=", "approve=", "--token"} {
+		if strings.Contains(got.Message, forbidden) {
+			t.Errorf("hint must not carry token-like content %q: got %q", forbidden, got.Message)
+		}
+	}
+}
+
 func TestResolveAskSanitizesPermissionMode(t *testing.T) {
 	// permission_mode comes from external JSON — it must be sanitized before
 	// interpolation into the reason (prompt injection defense).

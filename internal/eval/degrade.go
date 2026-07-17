@@ -12,6 +12,13 @@ import (
 // approve itself (Plan 0022 Phase 3 threat model).
 const approveCommand = "ccchain approve --last"
 
+// askStrategyDocsURL is the canonical reference for the ask degrade behaviour
+// (Plan 0028). Included in degrade notices so an operator seeing the hint for
+// the first time has a one-hop path to the full explanation. URL only — no
+// commands, tokens, or query strings — so the same Plan 0022 threat model
+// that keeps `ccchain approve` out of the hint is preserved.
+const askStrategyDocsURL = "https://github.com/fruitriin/EnumaElish/blob/main/docs/reference/dsl.md#ask_strategy"
+
 // ResolveAsk resolves an ask result at the hook layer using the runtime
 // permission mode (Plan 0022 Phase 2). In modes where an ask dialog cannot
 // reach a human (auto, dontAsk, unknown), ask silently turns into a classifier
@@ -89,8 +96,9 @@ func degradeDenyNotice(permissionMode string) string {
 	}
 	return fmt.Sprintf(
 		"ccchain: this command requires human approval, but the current mode (%s) cannot show a confirmation dialog. "+
-			"To approve: re-run in an interactive session, or have the owner run `%s` in their own terminal, then retry the command.",
-		sanitizeForMessage(permissionMode), approveCommand)
+			"To approve: re-run in an interactive session, or have the owner run `%s` in their own terminal, then retry the command.\n"+
+			"docs: %s",
+		sanitizeForMessage(permissionMode), approveCommand, askStrategyDocsURL)
 }
 
 // degradeAllowNotice records that an ask rule was let through unattended.
@@ -99,8 +107,9 @@ func degradeAllowNotice(permissionMode string) string {
 		permissionMode = "unknown"
 	}
 	return fmt.Sprintf(
-		"ccchain: ask rule degraded to allow (unattended: allow) because the current mode (%s) cannot show a confirmation dialog. Proceeding with caution noted.",
-		sanitizeForMessage(permissionMode))
+		"ccchain: ask rule degraded to allow (unattended: allow) because the current mode (%s) cannot show a confirmation dialog. Proceeding with caution noted.\n"+
+			"docs: %s",
+		sanitizeForMessage(permissionMode), askStrategyDocsURL)
 }
 
 func joinMessage(orig, notice string) string {

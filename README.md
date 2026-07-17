@@ -106,6 +106,62 @@ Claude Code の [permission_mode](https://docs.claude.com/en/docs/claude-code/pe
 
 出力形式はすべて exit 0 + `hookSpecificOutput.permissionDecision` JSON（[Hook 出力の詳細](https://fruitriin.github.io/EnumaElish/ja/reference/config#hook-出力)）。
 
+## auto モードで運用する場合
+
+`auto` / `dontAsk` / `headless`（`claude -p`）など**確認ダイアログが人間に届かない**モードで cron ループ・`/goal` 自走・CI ジョブに ccchain を組み込むときは、`ask` の温度感を設計してから流し込むと事故を減らせます。
+
+### 3 つのつまみ
+
+| 設定 | 値 | 意味 |
+|---|---|---|
+| `settings: ask_strategy` | `degrade`（既定） | 対話モードでは `ask`、非対話モードでは `deny + hint` または `warn + hint` に降格 |
+|  | `passthrough` | モードを問わず `ask` をそのまま返す（v0.1 挙動。auto の classifier を信頼するケース） |
+|  | `deny-all` | モードを問わずすべての `ask` を `deny + hint` に格上げ（`unattended: allow` があっても deny。CI 向け） |
+| `settings: ask_degrade_default` | `deny`（既定） | `ask_strategy: degrade` のとき、ルール個別指定がなければ `deny + hint` に落とす（オーナーが `ccchain approve --last` で承認するまでブロック） |
+|  | `allow` | 非対話モードでは `warn`（許可 + 注意コメント）に落とす。「確認が欲しい」がゲートではなくリマインダーの意味の場合 |
+| ルール子ブロック `unattended:` | `deny` / `allow` | 該当 `ask` ルール単位で降格方向を上書き。`ask_strategy: passthrough` 下では無視、`deny-all` 下では allow 指定でも deny |
+
+**`unattended: allow` は「warn 温度で通す」動作**です。すなわち `permissionDecision: allow` + 理由文を Claude に返しつつ実行させる — Issue #16 で提案された「`warn`（警告を出して通す）」はこの挙動で既に実現されています（追加のキーワードは導入しません）。
+
+### 典型的な conf 例
+
+```
+settings:
+  ask_strategy: degrade
+  ask_degrade_default: deny
+
+preToolUse
+  ask git-push  "confirm push"
+    unattended: allow          # auto でも通して warn を残す（reminder 用途）
+  ask git-reset  "confirm reset"
+    unattended: deny           # 明示（既定と同じ、意図の明示）
+```
+
+- `git push` は cron ループでも通したい / でも Claude のコンテキストに「これは push だったぞ」と残したい → `unattended: allow`
+- `git reset --hard` は自律運用で絶対に流したくない → `unattended: deny`（オーナーが承認するまで進まない）
+
+### 複合コマンド `A && B && git push` の注意
+
+- `A && B && git push` は **1 回の PreToolUse で全体が評価**されます。`A` / `B` の判定に関係なく、末尾の `git push` が deny になるとチェーン全体がブロックされ、`A` も実行されません
+- push だけ非対話で通したい場合は **push を独立コマンドとして分離**します（例: `A && B` を先に実行し、成功時に別のツール呼び出しで `git push`）。「先に副作用が走ってから push が止まる」動きにはなりません — 安全側ですが、初見だと戸惑うポイントです
+
+### `ccchain check --verbose` で現在の設定を確認する
+
+```
+ccchain check -v
+config OK: 0 templates, 3 rules
+  settings:
+    fallback:            ask
+    ask_strategy:        degrade
+    ask_degrade_default: deny
+    unanalyzable_action: deny
+    scope_violation:     ask
+    strict_config_error: false
+    ...
+```
+
+有効な設定が 1 画面にまとまるので、「なぜこの `ask` が deny に落ちたのか」の追跡が速くなります。降格 deny の hint には [`ask_strategy` リファレンス](https://fruitriin.github.io/EnumaElish/ja/reference/dsl#ask_strategy) の URL が埋め込まれ、初見の運用者でも 1 ホップで詳細に辿り着けます。
+
 ## DSL サンプル
 
 ```

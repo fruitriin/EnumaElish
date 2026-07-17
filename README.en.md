@@ -108,6 +108,62 @@ The degrade direction is controlled by the global `settings: ask_strategy: degra
 
 All actions emit exit 0 + `hookSpecificOutput.permissionDecision` JSON ([Hook Output details](https://fruitriin.github.io/EnumaElish/reference/config#hook-output)).
 
+## Operating in auto mode
+
+When you wire ccchain into cron loops, `/goal` self-drive, or CI jobs — where the permission dialog cannot reach a human (`auto` / `dontAsk` / `headless` via `claude -p`) — decide the *temperature* of each `ask` before you hand the wheel to the agent. Three knobs cover the space:
+
+### The three knobs
+
+| Setting | Value | Meaning |
+|---|---|---|
+| `settings: ask_strategy` | `degrade` (default) | Pass `ask` through in interactive modes; degrade to `deny + hint` or `warn + hint` in non-interactive modes |
+|  | `passthrough` | Emit `ask` unchanged regardless of mode (v0.1 behaviour; trust auto's classifier) |
+|  | `deny-all` | Escalate every `ask` to `deny + hint` in every mode, even for rules that wrote `unattended: allow`. CI-friendly |
+| `settings: ask_degrade_default` | `deny` (default) | Under `ask_strategy: degrade`, rules with no explicit direction fall to `deny + hint`. The owner runs `ccchain approve --last` to unblock |
+|  | `allow` | Fall to `warn` (allow + caution message). Use when "please confirm" is a reminder, not a gate |
+| Per-rule `unattended:` | `deny` / `allow` | Override the direction for a single `ask` rule. Ignored under `passthrough`; every `allow` is silently overridden under `deny-all` |
+
+**`unattended: allow` is the "warn-temperature pass-through"** — it emits `permissionDecision: allow` plus a reason string, so Claude gets both permission and a note explaining why the call was flagged. Issue #16's suggested `warn` keyword is exactly this behaviour, so we do not introduce a new keyword; we just document the mapping.
+
+### A typical conf
+
+```
+settings:
+  ask_strategy: degrade
+  ask_degrade_default: deny
+
+preToolUse
+  ask git-push  "confirm push"
+    unattended: allow          # let it through under auto, but leave a warn note
+  ask git-reset  "confirm reset"
+    unattended: deny           # explicit (same as the built-in default; documents intent)
+```
+
+- `git push` under a cron loop: let it through, but land "this was a push" in Claude's context → `unattended: allow`
+- `git reset --hard` under autonomous drive: never let this through unattended → `unattended: deny` (waits for owner approval via `ccchain approve --last`)
+
+### Compound commands `A && B && git push`
+
+- `A && B && git push` is evaluated **as a single PreToolUse call**. If `git push` denies, the whole chain is blocked — `A` and `B` never run either. There is no "the side effects fire, then the push stops" partial execution
+- If you want `git push` to pass unattended while `A` still runs, **split it into a separate tool call** (e.g. run `A && B` first, then a distinct `git push` call). Safer, but a common first-time surprise
+
+### Inspect the current settings with `ccchain check --verbose`
+
+```
+ccchain check -v
+config OK: 0 templates, 3 rules
+  settings:
+    fallback:            ask
+    ask_strategy:        degrade
+    ask_degrade_default: deny
+    unanalyzable_action: deny
+    scope_violation:     ask
+    strict_config_error: false
+    ...
+```
+
+The digest fits on one screen, so "why did this `ask` degrade to `deny`?" is a one-step lookup. The degraded-deny hint includes a link to the [`ask_strategy` reference](https://fruitriin.github.io/EnumaElish/reference/dsl#ask_strategy) so first-time operators can jump to the full explanation in one hop.
+
 ## DSL Example
 
 ```
