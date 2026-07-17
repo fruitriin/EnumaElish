@@ -7,6 +7,11 @@ v1.0.0 までは 0.x 帯で破壊的変更を許容する（後方互換の保�
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-17
+
+Plan 0022（auto モード時代の deny-first 安全網）と Plan 0025（リテラル for ループの部分解析）を投入。
+hook 出力形式の刷新を含む破壊的変更あり。詳細は [`docs/reference/approve.md`](docs/reference/approve.md)・[`docs/reference/sentinel.md`](docs/reference/sentinel.md)・[`docs/reference/dsl.md`](docs/reference/dsl.md) を参照。
+
 ### 破壊的変更
 
 - **PreToolUse hook の出力形式を現代化**（Plan 0022 Phase 1）: 全アクションを exit 0 + `hookSpecificOutput.permissionDecision` JSON（allow / deny / ask）に統一。deny の旧形式（exit code 2 + stderr）は廃止。Claude Code は両形式をサポートするが混在は不可のため、新 JSON 形式のみを出力する
@@ -27,6 +32,8 @@ v1.0.0 までは 0.x 帯で破壊的変更を許容する（後方互換の保�
 ### 変更
 
 - deny/warn メッセージのサニタイズ切詰めを 200 → 600 バイトに拡大（承認手順の埋め込み対応）、UTF-8 境界セーフ化
+
+[0.2.0]: https://github.com/fruitriin/EnumaElish/releases/tag/v0.2.0
 
 ## [0.1.0] - 2026-07-06
 
