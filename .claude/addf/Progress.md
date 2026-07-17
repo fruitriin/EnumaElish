@@ -96,7 +96,25 @@
 
 ## タスク
 
-（現在タスクなし）
+### 現在のタスク: Plan 0028（Issue #16）+ Plan 0029（Issue #17） — /goal 指示
+
+#### サブタスクチェックリスト
+
+- [ ] Plan 0028: ask_strategy 可視化・docs 導線強化（README + check --verbose + hint URL + 複合コマンド注記）
+- [ ] Plan 0029: hook 評価ログ + ccchain stats（internal/evallog/ 新設、stats サブコマンド、settings.log:）
+- [ ] 統合・全テスト・vet・build
+- [ ] v0.2.2 リリース（両方入れば minor は据え置き、追加機能のみで patch bump）
+- [ ] Issue #16/#17 に完了コメント
+- [ ] TODO / Plan 状態反映、knowhow、Feedback、コミット
+
+#### 日記
+
+##### 2026-07-17 — /goal で #16/#17 目標受領、並列 worktree 委譲
+**やったこと**: v0.2.1 リリース直後に /goal で Plan 0028/0029 の実装指示。コンテキスト 461k で極端。まず本日記を書いてから並列 worktree エージェントに委譲する。
+**今の見立て**: Plan 0028 はドキュメント中心（実装は Plan 0022 Phase 2 で既存）で小規模。Plan 0029 は internal/approve/ のパターンを流用できる新機能で中規模。両者ファイル集合の重なりは小さい（0028 は docs/README + check の verbose + degrade.go の hint reason、0029 は cmd/ccchain/main.go の switch + internal/evallog/ + docs）。並列化で衝突しにくい。
+**次の自分へ**: 委譲エージェントの完了通知が来たら、順に統合 → 全テスト → v0.2.2 リリース。コンテキストが致命的に厳しいので、compaction が来ても Progress.md からこの経緯が拾える形で残す。approve --last の連続実行は継続（sentinel が git push を止めるのは仕様どおり）。
+**気になっていること**: v0.2.1 直後の連続リリースなので、CHANGELOG は 0.2.1 と別立てで [0.2.2] にする（あるいは Unreleased に集約して次リリースにまとめる、が本命）。
+
 
 > 新しいタスク開始時は以下の構造で記録する:
 > `### 現在のタスク: <Plan 名>` → `#### サブタスクチェックリスト` → `#### 日記`（運用ルール 3.5 の4項目書式）
